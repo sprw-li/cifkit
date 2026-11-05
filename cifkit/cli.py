@@ -39,7 +39,17 @@ def _print_json(data) -> None:
 
 def _load_spec(args) -> TaskSpec:
     if getattr(args, "spec", None):
-        raw = json.loads(Path(args.spec).read_text(encoding="utf-8"))
+        text = Path(args.spec).read_text(encoding="utf-8-sig")  # tolerate PowerShell 5.1 BOM
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"error: --spec 不是合法 JSON（{args.spec}）：{exc.msg} at line {exc.lineno} col {exc.colno}. "
+                "Windows PowerShell 5.1 的 `>` / Out-File 默认写 UTF-16/BOM，请用 "
+                "`Set-Content -Encoding utf8` 或本工具接受的 utf-8-sig 保存。"
+            ) from exc
+        if not isinstance(raw, dict):
+            raise SystemExit(f"error: --spec 顶层必须是 JSON 对象，得到 {type(raw).__name__}")
         known = {f.name for f in TaskSpec.__dataclass_fields__.values()}
         spec = TaskSpec(**{k: v for k, v in raw.items() if k in known})
         spec.spec_inputs = raw  # type: ignore[attr-defined]
@@ -82,10 +92,15 @@ def cmd_pipeline(args) -> int:
     from cifkit.pipeline import run
 
     spec = _load_spec(args)
-    result = run(spec, ingest_run=args.ingest)
     if args.json:
+        # step logs must go to stderr so stdout stays a single valid JSON document
+        import contextlib
+
+        with contextlib.redirect_stdout(sys.stderr):
+            result = run(spec, ingest_run=args.ingest)
         _print_json(result.to_dict())
     else:
+        result = run(spec, ingest_run=args.ingest)
         print()
         print(f"ok={result.ok}  outdir={result.outdir}")
         print(f"manifest={result.manifest_path}")

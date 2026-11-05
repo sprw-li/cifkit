@@ -1,6 +1,6 @@
 {
   "schema": "cifkit/run/v1",
-  "created_at": "2026-11-05T15:18:08+08:00",
+  "created_at": "2026-11-05T17:25:40+08:00",
   "tool_version": "0.1.0",
   "query": "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。",
   "spec": {
@@ -266,7 +266,7 @@
       "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
       "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
       "cache_reused": true,
-      "fetched_at": "2026-11-05T15:18:09+08:00",
+      "fetched_at": "2026-11-05T17:25:41+08:00",
       "topology": "sod",
       "topology_evidence": "verified",
       "h_count": 0,
@@ -508,7 +508,7 @@
           "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
           "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
           "cache_reused": true,
-          "fetched_at": "2026-11-05T15:18:09+08:00",
+          "fetched_at": "2026-11-05T17:25:41+08:00",
           "topology": "sod",
           "topology_evidence": "verified",
           "h_count": 0,
@@ -534,7 +534,7 @@
             "selection_rule": "3 个候选，按确定性排序取第一条（typical=True 取最典型候选; prefer_raw=True 优先原始（需修复）结构）"
           }
         },
-        "elapsed_s": 1.0
+        "elapsed_s": 0.8
       }
     },
     {
@@ -745,17 +745,35 @@
         "removed_atoms": 0,
         "resolved_disorder": 0,
         "warnings": [],
-        "elapsed_s": 1.26
+        "elapsed_s": 1.24
       }
     },
     {
       "name": "standardize",
       "status": "ok",
-      "detail": "atoms=276 formula=Zn12 H120 C96 N48",
+      "detail": "atoms=276 formula=Zn12 H120 C96 N48 kept=input",
       "artifacts": [],
       "data": {
-        "elapsed_s": 0.04,
-        "natoms": 276
+        "elapsed_s": 0.05,
+        "natoms": 276,
+        "geom_info": {
+          "function": "standardize",
+          "target": "conventional",
+          "natoms_in": 276,
+          "lattice_in": [
+            17.0293,
+            17.0293,
+            17.0293
+          ],
+          "spacegroup_in": {
+            "symbol": "Fmm2",
+            "number": 42
+          },
+          "kept": "input",
+          "note": "symmetry kept as input",
+          "primitive_atoms": 138,
+          "reason": "input is already a 2x cell of the 138-atom primitive cell (276 atoms); keeping the input setting instead of re-standardising to a different conventional cell"
+        }
       }
     },
     {
@@ -1897,7 +1915,7 @@
           "max_normal_search": null,
           "n_terminations": 32
         },
-        "elapsed_s": 3.13
+        "elapsed_s": 2.89
       }
     },
     {
@@ -1906,7 +1924,7 @@
       "detail": "target=15.0 Å measured=15.000 Å",
       "artifacts": [],
       "data": {
-        "elapsed_s": 0.16,
+        "elapsed_s": 0.09,
         "measured": 14.999999999999993
       }
     },
@@ -1925,7 +1943,7 @@
           "cif": "runs\\demo_sod_zif8\\structure.cif",
           "xyz": "runs\\demo_sod_zif8\\structure.xyz"
         },
-        "elapsed_s": 2.57
+        "elapsed_s": 1.97
       }
     },
     {
@@ -1934,7 +1952,7 @@
       "detail": "PASS checks=12",
       "artifacts": [],
       "data": {
-        "elapsed_s": 1.11,
+        "elapsed_s": 1.02,
         "report": {
           "ok": true,
           "checks": [
@@ -2109,7 +2127,7 @@
         "runs\\demo_sod_zif8\\preview.png"
       ],
       "data": {
-        "elapsed_s": 1.23
+        "elapsed_s": 1.08
       }
     },
     {
@@ -2118,7 +2136,7 @@
       "detail": "runs/demo_sod_zif8",
       "artifacts": [],
       "data": {
-        "ingested": true
+        "ingest_requested": true
       }
     }
   ],
@@ -2132,6 +2150,8 @@
     "export.cif": "runs\\demo_sod_zif8\\structure.cif",
     "export.xyz": "runs\\demo_sod_zif8\\structure.xyz",
     "preview.png": "runs\\demo_sod_zif8\\preview.png",
+    "report": "runs\\demo_sod_zif8\\report.md",
+    "manifest": "runs\\demo_sod_zif8\\manifest.json",
     "library": "D:\\Dev\\Project5-skill-cif\\library\\demo_sod_zif8"
   },
   "validation": {

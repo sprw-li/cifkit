@@ -1,6 +1,6 @@
 # CIF 处理报告：demo_sod_zif8
 
-- 运行时间：2026-11-05T15:18:08+08:00
+- 运行时间：2026-11-05T17:25:40+08:00
 - 是否成功：✅
 - 原始请求：帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。
 
@@ -25,7 +25,7 @@ expected=sod evidence=verified 与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1
 add_H=120 removed=0 disorder=0 atoms=276
 
 ### ✅ standardize
-atoms=276 formula=Zn12 H120 C96 N48
+atoms=276 formula=Zn12 H120 C96 N48 kept=input
 
 ### ✅ surface
 hkl=(1, 1, 1) frame=slab reps=(2, 2, 1) atoms=2208 abc=[48.166, 48.166, 34.283] vacuum=15.0
@@ -45,7 +45,19 @@ runs\demo_sod_zif8\preview.png
 ### ✅ manifest
 runs/demo_sod_zif8
 
-## 3. 校验：通过
+## 3. 结构几何（实测）
+
+- 切面：(111)，frame=slab，reps=(2, 2, 1)
+- 切面原子数：base=552 → 面内重复后 2208
+- slab 厚度（原子垂直跨度）：19.283 Å
+- 终止面选择：shift=0.207317, dangling_bonds=20
+- 生成时垂直真空：15.0 Å
+- 最小周期像距离：15.24 Å
+- 最终垂直真空（实测）：15.0 Å
+- 最终原子数 / 组成：2208 / Zn96 H960 C768 N384
+- 最终晶胞：a,b,c = [48.1661, 48.1661, 34.2826] Å；angles = [90.0, 90.0, 60.0]°
+
+## 4. 校验：通过
 - ✅ natoms：2208 atoms
 - ✅ composition：Zn96 H960 C768 N384 (2208 atoms; 4 elements)
 - ✅ finite_coordinates：all coordinates finite
@@ -149,7 +161,7 @@ runs/demo_sod_zif8
 }
 ```
 
-## 4. 产物
+## 5. 产物
 - raw.cif: `runs\demo_sod_zif8\raw.cif`
 - repaired.cif: `runs\demo_sod_zif8\repaired.cif`
 - standardized.cif: `runs\demo_sod_zif8\standardized.cif`
@@ -159,5 +171,6 @@ runs/demo_sod_zif8
 - export.cif: `runs\demo_sod_zif8\structure.cif`
 - export.xyz: `runs\demo_sod_zif8\structure.xyz`
 - preview.png: `runs\demo_sod_zif8\preview.png`
-- library: `D:\Dev\Project5-skill-cif\library\demo_sod_zif8`
+- report: `runs\demo_sod_zif8\report.md`
 - manifest: `runs\demo_sod_zif8\manifest.json`
+- library: `D:\Dev\Project5-skill-cif\library\demo_sod_zif8`

@@ -109,8 +109,11 @@ def _step_standardize(ctx: _Ctx) -> None:
     s = standardize(_require_structure(ctx))
     ctx.structure = s
     ctx.save_cif("standardized.cif", s)
-    detail = f"atoms={len(s)} formula={s.composition.formula}"
-    ctx.step("standardize", detail, data={"elapsed_s": round(time.time() - t0, 2), "natoms": len(s)})
+    info = dict(getattr(s, "_cifkit_geom_info", {}) or {})
+    kept = info.get("kept")
+    detail = f"atoms={len(s)} formula={s.composition.formula}" + (f" kept={kept}" if kept else "")
+    ctx.step("standardize", detail,
+             data={"elapsed_s": round(time.time() - t0, 2), "natoms": len(s), "geom_info": info})
 
 
 def _step_cluster(ctx: _Ctx) -> None:
@@ -255,11 +258,18 @@ def run(spec: TaskSpec, *, embed: bool = False, ingest_run: bool = False) -> Run
             func(ctx)
         except Exception as exc:  # noqa: BLE001 - record and stop
             tb = traceback.format_exc()
+            already = (
+                ctx.result.steps
+                and ctx.result.steps[-1].name == step.name
+                and ctx.result.steps[-1].status == "failed"
+            )
             if step.optional:
-                ctx.step(step.name, f"optional step failed: {type(exc).__name__}: {exc}",
-                         data={"traceback": tb}, status="skipped")
+                if not already:
+                    ctx.step(step.name, f"optional step failed: {type(exc).__name__}: {exc}",
+                             data={"traceback": tb}, status="skipped")
                 continue
-            ctx.step(step.name, f"{type(exc).__name__}: {exc}", data={"traceback": tb}, status="failed")
+            if not already:  # step already recorded its own failure before raising
+                ctx.step(step.name, f"{type(exc).__name__}: {exc}", data={"traceback": tb}, status="failed")
             failed = step.name
             break
 
@@ -281,17 +291,21 @@ def run(spec: TaskSpec, *, embed: bool = False, ingest_run: bool = False) -> Run
 
 def _step_commit(ctx: _Ctx, *, ingest_run: bool = False) -> None:
     ctx.manifest["ok"] = ctx.result.ok
+    ctx.step("manifest", ctx.result.outdir.as_posix(), data={"ingest_requested": bool(ingest_run)})
     ctx.manifest["artifacts"] = dict(ctx.result.artifacts)
+    # 1) report + manifest first (they are artifacts too)
+    finish_run(ctx.result, ctx.manifest)
+    # 2) ingest a complete run (manifest/report included)
     if ingest_run:
         try:
             info = ingest(ctx.result, ctx.manifest)
             ctx.manifest["library"] = info
             ctx.result.artifacts["library"] = info["library_entry"]
+            ctx.manifest["artifacts"] = dict(ctx.result.artifacts)
+            finish_run(ctx.result, ctx.manifest)  # rewrite report/manifest with library info
         except Exception as exc:  # noqa: BLE001 - ingest must not lose the run
             ctx.manifest["library"] = {"error": f"{type(exc).__name__}: {exc}"}
-    ctx.manifest["artifacts"] = dict(ctx.result.artifacts)
-    ctx.step("manifest", ctx.result.outdir.as_posix(), data={"ingested": bool(ctx.manifest.get("library"))})
-    finish_run(ctx.result, ctx.manifest)
+            finish_run(ctx.result, ctx.manifest)
 
 
 # ---------------------------------------------------------------------------

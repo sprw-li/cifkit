@@ -96,17 +96,22 @@ def write_manifest(outdir: str | Path, manifest: dict[str, Any]) -> str:
 
 
 def finish_run(result: RunResult, manifest: dict[str, Any] | None = None) -> None:
-    """Persist manifest + a human report; called by pipeline."""
+    """Persist report + manifest (manifest lists itself and the report)."""
     outdir = Path(result.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     if manifest is None:
         manifest = getattr(result, "_manifest", None) or new_manifest(result.spec)
-    result.manifest_path = write_manifest(outdir, manifest)
-    result.artifacts["manifest"] = result.manifest_path
+    # 1) render report first (it quotes artifacts, not paths of itself)
     report = render_report(result, manifest)
     report_path = outdir / "report.md"
     report_path.write_text(report, encoding="utf-8")
     result.artifacts["report"] = str(report_path)
+    # 2) manifest knows about every artifact, including itself
+    manifest["artifacts"] = dict(result.artifacts)
+    result.manifest_path = write_manifest(outdir, manifest)
+    result.artifacts["manifest"] = result.manifest_path
+    manifest["artifacts"] = dict(result.artifacts)
+    write_manifest(outdir, manifest)
 
 
 def ingest(result: RunResult, manifest: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -176,9 +181,12 @@ def render_report(result: RunResult, manifest: dict[str, Any]) -> str:
         if s.detail:
             lines.append(s.detail)
         lines.append("")
+
+    lines.extend(_render_geometry_section(result))
+
     if result.validation:
         v = result.validation
-        lines.append(f"## 3. 校验：{'通过' if v.ok else '未通过'}")
+        lines.append(f"## 4. 校验：{'通过' if v.ok else '未通过'}")
         for c in v.checks:
             mark = "✅" if c.ok else ("⚠️" if c.severity == "warning" else "❌")
             lines.append(f"- {mark} {c.name}：{c.detail}")
@@ -188,7 +196,55 @@ def render_report(result: RunResult, manifest: dict[str, Any]) -> str:
             lines.append(json.dumps(v.metrics, ensure_ascii=False, indent=2, default=str))
             lines.append("```")
         lines.append("")
-    lines.append("## 4. 产物")
+    else:
+        failed = next((s.name for s in result.steps if s.status == "failed"), "?")
+        lines.append(f"## 4. 校验：未运行（步骤 `{failed}` 失败）")
+        lines.append("")
+    lines.append("## 5. 产物")
     for key, path in result.artifacts.items():
         lines.append(f"- {key}: `{path}`")
     return "\n".join(lines) + "\n"
+
+
+def _render_geometry_section(result: RunResult) -> list[str]:
+    """Quote the measured geometry (slab thickness, vacuum, termination) from step data."""
+    from cifkit.types import StepResult
+
+    by_name: dict[str, StepResult] = {s.name: s for s in result.steps}
+    surf = (by_name.get("surface").data if by_name.get("surface") else {}) or {}
+    vac = (by_name.get("vacuum").data if by_name.get("vacuum") else {}) or {}
+    last_metrics = {}
+    if result.validation:
+        last_metrics = dict(result.validation.metrics or {})
+    surface_metrics = last_metrics or {}
+
+    if not surf and not vac:
+        return []
+    lines = ["## 3. 结构几何（实测）", ""]
+    if surf:
+        lines.append(f"- 切面：({''.join(str(x) for x in surf.get('hkl', []))})，frame={surf.get('frame')}，reps={surf.get('reps')}")
+        if surf.get("base_atoms"):
+            lines.append(f"- 切面原子数：base={surf.get('base_atoms')} → 面内重复后 {surf.get('atoms_after_reps')}")
+        if surf.get("slab_thickness") is not None:
+            lines.append(f"- slab 厚度（原子垂直跨度）：{round(float(surf['slab_thickness']), 3)} Å")
+        term = surf.get("termination")
+        if isinstance(term, dict):
+            bits = ", ".join(f"{k}={v}" for k, v in term.items() if k in {"shift", "dangling_bonds", "stoich_deviation", "index"})
+            if bits:
+                lines.append(f"- 终止面选择：{bits}")
+        if surf.get("vacuum_measured") is not None:
+            lines.append(f"- 生成时垂直真空：{round(float(surf['vacuum_measured']), 3)} Å")
+        if surf.get("min_image_distance") is not None:
+            lines.append(f"- 最小周期像距离：{round(float(surf['min_image_distance']), 3)} Å")
+    if vac:
+        if vac.get("measured") is not None:
+            lines.append(f"- 最终垂直真空（实测）：{round(float(vac['measured']), 3)} Å")
+        if vac.get("min_image_distance") is not None:
+            lines.append(f"- 最终最小周期像距离：{round(float(vac['min_image_distance']), 3)} Å")
+    if surface_metrics.get("natoms"):
+        lines.append(f"- 最终原子数 / 组成：{surface_metrics.get('natoms')} / {surface_metrics.get('formula')}")
+    if surface_metrics.get("lattice"):
+        lat = surface_metrics["lattice"]
+        lines.append(f"- 最终晶胞：a,b,c = {lat.get('abc')} Å；angles = {lat.get('angles')}°")
+    lines.append("")
+    return lines

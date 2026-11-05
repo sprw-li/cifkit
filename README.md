@@ -24,7 +24,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一条管线（缓存热时约 10 s）
 & $PY -m cifkit pipeline "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。" --outdir runs\demo_sod_zif8 --format vasp,cif,xyz --ingest
 
-# 独立复核（不信自报，直接从产物结构验 8 条标准）
+# 独立复核（不信自报，直接从产物结构验 DESIGN §1 的 9 条验收，其中 8 项自动复核）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8
 ```
 
@@ -101,6 +101,16 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 
 - 原句路由：`intent=cif-structure-pipeline`，第一候选 `cif-workbench`（修复前曾被误判为 `install-app`）。
 - `eval_router --all`：正例 73/73（intent/skill top1/top5 100%），负例 0/25 误报，槽位 11/11；`ci.py --fast` 通过。
+
+---
+
+## 评审记录（评审-改进轮）
+
+- **Round 1（独立对抗式评审，`reviewer-r1`）**：[docs/REVIEW-ROUND1.md](docs/REVIEW-ROUND1.md)，结论 **PASS / 无 P0**。
+  - 评审员自写脚本独立复算：sha256 三方一致、DOI 经 Crossref 核实且来源标注 `curated`、拓扑 net 签名可复算、补氢几何/价态全对、垂直真空 15.000 Å、2208=552×4、导出读回一致；重跑 exit 0、`verify_demo` 8/8、pytest 119 全绿。
+  - 提出 4 个 P1（JSON 污染、真空口径文档、artifacts 计数、字节数过期）+ 7 个 P2。
+- **Round 2（修复轮）**：P1 全部修复、P2 全部处理，见 [docs/PIPELINE.md §8](docs/PIPELINE.md)；新增 `tests/test_cli.py`（7 条 CLI 合同测试），测试总数 **126**。
+- **Round 3**：修复后的二次独立复核（记录追加到 `docs/REVIEW-ROUND2.md`）。
 
 ---
 

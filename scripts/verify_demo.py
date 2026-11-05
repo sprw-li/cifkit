@@ -115,14 +115,20 @@ class Checker:
         rec = (source.get("record") or {})
         prov = (source.get("provenance") or {})
 
-        # 1. provenance
+        # 1. provenance: sha256 of the handed-over CIF + record identity + DOI
         raw = d / "raw.cif"
         ok = raw.is_file()
         detail = f"raw.cif exists={ok}"
         if ok:
             got = sha256(raw)
-            ok = bool(prov.get("sha256")) and got == prov["sha256"]
-            detail = f"sha256 matches={got == prov.get('sha256')} record={rec.get('record_id')}"
+            sha_ok = bool(prov.get("sha256")) and got == prov["sha256"]
+            doi = rec.get("doi") or prov.get("doi")
+            doi_note = prov.get("doi_note")
+            # curated-DOI records must say so explicitly; do not silently trust a DOI
+            doi_ok = bool(doi) and (not doi_note or "curated" in str(doi_note).lower() or "metadata" in str(doi_note).lower())
+            ok = sha_ok and doi_ok
+            detail = (f"sha256 matches={sha_ok} record={rec.get('record_id')} doi={doi} "
+                      f"doi_note={str(doi_note)[:60]}")
         self.check("1 来源追溯（sha256/record/DOI）", ok, detail)
 
         # 2. topology evidence

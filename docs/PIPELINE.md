@@ -139,9 +139,9 @@ manifest.json          # 全链路溯源
 |---|---|---|
 | `selftest --verbose` | 0 | 7/7 passed（imports/parse demo） |
 | `route "<原句>"` | 0 | topology=sod、supercell=2x2x1、surface=(1,1,1)、vacuum=15.0、formats=vasp,cif,xyz |
-| `pipeline "<原句>" --outdir runs\demo_sod_zif8 --format vasp,cif,xyz --json` | 0 | 首跑约 100 s；全部步骤 ok |
-| `pipeline --spec runs\spec.json --outdir runs\spec_run` | 0 | local CIF 138 → 276 → supercell 2x2x1 1104 → export cif,vasp → validate PASS(9) |
-| `scripts\verify_demo.py runs\demo_sod_zif8` | 0 | **8/8 PASS**（约 10 s） |
+| `pipeline "<原句>" --outdir runs\demo_sod_zif8 --format vasp,cif,xyz --json` | 0 | 缓存热时约 **9–15 s**；全部步骤 ok |
+| `pipeline --spec runs\spec.json --outdir runs\spec_run` | 0 | local CIF 138 → 276 → supercell 2x2x1 1104 → export cif,vasp → validate PASS(9)；`--spec` 支持 UTF-8/UTF-8-BOM |
+| `scripts\verify_demo.py runs\demo_sod_zif8` | 0 | **8/8 PASS**（约 6–10 s） |
 
 ### 7.2 每步实测数字
 
@@ -151,11 +151,11 @@ manifest.json          # 全链路溯源
 | `verify-topology` | `evidence=verified`：与 `core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif` 的 underlying net 签名一致（配位序列 4,10,20,34,52,74,100,130；环分布 4/6/8 元环） |
 | `repair` | `add_H=120`、156 → **276** 原子、`route=rdkit-capped`、C 96/96 四配位、Zn `CN={4:12}`、`warnings=[]` |
 | `standardize` | **276** 原子（I-43m，a≈17.03 Å）——注意：早期 build 曾把补氢后的 276 翻倍成 552，已加 primitive-multiple guard 修复（14:53 前后） |
-| `surface` | frame=`slab`、reps `(2,2,1)`、in_plane_reps `[2,2]`、base **552** → after **2208**；abc `[48.166, 48.166, 34.283]`；`vacuum_measured=15.2396`；elapsed 17.95 s |
-| `vacuum` | target 15.0 → measured **15.240 Å** |
+| `surface` | frame=`slab`、reps `(2,2,1)`、in_plane_reps `[2,2]`、base **552** → after **2208**；abc `[48.166, 48.166, 34.283]`；`vacuum_measured=15.000`（垂直）、`min_image_distance=15.2396`；elapsed ≈1.5 s |
+| `vacuum` | target 15.0 → 垂直真空 measured **15.000 Å**（`min_image_distance` 15.240 Å 另计） |
 | `export` | vasp/cif/xyz 全部写出；`structure.vasp` 152 719 B，读回 2208 原子 == `final.cif` |
 | `validate` | PASS，**12 checks**，error 为空（`dangling_bonds` 仅 warning） |
-| `render` | `preview.png` 生成（296 775 B） |
+| `render` | `preview.png` 生成（300 594 B） |
 
 > `--surface-frame cell` 对照实测：input 276 → cut_cell 1104 → base/after 2208，abc `[37.876, 37.876, 42.485]`、
 > beta 101.54° —— 取向不是立方 (111)，证实默认 `slab` 语义才是 demo 想要的表面。
@@ -163,26 +163,51 @@ manifest.json          # 全链路溯源
 ### 7.3 独立验收 `verify_demo.py`（不信自报，从产物结构重算）
 
 ```text
-[PASS] 1 来源追溯（sha256/record/DOI）    sha256 matches=True record=...ja204757x_si_002...
+[PASS] 1 来源追溯（sha256/record/DOI）    sha256 matches=True record=...ja204757x_si_002... doi=10.1021/ja204757x doi_note=curated
 [PASS] 2 拓扑 sod 已核实                  evidence=verified
 [PASS] 3 碳上补氢正确                     H 0->120 (added=120) C_env_ok=True n_bad_C=0 H/Zn=120/12 C=96
 [PASS] 4 2x2x1 重复原子数                 frame=slab reps=(2, 2, 1) slab_base=552 after_reps=2208
 [PASS] 5 (111) slab + 真空层              slab_atoms=2208 final_atoms=2208 measured_vacuum=15.000Å target=15.0
 [PASS] 6 计算化学格式导出                 structure.vasp atoms=2208 final_atoms=2208 match=True
 [PASS] 7 结构校验通过                     checks=12 errors=[]
-[PASS] 8 report.md / manifest 完整        report=True steps=10 artifacts=10
+[PASS] 8 report.md / manifest 完整        report=True steps=10 artifacts=12
 结果：8/8 通过
 ```
+
+> `artifacts=12` = raw/repaired/standardized/slab/final + 3 个导出的 structure.* + preview + report + manifest + library 目录（`--ingest`）。
 
 ### 7.4 产物（当前 `runs\demo_sod_zif8\`）
 
 ```text
-raw.cif 10 816 B       repaired.cif 15 489 B     standardized.cif 15 489 B
+raw.cif 10 816 B       repaired.cif 15 379 B     standardized.cif 15 379 B
 slab.cif 121 521 B     final.cif 121 521 B       structure.cif 121 521 B
-structure.vasp 152 719 B   structure.xyz 134 797 B   preview.png 296 775 B
-report.md 4 587 B      manifest.json 71 861 B
+structure.vasp 152 719 B   structure.xyz 134 797 B   preview.png 300 594 B
+report.md 5 248 B      manifest.json 74 320 B
 ```
 
 `manifest.json` 里具备：`query/spec`、`environment`（python/pymatgen/ase 版本、可执行路径）、`source.record+provenance`
 （record_id/DOI/sha256/dataset/doi/license/cache_reused）、每个 step 的 `status/detail/data.elapsed_s`、`validation`、
 `artifacts`；同一查询重跑 `cache_reused=true`、`raw.cif` sha256 不变。
+
+---
+
+## 8. Round 2：评审后的改进（2026-11-05）
+
+Round 1 独立评审（[REVIEW-ROUND1.md](REVIEW-ROUND1.md)，结论 PASS、无 P0）提出 4 个 P1 与 7 个 P2，已全部处理：
+
+| ID | 问题 | 修复 | 回归测试 |
+|---|---|---|---|
+| P1-1 | `pipeline --json` 的 stdout 被 `[step] ok …` 日志污染，不是合法 JSON | JSON 模式下步骤日志重定向到 stderr，stdout 只有一份 JSON | `tests/test_cli.py::test_pipeline_json_stdout_is_pure_json` |
+| P1-2 | PIPELINE / SKILL 把 `min_image_distance` 写成 `vacuum_measured`（15.2396/15.240） | 统一改为垂直真空 **15.000**，`min_image_distance=15.2396` 单独列出 | 文档 grep + 本节表格 |
+| P1-3 | §7.3 粘贴的 `artifacts=10` 与实测不符 | 实测 `artifacts=12`（含 manifest/report/library） | 本节 §7.3 |
+| P1-4 | 4 个产物字节数过期 | §7.4 / SKILL.md 已按当前 build 更新 | 本节 §7.4 |
+| P2-1 | `--spec` 遇到 UTF-8 BOM 报原始 JSONDecodeError | CLI 用 `utf-8-sig` 读取，错误信息给出 PowerShell 写 BOM 的提示 | `test_spec_with_utf8_bom` |
+| P2-2 | 失败 run 的 `report.md` 重复记录 failed 步骤、缺第 4 节 | 步骤失败只记录一次；失败 run 的校验节写“未运行（步骤 X 失败）”；失败 run 也写 manifest/report | `test_failed_run_writes_report_without_duplicate_steps` |
+| P2-3 | `report.md` 不含 slab 厚度/终止面依据 | 新增「3. 结构几何（实测）」：切面/frame/reps/厚度/终止面/垂直真空/最小像距离/最终晶胞 | 手工检查 report |
+| P2-4 | `manifest.artifacts` 不含 manifest/report 自身 | `finish_run` 先写 report 再写 manifest，两者互相登记；`--ingest` 在写完后再入库 | `test_manifest_artifacts_include_manifest_and_report` |
+| P2-5 | `verify_demo` 检查名含 DOI 但未校验 DOI | 增加 DOI 检查 + `doi_note`（curated 来源必须显式标注） | `scripts/verify_demo.py` 检查 1 |
+| P2-6 | DESIGN §1 是 9 条、文档说 8 条 | 统一表述为“9 条验收，其中 8 项由 verify_demo 自动复核” | README / SKILL.md |
+| P2-7 | standardize 的整数倍守卫依据未落盘 | pipeline 的 `standardize` 步骤 data 写入 `geom_info.kept/reason` | 手工检查 manifest |
+
+附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
+测试总数 119 → **126**（新增 `tests/test_cli.py` 7 条 CLI 合同测试）。
