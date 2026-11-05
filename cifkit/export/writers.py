@@ -50,7 +50,7 @@ FORMAT_INFO: dict[str, str] = {
     "qe": "Quantum ESPRESSO pw.x input (ASE espresso-in writer, needs PAW pseudopotentials at run time)",
     "cp2k": "CP2K input skeleton (CELL + COORD; basis/potential must be supplied by the user)",
     "siesta": "SIESTA .fdf input template (CELL + AtomicCoordinates; species/pseudos must be supplied)",
-    "abacus": "ABACUS STRU input template (ATOMIC_SPECIES + LATTICE_CONSTANT + ATOMS)",
+    "abacus": "ABACUS STRU input template (ATOMIC_SPECIES/NUMERICAL_ORBITAL/LATTICE_CONSTANT/LATTICE_VECTORS/ATOMIC_POSITIONS)",
     "orca": "ORCA input template (.inp) + coordinates; basis/route must be reviewed",
     "dftb": "DFTB+ dftb_in.hsd template (Geometry gen or HSD; Slater-Koster files needed)",
     "xsf": "XCrySDen .xsf (periodic crystal, ASE writer)",

@@ -110,3 +110,19 @@ def test_dataset_cli(tmp_path):
     assert (out / "dataset.csv").is_file()
     rows = list(csv.DictReader((out / "dataset.csv").open(encoding="utf-8-sig")))
     assert rows and rows[0].get("label") == "sod"
+
+
+def test_features_dir_dedupes_case_insensitive_glob(tmp_path):
+    """P1 (Round 8): *.cif and *.CIF both match on Windows; directory inputs must be deduped."""
+    pytest.importorskip("cifkit.features")
+    src = tmp_path / "cifs"
+    src.mkdir()
+    for name in ("a.cif", "b.CIF", "c.cif"):
+        shutil.copyfile(ZIF8, src / name)
+    out = tmp_path / "f.csv"
+    proc = _run(["features", str(src), "--out", str(out), "--no-rdf", "--json", "--jobs", "1"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_inputs"] == 3 and data["n_ok"] == 3, data
+    rows = list(csv.DictReader(out.open(encoding="utf-8-sig")))
+    assert len(rows) == 3

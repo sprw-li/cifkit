@@ -371,18 +371,28 @@ def _write_string_csv(rows: list[dict], path: Path) -> Path:
 
 
 def _expand_structure_inputs(items: list[str]) -> list[Path]:
-    paths: list[Path] = []
+    candidates: list[Path] = []
     for item in items:
         p = Path(item)
         if p.is_dir():
-            found = sorted(p.glob("*.cif")) + sorted(p.glob("*.CIF")) + sorted(p.glob("*.cif.gz"))
+            found = sorted(p.glob("*.cif")) + sorted(p.glob("*.cif.gz"))
             if not found:
                 raise ValueError(f"目录里没有 .cif：{p}")
-            paths.extend(found)
+            candidates.extend(found)
         elif p.is_file():
-            paths.append(p)
+            candidates.append(p)
         else:
             raise ValueError(f"输入不存在：{p}")
+    # Windows globbing is case-insensitive, so *.cif also matches *.CIF; dedupe by
+    # resolved path while preserving the (sorted) order.
+    seen: set[str] = set()
+    paths: list[Path] = []
+    for path in candidates:
+        key = str(path.resolve()).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(path)
     return paths
 
 
