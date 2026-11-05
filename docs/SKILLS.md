@@ -75,10 +75,10 @@ intent candidates: cif-structure-pipeline
 ## 4. 评测证据（`py -3 scripts\eval_router.py --all`）
 
 ```text
-cases=83
-intent top1: 83/83 = 100.0%
-skill top1:  83/83 = 100.0%
-skill top5:  83/83 = 100.0%
+cases=84
+intent top1: 84/84 = 100.0%
+skill top1:  84/84 = 100.0%
+skill top5:  84/84 = 100.0%
 negatives=25  false-positive=0 (0.0%)  budget=10.0%
 slot cases=11  pass=11/11
 ```

@@ -227,7 +227,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 附加：`tests/test_cli.py` 增加 UTF-16 spec 用例（8 条），应用层支持 UTF-16BE。
 
 附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
-测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；数据源扩展后全量为 **144**）。
+测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；数据源扩展后全量为 **145**）。
 
 ### 8.2 数据源扩展（CoRE MOF / COD / Materials Project / AFLOW）
 
@@ -249,7 +249,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 - 路由：intent `cif-structure-pipeline` 增加数据源关键词与 examples；评测 79 条全过、
   负例 0/25；`ci.py --fast` exit 0。
 - 测试：新增 `tests/test_sources_mp_aflow.py`（11 条，MP mock + AFLOW mock/live + auto 选源）、
-  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **144** 条。
+  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **145** 条。
 
 ### 8.3 进阶应用套件（第 5 轮 4 个测试实例）
 
@@ -263,6 +263,6 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 | Fe-C 化合物/相图套件 | `usecases/u4_fec/` | 7 结构、0K 凸包图、相图笔记、VASP 模板、kit.zip | `build_hull.py` 断言 Fe3C=+0.0456 |
 
 Lead 独立验收：`python usecases/verify_usecases.py` → 22/22 PASS。
-路由：新增 intent `cif-advanced-usecases` + 4 条评测；eval 83/83、负例 0/25、槽位 11/11。
+路由：新增 intent `cif-advanced-usecases` + 4 条评测；eval 84/84、负例 0/25、槽位 11/11。
 数据源经验：AFLOW CIF 的 PAW 势名归一化（已修在 `sources/aflow.py`）；AFLUX 的 `spacegroup_relax` 过滤不可靠，
 必须客户端过滤；LIB1 不能按最低 energy_atom 选元素基态；无 MP key 时不伪造 MP 结果。

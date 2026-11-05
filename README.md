@@ -87,7 +87,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | Fe-C 化合物 + 相图 + 计算套件 | [usecases/u4_fec](usecases/u4_fec/README.md) | 7 结构；0K hull 仅 Fe/C 端点，Fe3C=+0.0456、Fe2C=+0.0516 eV/atom |
 
 一键独立验收：`& $PY usecases\verify_usecases.py`（22/22 PASS）。
-技能：`catalog/cif-usecases`（intent `cif-advanced-usecases`，eval 83/83、负例 0/25）。
+技能：`catalog/cif-usecases`（intent `cif-advanced-usecases`，eval 84/84、负例 0/25）。
 总览与诚实局限见 [usecases/README.md](usecases/README.md)。
 
 ---
@@ -109,13 +109,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 144 passed（含 demo 端到端；需要 _cache）
+& $PY -m pytest tests -q            # 145 passed（含 demo 端到端；需要 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 11 / spec 7 / topology 15 / validate 14 / cli 11。
+测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11。
 
 ---
 
@@ -145,7 +145,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
 - **Round 6（数据源扩展）**：补齐 **Materials Project**（需 `MP_API_KEY`）与 **AFLOW**（免 key）适配器，
   COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
-  路由 intent 增数据源关键词/examples（评测 79/79、负例 0/25），测试总数 **144**。
+  路由 intent 增数据源关键词/examples（评测 79/79、负例 0/25），测试总数 **145**。
   - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
 
 ---
