@@ -123,13 +123,33 @@ def cmd_fetch(args) -> int:
         fetched = src.fetch(hits[0])
         out = Path(args.outdir)
         out.mkdir(parents=True, exist_ok=True)
-        from pymatgen.io.cif import CifWriter
+        import hashlib
+
+        import shutil
 
         path = out / "raw.cif"
-        CifWriter(fetched.structure, symprec=None).write_file(str(path))
-        meta = {"record": fetched.record.to_dict(), "provenance": fetched.provenance}
+        cif_path = (fetched.provenance or {}).get("cif_path")
+        if cif_path and Path(cif_path).is_file():
+            # byte copy so raw.cif sha256 == provenance.sha256
+            shutil.copyfile(cif_path, path)
+        else:
+            from pymatgen.io.cif import CifWriter
+
+            CifWriter(fetched.structure, symprec=None).write_file(str(path))
+        raw_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        meta = {
+            "record": fetched.record.to_dict(),
+            "provenance": fetched.provenance,
+            "raw_cif": str(path),
+            "raw_cif_sha256": raw_sha,
+            "note": (
+                "raw_cif 是源 CIF 的字节拷贝，sha256 应与 provenance.sha256 一致"
+                if cif_path
+                else "源 CIF 不可直接拷贝，raw_cif 由 Structure 重新写出，sha256 与 provenance.sha256 可能不同"
+            ),
+        }
         (out / "source.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-        print(f"wrote {path}")
+        print(f"wrote {path} (sha256={raw_sha[:16]}...)")
     return 0
 
 
@@ -146,6 +166,7 @@ def cmd_repair(args) -> int:
         remove_close_contacts=not args.no_contacts,
     )
     if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         CifWriter(out_s, symprec=None).write_file(args.out)
     if args.json:
         _print_json({"report": report.to_dict(), "natoms": len(out_s), "formula": out_s.composition.formula})
@@ -185,6 +206,7 @@ def cmd_geom(args) -> int:
         s, measured = geom.set_vacuum(s, args.vacuum)
         info["vacuum"] = measured
     if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         CifWriter(s, symprec=None).write_file(args.out)
     payload = {"natoms": len(s), "formula": s.composition.formula, "abc": list(s.lattice.abc),
                "angles": list(s.lattice.angles), "info": info}
@@ -201,14 +223,21 @@ def cmd_export(args) -> int:
     from pymatgen.core import Structure
     from cifkit import export
 
+    supported = export.supported_formats()
+    requested = [f.strip() for f in args.format.split(",") if f.strip()]
+    unsupported = [f for f in requested if f not in supported]
+    if unsupported:
+        print(
+            f"error: unsupported format(s): {', '.join(unsupported)}; "
+            f"supported: {', '.join(sorted(supported))}",
+            file=sys.stderr,
+        )
+        return 2
     s = Structure.from_file(args.file)
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
     written = {}
-    for fmt in args.format.split(","):
-        fmt = fmt.strip()
-        if not fmt:
-            continue
+    for fmt in requested:
         written[fmt] = export.write_structure(s, outdir / f"structure.{fmt}", fmt)
     if args.json:
         _print_json(written)

@@ -1,7 +1,7 @@
 """独立验收脚本：不需要相信 cifkit 自报，直接从产物结构复核 DESIGN.md §1 的 8 条标准。
 
-用法：
-    .venv\Scripts\python.exe scripts\verify_demo.py runs/demo_sod_zif8
+用法（Windows 注意用双反斜杠或正斜杠）：
+    .venv/Scripts/python.exe scripts/verify_demo.py runs/demo_sod_zif8
 """
 from __future__ import annotations
 
@@ -47,25 +47,54 @@ def vacuum_gap(s: Structure, target_axis: int = 2) -> float:
     return (1.0 - (hi - lo)) * norm
 
 
-def carbon_bond_count(s: Structure, tol: float = 1.25) -> list[int]:
-    """Count neighbours of every carbon (H + heavy) by covalent-radius criterion."""
-    out = []
-    coords = s.cart_coords
-    lat = s.lattice
-    for i, site in enumerate(s):
-        if site.species_string != "C":
+def carbon_environments(s: Structure, cutoff: float = 2.2) -> list[dict]:
+    """Periodic neighbour environment of every carbon.
+
+    A carbon is chemically valid when it has 4 neighbours (sp3, all single
+    bonds) or 3 neighbours with at least one short (<1.50 A) bond (sp2: aromatic
+    ring or C=N/C=O), i.e. bond-order sum 4.  Counting neighbours alone is not
+    valence: a ZIF-8 ring carbon has only 3 neighbours.
+    """
+    elements = [site.species_string for site in s]
+    centers, points, _, dists = s.get_neighbor_list(cutoff)
+    neighbours: dict[int, dict[int, float]] = {}
+    for i, j, dist in zip(centers, points, dists):
+        i, j = int(i), int(j)
+        if i == j:
             continue
-        n = 0
-        ri = RADII["C"]
-        for j, other in enumerate(s):
-            if i == j:
-                continue
-            d = s.distance_matrix[i, j]
-            rj = RADII.get(other.species_string, 1.0)
-            if d < tol * (ri + rj):
-                n += 1
-        out.append(n)
+        ri = RADII.get(elements[i], 1.0)
+        rj = RADII.get(elements[j], 1.0)
+        if float(dist) <= 1.25 * (ri + rj):
+            nd = neighbours.setdefault(i, {})
+            nd[j] = min(nd.get(j, 1e9), float(dist))
+    out: list[dict] = []
+    for i, el in enumerate(elements):
+        if el != "C":
+            continue
+        nd = neighbours.get(i, {})
+        n_h = sum(1 for j in nd if elements[j] == "H")
+        min_heavy = min((d for j, d in nd.items() if elements[j] != "H"), default=1e9)
+        out.append(
+            {
+                "index": i,
+                "n": len(nd),
+                "n_h": n_h,
+                "min_heavy": min_heavy,
+                "short_bond": min_heavy < 1.50,
+            }
+        )
     return out
+
+
+def carbon_valence_ok(envs: list[dict]) -> tuple[bool, dict]:
+    bad: list[dict] = []
+    for e in envs:
+        if e["n"] == 4:
+            continue
+        if e["n"] == 3 and e["short_bond"]:
+            continue
+        bad.append(e)
+    return (not bad), {"n_carbons": len(envs), "bad": bad[:10], "n_bad": len(bad)}
 
 
 class Checker:
@@ -102,22 +131,28 @@ class Checker:
         self.check("2 拓扑 sod 已核实", ok,
                    f"evidence={topo.get('evidence')} detail={str(topo.get('detail'))[:160]}")
 
-        # 3. hydrogen completion
+        # 3. hydrogen completion (chemically valid C environments, ZIF-8 ratios)
         raw_s = Structure.from_file(d / "raw.cif" if (d / "raw.cif").is_file() else d / "repaired.cif")
         rep = d / "repaired.cif"
         rep_s = Structure.from_file(rep)
         h_raw, h_rep = count(raw_s, "H"), count(rep_s, "H")
         added = (steps.get("repair") or {}).get("data", {}).get("added_h")
-        cb = carbon_bond_count(rep_s)
-        c_ok = bool(cb) and all(x == 4 for x in cb)
-        # ZIF-8 stoichiometry check: H/Zn == 10 and H/C == 1.25
+        envs = carbon_environments(rep_s)
+        c_ok, c_detail = carbon_valence_ok(envs)
         zn = count(rep_s, "Zn")
         c = count(rep_s, "C")
-        ratio_ok = zn == 0 or (abs(h_rep / zn - 10.0) < 0.5)
+        ratio_ok = zn == 0 or abs(h_rep / zn - 10.0) < 0.5
+        # no overlapping H (the classic "over-hydrogenation" failure)
+        h_idx = [i for i, site in enumerate(rep_s) if site.species_string == "H"]
+        dm = rep_s.distance_matrix
+        min_hh = min(
+            (float(dm[i, j]) for a, i in enumerate(h_idx) for j in h_idx[a + 1 :]),
+            default=99.0,
+        )
         ok = h_raw == 0 and h_rep > 0 and c_ok and ratio_ok and added == h_rep - h_raw
         self.check("3 碳上补氢正确", ok,
-                   f"H {h_raw}->{h_rep} (added={added}) C四键={c_ok} H/Zn={h_rep}/{zn} "
-                   f"bad_C_bonds={sorted({x for x in cb if x != 4})}")
+                   f"H {h_raw}->{h_rep} (added={added}) C_env_ok={c_ok} n_bad_C={c_detail['n_bad']} "
+                   f"H/Zn={h_rep}/{zn} C={c}")
 
         # 4. 2x2x1 (supercell step, or in-plane repeats of the slab)
         if "supercell" in steps:

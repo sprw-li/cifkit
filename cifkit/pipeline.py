@@ -245,6 +245,8 @@ def run(spec: TaskSpec, *, embed: bool = False, ingest_run: bool = False) -> Run
     )
     failed = None
     for step in plan:
+        if step.name == "manifest":
+            continue  # commit step: written at the end, even for failed runs
         func = _STEP_FUNCS.get(step.name)
         if func is None:
             ctx.step(step.name, "no executor", status="skipped")
@@ -261,26 +263,35 @@ def run(spec: TaskSpec, *, embed: bool = False, ingest_run: bool = False) -> Run
             failed = step.name
             break
 
-    # manifest is written even for failed runs
-    if failed is None:
-        try:
-            _step_commit(ctx, ingest_run=ingest_run)
-        except Exception as exc:  # noqa: BLE001
-            ctx.step("manifest", f"{type(exc).__name__}: {exc}", status="failed")
-            failed = "manifest"
-    ctx.result.ok = failed is None and (ctx.result.validation.ok if ctx.result.validation else False)
+    # ok is decided before the report is rendered, so report.md shows the truth
+    ctx.result.ok = failed is None and bool(ctx.result.validation and ctx.result.validation.ok)
+    if failed is not None:
+        ctx.result.ok = False
+    ctx.manifest["ok"] = ctx.result.ok
+    ctx.manifest["failed_step"] = failed
+
+    # manifest/report are written even for failed runs
+    try:
+        _step_commit(ctx, ingest_run=ingest_run and failed is None)
+    except Exception as exc:  # noqa: BLE001
+        ctx.step("manifest", f"{type(exc).__name__}: {exc}", status="failed")
+        ctx.result.ok = False
     return ctx.result
 
 
 def _step_commit(ctx: _Ctx, *, ingest_run: bool = False) -> None:
-    ctx.manifest["artifacts"] = ctx.result.artifacts
-    finish_run(ctx.result, ctx.manifest)
+    ctx.manifest["ok"] = ctx.result.ok
+    ctx.manifest["artifacts"] = dict(ctx.result.artifacts)
     if ingest_run:
-        info = ingest(ctx.result, ctx.manifest)
-        ctx.manifest["library"] = info
-        ctx.result.artifacts["library"] = info["library_entry"]
-        finish_run(ctx.result, ctx.manifest)  # rewrite manifest including library info
-    ctx.step("manifest", ctx.result.manifest_path or "", data={"elapsed_s": 0})
+        try:
+            info = ingest(ctx.result, ctx.manifest)
+            ctx.manifest["library"] = info
+            ctx.result.artifacts["library"] = info["library_entry"]
+        except Exception as exc:  # noqa: BLE001 - ingest must not lose the run
+            ctx.manifest["library"] = {"error": f"{type(exc).__name__}: {exc}"}
+    ctx.manifest["artifacts"] = dict(ctx.result.artifacts)
+    ctx.step("manifest", ctx.result.outdir.as_posix(), data={"ingested": bool(ctx.manifest.get("library"))})
+    finish_run(ctx.result, ctx.manifest)
 
 
 # ---------------------------------------------------------------------------

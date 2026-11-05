@@ -1,0 +1,100 @@
+[
+  {
+    "name": "resolve",
+    "func": "resolve",
+    "params": {},
+    "optional": false,
+    "description": "按拓扑/名称/id 检索并下载结构"
+  },
+  {
+    "name": "verify-topology",
+    "func": "verify_topology",
+    "params": {
+      "expected": "sod"
+    },
+    "optional": false,
+    "description": "核实结构拓扑与请求一致（元数据/结构比对）"
+  },
+  {
+    "name": "repair",
+    "func": "repair",
+    "params": {
+      "add_hydrogen": true,
+      "resolve_disorder": true,
+      "remove_close_contacts": true
+    },
+    "optional": false,
+    "description": "补氢/无序/近邻修复"
+  },
+  {
+    "name": "standardize",
+    "func": "standardize",
+    "params": {},
+    "optional": false,
+    "description": "标准胞/去重复"
+  },
+  {
+    "name": "surface",
+    "func": "surface",
+    "params": {
+      "hkl": [
+        1,
+        1,
+        1
+      ],
+      "slab_thickness": 15.0,
+      "vacuum": 15.0,
+      "reps": [
+        2,
+        2,
+        1
+      ],
+      "frame": "slab"
+    },
+    "optional": false,
+    "description": "切 (hkl) 表面并在面内重复"
+  },
+  {
+    "name": "vacuum",
+    "func": "vacuum",
+    "params": {
+      "vacuum": 15.0
+    },
+    "optional": false,
+    "description": "设置/校核真空层"
+  },
+  {
+    "name": "export",
+    "func": "export",
+    "params": {
+      "formats": [
+        "vasp",
+        "cif",
+        "xyz"
+      ]
+    },
+    "optional": false,
+    "description": "导出计算化学格式"
+  },
+  {
+    "name": "validate",
+    "func": "validate",
+    "params": {},
+    "optional": false,
+    "description": "结构校验"
+  },
+  {
+    "name": "render",
+    "func": "render",
+    "params": {},
+    "optional": true,
+    "description": "预览图"
+  },
+  {
+    "name": "manifest",
+    "func": "manifest",
+    "params": {},
+    "optional": false,
+    "description": "写 manifest / 入库"
+  }
+]

@@ -1,0 +1,2307 @@
+{
+  "schema": "cifkit/run/v1",
+  "created_at": "2026-11-05T15:18:08+08:00",
+  "tool_version": "0.1.0",
+  "query": "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。",
+  "spec": {
+    "query": "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。",
+    "source": "auto",
+    "topology": "sod",
+    "structure_name": null,
+    "structure_id": null,
+    "typical": true,
+    "repair_h": true,
+    "repair_disorder": true,
+    "remove_close_contacts": true,
+    "extract_cluster": false,
+    "cluster_mode": "sbu",
+    "supercell": [
+      2,
+      2,
+      1
+    ],
+    "surface": [
+      1,
+      1,
+      1
+    ],
+    "surface_frame": "slab",
+    "vacuum": 15.0,
+    "slab_thickness": 15.0,
+    "output_formats": [
+      "vasp",
+      "cif",
+      "xyz"
+    ],
+    "outdir": "runs\\demo_sod_zif8",
+    "notes": [],
+    "assumptions": [
+      "未指定导出格式，按默认 VASP/CIF/XYZ 导出（计算化学常用）",
+      "未指定 slab 厚度，默认 15 Å"
+    ],
+    "raw_text": "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。"
+  },
+  "environment": {
+    "python": "3.14.8",
+    "executable": "D:\\Dev\\Project5-skill-cif\\.venv\\Scripts\\python.exe",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "pymatgen": "2026.10.24",
+      "ase": "3.29.0",
+      "numpy": "2.5.4",
+      "scipy": "1.18.1",
+      "networkx": "3.7",
+      "matplotlib": "3.11.2",
+      "rdkit": "2026.9.1",
+      "openbabel-wheel": "3.1.1.23"
+    },
+    "project_root": "D:\\Dev\\Project5-skill-cif"
+  },
+  "source": {
+    "record": {
+      "record_id": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+      "source": "core-mof",
+      "formula": "Zn12 C96 N48",
+      "topology": "sod",
+      "topology_evidence": "verified",
+      "refcode": "ja204757x_si_002_ASR_pacman",
+      "coreid": null,
+      "doi": "10.1021/ja204757x",
+      "variant": "raw",
+      "natoms": 156,
+      "h_count": 0,
+      "h_expected": 120.0,
+      "path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+      "url": "https://zenodo.org/records/15055758",
+      "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+      "notes": [
+        "原始（NCR）CIF：未经计算就绪清理，可能缺氢/有占位原子，需 repair 层处理",
+        "记录自带 H 数=0，期望约 120.0（估计值：按 H 完整的同组成 CoRE ASR 参考 2015[Zn][sod]3[ASR]1 （Zn6 H60 C48 N24）的 H/金属比缩放估计，非实测）",
+        "候选发现：重原子组成指纹 Zn:1|C:8|N:4 与 CoRE ASR sod 记录 2015[Zn][sod]3[ASR]1 一致（Zn6 H60 C48 N24）",
+        "curated 候选（文献关联，非拓扑答案）：JACS 2011 ZIF-8（sod 拓扑）碘吸附工作的原始 CIF：CoRE 2024 NCR 目录、组成 Zn12 C96 N48、无 H、cubic a=17.029 Å；拓扑归属为文献关联（curated），返回前必须经 topology.verify 与 CoRE ASR sod 参考结构比对核实",
+        "文献常用名：ZIF-8（curated 名称关联）",
+        "CoRE NCR 质检标记（mofchecker）：has_undercoordinated_c",
+        "CoRE NCR 质检标记（Chen_Manz）：Under bonded carbon",
+        "拓扑证据：topology.verify 结构比对通过（verify evidence=verified）。与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]"
+      ],
+      "extra": {
+        "zip_path": "SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+        "section": "NCR",
+        "subset": "both",
+        "variant": "raw",
+        "heavy_key": "Zn:1|C:8|N:4",
+        "h_expected_method": "按 H 完整的同组成 CoRE ASR 参考 2015[Zn][sod]3[ASR]1 （Zn6 H60 C48 N24）的 H/金属比缩放估计，非实测",
+        "curated_exemplar": true,
+        "matched_ready_record": "2015[Zn][sod]3[ASR]1",
+        "matched_ready_doi": "10.1021/ic5028256",
+        "dataset_doi": "10.5281/zenodo.15055758",
+        "ncr_flags": {
+          "Chen_Manz": {
+            "refcode": "ja204757x_si_002_ASR_pacman",
+            "Isolated": false,
+            "Atom overlapping": false,
+            "Under bonded carbon": true,
+            "Over bonded carbon": false
+          },
+          "mofchecker": {
+            "refcode": "ja204757x_si_002_ASR_pacman",
+            "has_lone_molecule": false,
+            "has_atomic_overlaps": false,
+            "has_overcoordinated_c": false,
+            "has_overcoordinated_n": false,
+            "has_overcoordinated_h": false,
+            "has_undercoordinated_c": true,
+            "has_undercoordinated_n": false,
+            "has_undercoordinated_rare_earth": false,
+            "has_undercoordinated_alkali_alkaline": false,
+            "has_suspicious_terminal_oxo": false,
+            "has_geometrically_exposed_metal": false,
+            "no_carbon": false
+          }
+        },
+        "topology_verification": {
+          "ok": true,
+          "evidence": "verified",
+          "detail": "与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]",
+          "signature": {
+            "coordination_numbers": {
+              "4": 1.0
+            },
+            "coordination_sequence": [
+              4.0,
+              10.0,
+              20.0,
+              34.0,
+              52.0,
+              74.0,
+              100.0,
+              130.0
+            ],
+            "coordination_sequence_truncated": false,
+            "n_metal_nodes": 12,
+            "n_edges": 24,
+            "n_linkers": 24,
+            "linkers_per_metal": 2.0,
+            "ring_sizes": [
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "rings_per_node": {
+              "4": {
+                "per_cell": 1.5,
+                "per_node": 0.125,
+                "truncated": false
+              },
+              "5": {
+                "per_cell": 0.0,
+                "per_node": 0.0,
+                "truncated": false
+              },
+              "6": {
+                "per_cell": 1.3333,
+                "per_node": 0.111111,
+                "truncated": false
+              },
+              "7": {
+                "per_cell": 0.0,
+                "per_node": 0.0,
+                "truncated": false
+              },
+              "8": {
+                "per_cell": 6.0,
+                "per_node": 0.5,
+                "truncated": false
+              }
+            },
+            "rings_truncated": false
+          },
+          "reference": {
+            "source": "CoRE MOF 2024 CR/ASR 元数据（topology(AllNodes)==sod）",
+            "record_id": "core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+            "zip_path": "SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+            "topology": "sod",
+            "topology_evidence": "metadata",
+            "doi": "10.1021/ic5028256",
+            "signature": {
+              "coordination_numbers": {
+                "4": 1.0
+              },
+              "coordination_sequence": [
+                4.0,
+                10.0,
+                20.0,
+                34.0,
+                52.0,
+                74.0,
+                100.0,
+                130.0
+              ],
+              "coordination_sequence_truncated": false,
+              "n_metal_nodes": 6,
+              "n_edges": 12,
+              "n_linkers": 12,
+              "linkers_per_metal": 2.0,
+              "ring_sizes": [
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "rings_per_node": {
+                "4": {
+                  "per_cell": 0.75,
+                  "per_node": 0.125,
+                  "truncated": false
+                },
+                "5": {
+                  "per_cell": 0.0,
+                  "per_node": 0.0,
+                  "truncated": false
+                },
+                "6": {
+                  "per_cell": 0.6667,
+                  "per_node": 0.111111,
+                  "truncated": false
+                },
+                "7": {
+                  "per_cell": 0.0,
+                  "per_node": 0.0,
+                  "truncated": false
+                },
+                "8": {
+                  "per_cell": 3.0,
+                  "per_node": 0.5,
+                  "truncated": false
+                }
+              },
+              "rings_truncated": false
+            }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "source": "core-mof",
+      "record_id": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+      "record_refcode": "ja204757x_si_002_ASR_pacman",
+      "record_coreid": null,
+      "variant": "raw",
+      "zip_path": "SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+      "zip_sha256": "d07a0c1f0161a12ae998ea9531cc3bc333ad0e8cacd8c5c097fcc7e88006fa8a",
+      "zip_size": 44022768,
+      "dataset": "CoRE MOF 2024",
+      "dataset_version": "1.1 (2025-03)",
+      "dataset_doi": "10.5281/zenodo.15055758",
+      "dataset_url": "https://zenodo.org/records/15055758",
+      "url": "https://zenodo.org/records/15055758",
+      "file_url": "https://zenodo.org/records/15055758/files/CoREMOF2024DB.zip?download=1",
+      "license": "CC-BY-4.0",
+      "doi": "10.1021/ja204757x",
+      "doi_note": "DOI 来自 curated 文献关联（NCR 无元数据列）",
+      "cif_sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+      "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+      "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+      "cache_reused": true,
+      "fetched_at": "2026-11-05T15:18:09+08:00",
+      "topology": "sod",
+      "topology_evidence": "verified",
+      "h_count": 0,
+      "h_expected": 120.0,
+      "resolution": {
+        "requested_source": "auto",
+        "resolved_source": "core-mof",
+        "query": {
+          "topology": "sod",
+          "typical": true,
+          "prefer_raw": true,
+          "structure_name": null,
+          "structure_id": null,
+          "limit": 3
+        },
+        "n_hits": 3,
+        "candidates": [
+          "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+          "core-mof:SI/NCR/both/ja204757x_si_003_ASR_pacman.cif",
+          "core-mof:SI/NCR/both/ci9b00893_si_002_ASR_pacman.cif"
+        ],
+        "selected": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+        "selection_rule": "3 个候选，按确定性排序取第一条（typical=True 取最典型候选; prefer_raw=True 优先原始（需修复）结构）"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "resolve",
+      "status": "ok",
+      "detail": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif  Zn12 C96 N48  atoms=156  DOI=10.1021/ja204757x",
+      "artifacts": [],
+      "data": {
+        "record": {
+          "record_id": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+          "source": "core-mof",
+          "formula": "Zn12 C96 N48",
+          "topology": "sod",
+          "topology_evidence": "verified",
+          "refcode": "ja204757x_si_002_ASR_pacman",
+          "coreid": null,
+          "doi": "10.1021/ja204757x",
+          "variant": "raw",
+          "natoms": 156,
+          "h_count": 0,
+          "h_expected": 120.0,
+          "path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+          "url": "https://zenodo.org/records/15055758",
+          "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+          "notes": [
+            "原始（NCR）CIF：未经计算就绪清理，可能缺氢/有占位原子，需 repair 层处理",
+            "记录自带 H 数=0，期望约 120.0（估计值：按 H 完整的同组成 CoRE ASR 参考 2015[Zn][sod]3[ASR]1 （Zn6 H60 C48 N24）的 H/金属比缩放估计，非实测）",
+            "候选发现：重原子组成指纹 Zn:1|C:8|N:4 与 CoRE ASR sod 记录 2015[Zn][sod]3[ASR]1 一致（Zn6 H60 C48 N24）",
+            "curated 候选（文献关联，非拓扑答案）：JACS 2011 ZIF-8（sod 拓扑）碘吸附工作的原始 CIF：CoRE 2024 NCR 目录、组成 Zn12 C96 N48、无 H、cubic a=17.029 Å；拓扑归属为文献关联（curated），返回前必须经 topology.verify 与 CoRE ASR sod 参考结构比对核实",
+            "文献常用名：ZIF-8（curated 名称关联）",
+            "CoRE NCR 质检标记（mofchecker）：has_undercoordinated_c",
+            "CoRE NCR 质检标记（Chen_Manz）：Under bonded carbon",
+            "拓扑证据：topology.verify 结构比对通过（verify evidence=verified）。与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]"
+          ],
+          "extra": {
+            "zip_path": "SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+            "section": "NCR",
+            "subset": "both",
+            "variant": "raw",
+            "heavy_key": "Zn:1|C:8|N:4",
+            "h_expected_method": "按 H 完整的同组成 CoRE ASR 参考 2015[Zn][sod]3[ASR]1 （Zn6 H60 C48 N24）的 H/金属比缩放估计，非实测",
+            "curated_exemplar": true,
+            "matched_ready_record": "2015[Zn][sod]3[ASR]1",
+            "matched_ready_doi": "10.1021/ic5028256",
+            "dataset_doi": "10.5281/zenodo.15055758",
+            "ncr_flags": {
+              "Chen_Manz": {
+                "refcode": "ja204757x_si_002_ASR_pacman",
+                "Isolated": false,
+                "Atom overlapping": false,
+                "Under bonded carbon": true,
+                "Over bonded carbon": false
+              },
+              "mofchecker": {
+                "refcode": "ja204757x_si_002_ASR_pacman",
+                "has_lone_molecule": false,
+                "has_atomic_overlaps": false,
+                "has_overcoordinated_c": false,
+                "has_overcoordinated_n": false,
+                "has_overcoordinated_h": false,
+                "has_undercoordinated_c": true,
+                "has_undercoordinated_n": false,
+                "has_undercoordinated_rare_earth": false,
+                "has_undercoordinated_alkali_alkaline": false,
+                "has_suspicious_terminal_oxo": false,
+                "has_geometrically_exposed_metal": false,
+                "no_carbon": false
+              }
+            },
+            "topology_verification": {
+              "ok": true,
+              "evidence": "verified",
+              "detail": "与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]",
+              "signature": {
+                "coordination_numbers": {
+                  "4": 1.0
+                },
+                "coordination_sequence": [
+                  4.0,
+                  10.0,
+                  20.0,
+                  34.0,
+                  52.0,
+                  74.0,
+                  100.0,
+                  130.0
+                ],
+                "coordination_sequence_truncated": false,
+                "n_metal_nodes": 12,
+                "n_edges": 24,
+                "n_linkers": 24,
+                "linkers_per_metal": 2.0,
+                "ring_sizes": [
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ],
+                "rings_per_node": {
+                  "4": {
+                    "per_cell": 1.5,
+                    "per_node": 0.125,
+                    "truncated": false
+                  },
+                  "5": {
+                    "per_cell": 0.0,
+                    "per_node": 0.0,
+                    "truncated": false
+                  },
+                  "6": {
+                    "per_cell": 1.3333,
+                    "per_node": 0.111111,
+                    "truncated": false
+                  },
+                  "7": {
+                    "per_cell": 0.0,
+                    "per_node": 0.0,
+                    "truncated": false
+                  },
+                  "8": {
+                    "per_cell": 6.0,
+                    "per_node": 0.5,
+                    "truncated": false
+                  }
+                },
+                "rings_truncated": false
+              },
+              "reference": {
+                "source": "CoRE MOF 2024 CR/ASR 元数据（topology(AllNodes)==sod）",
+                "record_id": "core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+                "zip_path": "SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+                "topology": "sod",
+                "topology_evidence": "metadata",
+                "doi": "10.1021/ic5028256",
+                "signature": {
+                  "coordination_numbers": {
+                    "4": 1.0
+                  },
+                  "coordination_sequence": [
+                    4.0,
+                    10.0,
+                    20.0,
+                    34.0,
+                    52.0,
+                    74.0,
+                    100.0,
+                    130.0
+                  ],
+                  "coordination_sequence_truncated": false,
+                  "n_metal_nodes": 6,
+                  "n_edges": 12,
+                  "n_linkers": 12,
+                  "linkers_per_metal": 2.0,
+                  "ring_sizes": [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8
+                  ],
+                  "rings_per_node": {
+                    "4": {
+                      "per_cell": 0.75,
+                      "per_node": 0.125,
+                      "truncated": false
+                    },
+                    "5": {
+                      "per_cell": 0.0,
+                      "per_node": 0.0,
+                      "truncated": false
+                    },
+                    "6": {
+                      "per_cell": 0.6667,
+                      "per_node": 0.111111,
+                      "truncated": false
+                    },
+                    "7": {
+                      "per_cell": 0.0,
+                      "per_node": 0.0,
+                      "truncated": false
+                    },
+                    "8": {
+                      "per_cell": 3.0,
+                      "per_node": 0.5,
+                      "truncated": false
+                    }
+                  },
+                  "rings_truncated": false
+                }
+              }
+            }
+          }
+        },
+        "provenance": {
+          "source": "core-mof",
+          "record_id": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+          "record_refcode": "ja204757x_si_002_ASR_pacman",
+          "record_coreid": null,
+          "variant": "raw",
+          "zip_path": "SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+          "zip_sha256": "d07a0c1f0161a12ae998ea9531cc3bc333ad0e8cacd8c5c097fcc7e88006fa8a",
+          "zip_size": 44022768,
+          "dataset": "CoRE MOF 2024",
+          "dataset_version": "1.1 (2025-03)",
+          "dataset_doi": "10.5281/zenodo.15055758",
+          "dataset_url": "https://zenodo.org/records/15055758",
+          "url": "https://zenodo.org/records/15055758",
+          "file_url": "https://zenodo.org/records/15055758/files/CoREMOF2024DB.zip?download=1",
+          "license": "CC-BY-4.0",
+          "doi": "10.1021/ja204757x",
+          "doi_note": "DOI 来自 curated 文献关联（NCR 无元数据列）",
+          "cif_sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+          "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
+          "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+          "cache_reused": true,
+          "fetched_at": "2026-11-05T15:18:09+08:00",
+          "topology": "sod",
+          "topology_evidence": "verified",
+          "h_count": 0,
+          "h_expected": 120.0,
+          "resolution": {
+            "requested_source": "auto",
+            "resolved_source": "core-mof",
+            "query": {
+              "topology": "sod",
+              "typical": true,
+              "prefer_raw": true,
+              "structure_name": null,
+              "structure_id": null,
+              "limit": 3
+            },
+            "n_hits": 3,
+            "candidates": [
+              "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+              "core-mof:SI/NCR/both/ja204757x_si_003_ASR_pacman.cif",
+              "core-mof:SI/NCR/both/ci9b00893_si_002_ASR_pacman.cif"
+            ],
+            "selected": "core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif",
+            "selection_rule": "3 个候选，按确定性排序取第一条（typical=True 取最典型候选; prefer_raw=True 优先原始（需修复）结构）"
+          }
+        },
+        "elapsed_s": 1.0
+      }
+    },
+    {
+      "name": "verify-topology",
+      "status": "ok",
+      "detail": "expected=sod evidence=verified 与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]",
+      "artifacts": [],
+      "data": {
+        "ok": true,
+        "evidence": "verified",
+        "detail": "与参考 core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif 的 underlying net 签名一致：配位数[4-配位×1.00]；配位序列[2-8层: 4, 10, 20, 34, 52, 74, 100, 130]；环分布[4元环/节点=0.125, 6元环/节点=0.111, 8元环/节点=0.500]",
+        "signature": {
+          "coordination_numbers": {
+            "4": 1.0
+          },
+          "coordination_sequence": [
+            4.0,
+            10.0,
+            20.0,
+            34.0,
+            52.0,
+            74.0,
+            100.0,
+            130.0
+          ],
+          "coordination_sequence_truncated": false,
+          "n_metal_nodes": 12,
+          "n_edges": 24,
+          "n_linkers": 24,
+          "linkers_per_metal": 2.0,
+          "ring_sizes": [
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "rings_per_node": {
+            "4": {
+              "per_cell": 1.5,
+              "per_node": 0.125,
+              "truncated": false
+            },
+            "5": {
+              "per_cell": 0.0,
+              "per_node": 0.0,
+              "truncated": false
+            },
+            "6": {
+              "per_cell": 1.3333,
+              "per_node": 0.111111,
+              "truncated": false
+            },
+            "7": {
+              "per_cell": 0.0,
+              "per_node": 0.0,
+              "truncated": false
+            },
+            "8": {
+              "per_cell": 6.0,
+              "per_node": 0.5,
+              "truncated": false
+            }
+          },
+          "rings_truncated": false
+        },
+        "reference": {
+          "source": "CoRE MOF 2024 CR/ASR 元数据（topology(AllNodes)==sod）",
+          "record_id": "core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+          "zip_path": "SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+          "topology": "sod",
+          "topology_evidence": "metadata",
+          "doi": "10.1021/ic5028256",
+          "signature": {
+            "coordination_numbers": {
+              "4": 1.0
+            },
+            "coordination_sequence": [
+              4.0,
+              10.0,
+              20.0,
+              34.0,
+              52.0,
+              74.0,
+              100.0,
+              130.0
+            ],
+            "coordination_sequence_truncated": false,
+            "n_metal_nodes": 6,
+            "n_edges": 12,
+            "n_linkers": 12,
+            "linkers_per_metal": 2.0,
+            "ring_sizes": [
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "rings_per_node": {
+              "4": {
+                "per_cell": 0.75,
+                "per_node": 0.125,
+                "truncated": false
+              },
+              "5": {
+                "per_cell": 0.0,
+                "per_node": 0.0,
+                "truncated": false
+              },
+              "6": {
+                "per_cell": 0.6667,
+                "per_node": 0.111111,
+                "truncated": false
+              },
+              "7": {
+                "per_cell": 0.0,
+                "per_node": 0.0,
+                "truncated": false
+              },
+              "8": {
+                "per_cell": 3.0,
+                "per_node": 0.5,
+                "truncated": false
+              }
+            },
+            "rings_truncated": false
+          }
+        },
+        "elapsed_s": 0.0
+      }
+    },
+    {
+      "name": "repair",
+      "status": "ok",
+      "detail": "add_H=120 removed=0 disorder=0 atoms=276",
+      "artifacts": [
+        "runs\\demo_sod_zif8\\repaired.cif"
+      ],
+      "data": {
+        "actions": [
+          {
+            "action": "contacts",
+            "detail": "过近原子检查（阈值 0.85*(r_i+r_j)、H···H < 1.0 Å、H···重原子 < 0.9 Å）：删除 0 个重叠/重复原子",
+            "removed_atoms": 0,
+            "contacts": []
+          },
+          {
+            "action": "hydrogen",
+            "detail": "补氢：新增 120 个 H （{'sp2 C-H': 48, 'sp3 C-H3': 72}；路线 rdkit-capped；RDKit 片段 24/24 成功；每个有机片段补 H 数量分布 {5: 24}）；C–H 键长 1.100–1.100 Å；最小 H···H 1.80 Å；最小 H···重原子 2.13 Å；最小 H···金属 2.87 Å",
+            "route": "rdkit-capped",
+            "added_h": 120,
+            "h_types": {
+              "sp2 C-H": 48,
+              "sp3 C-H3": 72
+            },
+            "per_ligand_h": {
+              "5": 24
+            },
+            "rdkit": {
+              "available": true,
+              "fragments_total": 24,
+              "fragments_ok": 24,
+              "fragments_failed": 0
+            },
+            "geometric_placements": 0,
+            "min_hh": 1.796290032452284,
+            "min_h_heavy": 2.131255651175216,
+            "min_h_metal": 2.8672103351865363,
+            "c_valence_ok": true
+          },
+          {
+            "action": "valence",
+            "detail": "价态检查：C 96/96 四配位；金属配位 Zn CN={4: 12}；H 120 个；最小原子间距 1.10 Å；通过",
+            "ok": true,
+            "metrics": {
+              "natoms": 276,
+              "formula": "Zn12 H120 C96 N48",
+              "h_count": 120,
+              "c_count": 96,
+              "c_four_coordinate": 96,
+              "c_bad": [],
+              "hetero_bad": [],
+              "h_bad": [],
+              "metal_coordination": {
+                "Zn": {
+                  "4": 12
+                }
+              },
+              "metal_bond_count": 12,
+              "valence_histogram": {
+                "C": {
+                  "4.0": 96
+                },
+                "N": {
+                  "4.0": 24,
+                  "3.0": 24
+                }
+              },
+              "min_distance": 1.1,
+              "min_hh": 1.7963,
+              "min_h_heavy": 2.1313,
+              "min_h_metal": 2.8672
+            }
+          }
+        ],
+        "added_h": 120,
+        "removed_atoms": 0,
+        "resolved_disorder": 0,
+        "warnings": [],
+        "elapsed_s": 1.26
+      }
+    },
+    {
+      "name": "standardize",
+      "status": "ok",
+      "detail": "atoms=276 formula=Zn12 H120 C96 N48",
+      "artifacts": [],
+      "data": {
+        "elapsed_s": 0.04,
+        "natoms": 276
+      }
+    },
+    {
+      "name": "surface",
+      "status": "ok",
+      "detail": "hkl=(1, 1, 1) frame=slab reps=(2, 2, 1) atoms=2208 abc=[48.166, 48.166, 34.283] vacuum=15.0",
+      "artifacts": [],
+      "data": {
+        "frame": "slab",
+        "hkl": [
+          1,
+          1,
+          1
+        ],
+        "reps": [
+          2,
+          2,
+          1
+        ],
+        "in_plane_reps": [
+          2,
+          2
+        ],
+        "input_atoms": 276,
+        "cut_cell_atoms": 276,
+        "base_atoms": 552,
+        "atoms_after_reps": 2208,
+        "natoms": 2208,
+        "formula": "Zn96 H960 C768 N384",
+        "reduced_formula": "ZnH10(C2N)4",
+        "slab_thickness": 19.283,
+        "atom_extent": 19.283,
+        "vacuum_measured": 15.0,
+        "vacuum_perp": 15.0,
+        "vacuum": 15.0,
+        "vacuum_target": 15.0,
+        "min_image_distance": 15.2396,
+        "vacuum_as_generated": 20.045,
+        "min_image_distance_as_generated": 20.215,
+        "slab_thickness_target": 15.0,
+        "c_length": 34.283,
+        "lattice": {
+          "abc": [
+            48.1661,
+            48.1661,
+            34.2826
+          ],
+          "angles": [
+            90.0,
+            90.0,
+            60.0
+          ],
+          "volume": 68879.175
+        },
+        "surface_area": 2009.16,
+        "termination": {
+          "mode": "best",
+          "shift": 0.207317,
+          "surface_elements_top": {
+            "C": 27,
+            "H": 43,
+            "N": 6
+          },
+          "surface_elements_bottom": {
+            "C": 39,
+            "H": 36,
+            "N": 18,
+            "Zn": 6
+          },
+          "dangling_bonds": 20,
+          "dangling_by_element": {
+            "C": 4,
+            "H": 4,
+            "N": 6,
+            "Zn": 6
+          },
+          "stoichiometry_deviation": 0.0,
+          "score": 20.0
+        },
+        "chosen": {
+          "natoms": 552,
+          "formula": "Zn24 H240 C192 N96",
+          "thickness": 19.283,
+          "vacuum_perp": 20.045,
+          "vacuum_as_generated": 20.045,
+          "min_image_distance": 20.215,
+          "frac_span": 0.4903,
+          "surface_area": 502.29,
+          "surface_atoms": 175,
+          "dangling_bonds": 20,
+          "dangling_by_element": {
+            "C": 4,
+            "H": 4,
+            "N": 6,
+            "Zn": 6
+          },
+          "stoichiometry_deviation": 0.0,
+          "surface_elements_top": {
+            "C": 27,
+            "H": 43,
+            "N": 6
+          },
+          "surface_elements_bottom": {
+            "C": 39,
+            "H": 36,
+            "N": 18,
+            "Zn": 6
+          },
+          "score": 20.0,
+          "shift": 0.207317
+        },
+        "n_candidates": 32,
+        "candidates": [
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.38,
+            "vacuum_perp": 19.948,
+            "vacuum_as_generated": 19.948,
+            "min_image_distance": 20.322,
+            "frac_span": 0.4928,
+            "surface_area": 502.29,
+            "surface_atoms": 191,
+            "dangling_bonds": 45,
+            "dangling_by_element": {
+              "C": 24,
+              "H": 9,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 36,
+              "H": 38,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 45.0,
+            "shift": 0.035883
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.434,
+            "vacuum_perp": 19.893,
+            "vacuum_as_generated": 19.893,
+            "min_image_distance": 19.941,
+            "frac_span": 0.4942,
+            "surface_area": 502.29,
+            "surface_atoms": 177,
+            "dangling_bonds": 33,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 9,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 30,
+              "N": 24
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 33.0,
+            "shift": 0.076369
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.496,
+            "vacuum_perp": 19.832,
+            "vacuum_as_generated": 19.832,
+            "min_image_distance": 20.19,
+            "frac_span": 0.4957,
+            "surface_area": 502.29,
+            "surface_atoms": 169,
+            "dangling_bonds": 29,
+            "dangling_by_element": {
+              "C": 7,
+              "H": 10,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 36,
+              "N": 18
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 31,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 29.0,
+            "shift": 0.105652
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.53,
+            "vacuum_perp": 19.798,
+            "vacuum_as_generated": 19.798,
+            "min_image_distance": 20.056,
+            "frac_span": 0.4966,
+            "surface_area": 502.29,
+            "surface_atoms": 157,
+            "dangling_bonds": 31,
+            "dangling_by_element": {
+              "C": 7,
+              "H": 12,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 32,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 31.0,
+            "shift": 0.12621
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.501,
+            "vacuum_perp": 19.827,
+            "vacuum_as_generated": 19.827,
+            "min_image_distance": 20.056,
+            "frac_span": 0.4959,
+            "surface_area": 502.29,
+            "surface_atoms": 156,
+            "dangling_bonds": 27,
+            "dangling_by_element": {
+              "C": 5,
+              "H": 10,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 33,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 27,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 27.0,
+            "shift": 0.141456
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.519,
+            "vacuum_perp": 19.808,
+            "vacuum_as_generated": 19.808,
+            "min_image_distance": 20.534,
+            "frac_span": 0.4963,
+            "surface_area": 502.29,
+            "surface_atoms": 162,
+            "dangling_bonds": 21,
+            "dangling_by_element": {
+              "C": 3,
+              "H": 6,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 37,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 21.0,
+            "shift": 0.158564
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.484,
+            "vacuum_perp": 19.844,
+            "vacuum_as_generated": 19.844,
+            "min_image_distance": 20.142,
+            "frac_span": 0.4954,
+            "surface_area": 502.29,
+            "surface_atoms": 162,
+            "dangling_bonds": 22,
+            "dangling_by_element": {
+              "C": 4,
+              "H": 6,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 41,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 25,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 22.0,
+            "shift": 0.177587
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.283,
+            "vacuum_perp": 20.045,
+            "vacuum_as_generated": 20.045,
+            "min_image_distance": 20.215,
+            "frac_span": 0.4903,
+            "surface_area": 502.29,
+            "surface_atoms": 175,
+            "dangling_bonds": 20,
+            "dangling_by_element": {
+              "C": 4,
+              "H": 4,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 43,
+              "N": 6
+            },
+            "surface_elements_bottom": {
+              "C": 39,
+              "H": 36,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 20.0,
+            "shift": 0.207317
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.553,
+            "vacuum_perp": 19.775,
+            "vacuum_as_generated": 19.775,
+            "min_image_distance": 19.869,
+            "frac_span": 0.4972,
+            "surface_area": 502.29,
+            "surface_atoms": 171,
+            "dangling_bonds": 28,
+            "dangling_by_element": {
+              "C": 11,
+              "H": 5,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 24,
+              "H": 43,
+              "N": 6
+            },
+            "surface_elements_bottom": {
+              "C": 36,
+              "H": 38,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 28.0,
+            "shift": 0.237751
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.435,
+            "vacuum_perp": 19.892,
+            "vacuum_as_generated": 19.892,
+            "min_image_distance": 20.185,
+            "frac_span": 0.4942,
+            "surface_area": 502.29,
+            "surface_atoms": 185,
+            "dangling_bonds": 63,
+            "dangling_by_element": {
+              "C": 18,
+              "H": 9,
+              "N": 24,
+              "Zn": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 51,
+              "N": 12,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 36,
+              "H": 32,
+              "N": 18
+            },
+            "score": 63.0,
+            "shift": 0.271626
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.449,
+            "vacuum_perp": 19.878,
+            "vacuum_as_generated": 19.878,
+            "min_image_distance": 20.263,
+            "frac_span": 0.4945,
+            "surface_area": 502.29,
+            "surface_atoms": 178,
+            "dangling_bonds": 37,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 7,
+              "N": 12,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 47,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 32,
+              "N": 12
+            },
+            "score": 37.0,
+            "shift": 0.31049
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.501,
+            "vacuum_perp": 19.827,
+            "vacuum_as_generated": 19.827,
+            "min_image_distance": 20.263,
+            "frac_span": 0.4959,
+            "surface_area": 502.29,
+            "surface_atoms": 170,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 6,
+              "N": 12,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 24,
+              "H": 44,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 33,
+              "N": 12
+            },
+            "score": 36.0,
+            "shift": 0.33483
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.342,
+            "vacuum_perp": 19.985,
+            "vacuum_as_generated": 19.985,
+            "min_image_distance": 19.99,
+            "frac_span": 0.4918,
+            "surface_area": 502.29,
+            "surface_atoms": 173,
+            "dangling_bonds": 48,
+            "dangling_by_element": {
+              "C": 24,
+              "N": 18,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 41,
+              "N": 12
+            },
+            "score": 48.0,
+            "shift": 0.35947
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.231,
+            "vacuum_perp": 20.097,
+            "vacuum_as_generated": 20.097,
+            "min_image_distance": 20.292,
+            "frac_span": 0.489,
+            "surface_area": 502.29,
+            "surface_atoms": 169,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 24,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 43,
+              "N": 6
+            },
+            "score": 36.0,
+            "shift": 0.39783
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.317,
+            "vacuum_perp": 20.011,
+            "vacuum_as_generated": 20.011,
+            "min_image_distance": 20.184,
+            "frac_span": 0.4912,
+            "surface_area": 502.29,
+            "surface_atoms": 181,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 24,
+              "H": 6,
+              "N": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 31,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 51,
+              "N": 12,
+              "Zn": 6
+            },
+            "score": 36.0,
+            "shift": 0.438942
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.29,
+            "vacuum_perp": 20.037,
+            "vacuum_as_generated": 20.037,
+            "min_image_distance": 20.197,
+            "frac_span": 0.4905,
+            "surface_area": 502.29,
+            "surface_atoms": 187,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 18,
+              "H": 6,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 53,
+              "N": 12,
+              "Zn": 6
+            },
+            "score": 36.0,
+            "shift": 0.484485
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.38,
+            "vacuum_perp": 19.948,
+            "vacuum_as_generated": 19.948,
+            "min_image_distance": 20.322,
+            "frac_span": 0.4928,
+            "surface_area": 502.29,
+            "surface_atoms": 191,
+            "dangling_bonds": 45,
+            "dangling_by_element": {
+              "C": 24,
+              "H": 9,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 36,
+              "H": 38,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 45.0,
+            "shift": 0.535883
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.434,
+            "vacuum_perp": 19.893,
+            "vacuum_as_generated": 19.893,
+            "min_image_distance": 19.941,
+            "frac_span": 0.4942,
+            "surface_area": 502.29,
+            "surface_atoms": 177,
+            "dangling_bonds": 33,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 9,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 30,
+              "N": 24
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 33.0,
+            "shift": 0.576369
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.496,
+            "vacuum_perp": 19.832,
+            "vacuum_as_generated": 19.832,
+            "min_image_distance": 20.19,
+            "frac_span": 0.4957,
+            "surface_area": 502.29,
+            "surface_atoms": 169,
+            "dangling_bonds": 29,
+            "dangling_by_element": {
+              "C": 7,
+              "H": 10,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 36,
+              "N": 18
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 31,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 29.0,
+            "shift": 0.605652
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.53,
+            "vacuum_perp": 19.798,
+            "vacuum_as_generated": 19.798,
+            "min_image_distance": 20.056,
+            "frac_span": 0.4966,
+            "surface_area": 502.29,
+            "surface_atoms": 157,
+            "dangling_bonds": 31,
+            "dangling_by_element": {
+              "C": 7,
+              "H": 12,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 32,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 31.0,
+            "shift": 0.62621
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.501,
+            "vacuum_perp": 19.827,
+            "vacuum_as_generated": 19.827,
+            "min_image_distance": 20.056,
+            "frac_span": 0.4959,
+            "surface_area": 502.29,
+            "surface_atoms": 156,
+            "dangling_bonds": 27,
+            "dangling_by_element": {
+              "C": 5,
+              "H": 10,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 33,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 27,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 27.0,
+            "shift": 0.641456
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.519,
+            "vacuum_perp": 19.808,
+            "vacuum_as_generated": 19.808,
+            "min_image_distance": 20.296,
+            "frac_span": 0.4963,
+            "surface_area": 502.29,
+            "surface_atoms": 162,
+            "dangling_bonds": 21,
+            "dangling_by_element": {
+              "C": 3,
+              "H": 6,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 37,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 21.0,
+            "shift": 0.658564
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.484,
+            "vacuum_perp": 19.844,
+            "vacuum_as_generated": 19.844,
+            "min_image_distance": 20.142,
+            "frac_span": 0.4954,
+            "surface_area": 502.29,
+            "surface_atoms": 162,
+            "dangling_bonds": 22,
+            "dangling_by_element": {
+              "C": 4,
+              "H": 6,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 41,
+              "N": 12
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 25,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 22.0,
+            "shift": 0.677587
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.283,
+            "vacuum_perp": 20.045,
+            "vacuum_as_generated": 20.045,
+            "min_image_distance": 20.215,
+            "frac_span": 0.4903,
+            "surface_area": 502.29,
+            "surface_atoms": 175,
+            "dangling_bonds": 20,
+            "dangling_by_element": {
+              "C": 4,
+              "H": 4,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 43,
+              "N": 6
+            },
+            "surface_elements_bottom": {
+              "C": 39,
+              "H": 36,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 20.0,
+            "shift": 0.707317
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.553,
+            "vacuum_perp": 19.775,
+            "vacuum_as_generated": 19.775,
+            "min_image_distance": 19.869,
+            "frac_span": 0.4972,
+            "surface_area": 502.29,
+            "surface_atoms": 171,
+            "dangling_bonds": 28,
+            "dangling_by_element": {
+              "C": 11,
+              "H": 5,
+              "N": 6,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 24,
+              "H": 43,
+              "N": 6
+            },
+            "surface_elements_bottom": {
+              "C": 36,
+              "H": 38,
+              "N": 18,
+              "Zn": 6
+            },
+            "score": 28.0,
+            "shift": 0.737751
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.435,
+            "vacuum_perp": 19.892,
+            "vacuum_as_generated": 19.892,
+            "min_image_distance": 20.259,
+            "frac_span": 0.4942,
+            "surface_area": 502.29,
+            "surface_atoms": 185,
+            "dangling_bonds": 63,
+            "dangling_by_element": {
+              "C": 18,
+              "H": 9,
+              "N": 24,
+              "Zn": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 51,
+              "N": 12,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 36,
+              "H": 32,
+              "N": 18
+            },
+            "score": 63.0,
+            "shift": 0.771626
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.449,
+            "vacuum_perp": 19.878,
+            "vacuum_as_generated": 19.878,
+            "min_image_distance": 20.263,
+            "frac_span": 0.4945,
+            "surface_area": 502.29,
+            "surface_atoms": 178,
+            "dangling_bonds": 37,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 7,
+              "N": 12,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 47,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 32,
+              "N": 12
+            },
+            "score": 37.0,
+            "shift": 0.81049
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.501,
+            "vacuum_perp": 19.827,
+            "vacuum_as_generated": 19.827,
+            "min_image_distance": 20.263,
+            "frac_span": 0.4959,
+            "surface_area": 502.29,
+            "surface_atoms": 170,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 12,
+              "H": 6,
+              "N": 12,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 24,
+              "H": 44,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 33,
+              "H": 33,
+              "N": 12
+            },
+            "score": 36.0,
+            "shift": 0.83483
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.342,
+            "vacuum_perp": 19.985,
+            "vacuum_as_generated": 19.985,
+            "min_image_distance": 19.99,
+            "frac_span": 0.4918,
+            "surface_area": 502.29,
+            "surface_atoms": 173,
+            "dangling_bonds": 48,
+            "dangling_by_element": {
+              "C": 24,
+              "N": 18,
+              "Zn": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 41,
+              "N": 12
+            },
+            "score": 48.0,
+            "shift": 0.85947
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.231,
+            "vacuum_perp": 20.097,
+            "vacuum_as_generated": 20.097,
+            "min_image_distance": 20.292,
+            "frac_span": 0.489,
+            "surface_area": 502.29,
+            "surface_atoms": 169,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 24,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 30,
+              "H": 39,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 27,
+              "H": 43,
+              "N": 6
+            },
+            "score": 36.0,
+            "shift": 0.89783
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.317,
+            "vacuum_perp": 20.011,
+            "vacuum_as_generated": 20.011,
+            "min_image_distance": 20.184,
+            "frac_span": 0.4912,
+            "surface_area": 502.29,
+            "surface_atoms": 181,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 24,
+              "H": 6,
+              "N": 6
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 27,
+              "H": 31,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 51,
+              "N": 12,
+              "Zn": 6
+            },
+            "score": 36.0,
+            "shift": 0.938942
+          },
+          {
+            "natoms": 552,
+            "formula": "Zn24 H240 C192 N96",
+            "thickness": 19.29,
+            "vacuum_perp": 20.037,
+            "vacuum_as_generated": 20.037,
+            "min_image_distance": 20.197,
+            "frac_span": 0.4905,
+            "surface_area": 502.29,
+            "surface_atoms": 187,
+            "dangling_bonds": 36,
+            "dangling_by_element": {
+              "C": 18,
+              "H": 6,
+              "N": 12
+            },
+            "stoichiometry_deviation": 0.0,
+            "surface_elements_top": {
+              "C": 33,
+              "H": 29,
+              "N": 18,
+              "Zn": 6
+            },
+            "surface_elements_bottom": {
+              "C": 30,
+              "H": 53,
+              "N": 12,
+              "Zn": 6
+            },
+            "score": 36.0,
+            "shift": 0.984485
+          }
+        ],
+        "generator": {
+          "min_slab_size": 15.0,
+          "min_vacuum_size": 15.0,
+          "center_slab": true,
+          "lll_reduce": true,
+          "primitive": false,
+          "max_normal_search": null,
+          "n_terminations": 32
+        },
+        "elapsed_s": 3.13
+      }
+    },
+    {
+      "name": "vacuum",
+      "status": "ok",
+      "detail": "target=15.0 Å measured=15.000 Å",
+      "artifacts": [],
+      "data": {
+        "elapsed_s": 0.16,
+        "measured": 14.999999999999993
+      }
+    },
+    {
+      "name": "export",
+      "status": "ok",
+      "detail": "formats=vasp, cif, xyz",
+      "artifacts": [
+        "runs\\demo_sod_zif8\\structure.vasp",
+        "runs\\demo_sod_zif8\\structure.cif",
+        "runs\\demo_sod_zif8\\structure.xyz"
+      ],
+      "data": {
+        "files": {
+          "vasp": "runs\\demo_sod_zif8\\structure.vasp",
+          "cif": "runs\\demo_sod_zif8\\structure.cif",
+          "xyz": "runs\\demo_sod_zif8\\structure.xyz"
+        },
+        "elapsed_s": 2.57
+      }
+    },
+    {
+      "name": "validate",
+      "status": "ok",
+      "detail": "PASS checks=12",
+      "artifacts": [],
+      "data": {
+        "elapsed_s": 1.11,
+        "report": {
+          "ok": true,
+          "checks": [
+            {
+              "name": "natoms",
+              "ok": true,
+              "detail": "2208 atoms",
+              "severity": "error"
+            },
+            {
+              "name": "composition",
+              "ok": true,
+              "detail": "Zn96 H960 C768 N384 (2208 atoms; 4 elements)",
+              "severity": "error"
+            },
+            {
+              "name": "finite_coordinates",
+              "ok": true,
+              "detail": "all coordinates finite",
+              "severity": "error"
+            },
+            {
+              "name": "lattice",
+              "ok": true,
+              "detail": "a,b,c = 48.1661, 48.1661, 34.2826 Å; alpha,beta,gamma = 90.00, 90.00, 60.00 deg; V = 68879.175 Å^3",
+              "severity": "error"
+            },
+            {
+              "name": "duplicate_atoms",
+              "ok": true,
+              "detail": "no atom pair closer than 0.4 Å",
+              "severity": "error"
+            },
+            {
+              "name": "min_distance",
+              "ok": true,
+              "detail": "shortest interatomic distance 1.100 Å (C-H)",
+              "severity": "error"
+            },
+            {
+              "name": "vacuum",
+              "ok": true,
+              "detail": "真空层（垂直）= 15.000 Å；最小周期像距离 = 15.240 Å；要求 ≥ 15.00 Å",
+              "severity": "error"
+            },
+            {
+              "name": "slab_continuity",
+              "ok": true,
+              "detail": "largest internal gap along the surface normal is 0.43 Å (vacuum layer 15.00 Å, slab thickness 19.28 Å)",
+              "severity": "warning"
+            },
+            {
+              "name": "dangling_bonds",
+              "ok": false,
+              "detail": "80 dangling bond(s) on 700 surface atoms: C:16, H:16, N:24, Zn:24",
+              "severity": "warning"
+            },
+            {
+              "name": "hydrogen",
+              "ok": true,
+              "detail": "960 H atoms",
+              "severity": "error"
+            },
+            {
+              "name": "carbon_coordination",
+              "ok": true,
+              "detail": "all 504 interior C atoms have >= 3 bonds",
+              "severity": "error"
+            },
+            {
+              "name": "charge",
+              "ok": true,
+              "detail": "no oxidation states in the structure (charge not assessed)",
+              "severity": "info"
+            }
+          ],
+          "metrics": {
+            "natoms": 2208,
+            "formula": "Zn96 H960 C768 N384",
+            "reduced_formula": "ZnH10(C2N)4",
+            "element_counts": {
+              "C": 768,
+              "H": 960,
+              "N": 384,
+              "Zn": 96
+            },
+            "elements": [
+              "C",
+              "H",
+              "N",
+              "Zn"
+            ],
+            "lattice": {
+              "abc": [
+                48.1661,
+                48.1661,
+                34.2826
+              ],
+              "angles": [
+                90.0,
+                90.0,
+                60.0
+              ],
+              "volume": 68879.175,
+              "volume_per_atom": 31.1953
+            },
+            "density_g_cm3": 0.5268,
+            "duplicate_pairs": 0,
+            "min_distance": 1.1,
+            "min_distance_pair": [
+              "C",
+              "H"
+            ],
+            "min_distance_sites": [
+              1351,
+              443
+            ],
+            "min_distance_by_element_pair": {
+              "C-C": 1.3489,
+              "C-H": 1.1,
+              "C-N": 1.3424,
+              "C-Zn": 3.0138,
+              "H-H": 1.7963,
+              "H-N": 2.2044,
+              "H-Zn": 2.8672,
+              "N-N": 2.2279,
+              "N-Zn": 1.9911
+            },
+            "vacuum_gaps_all_axes": [
+              1.3424,
+              1.1,
+              15.2396
+            ],
+            "is_slab": true,
+            "is_cluster": false,
+            "vacuum_measured": 15.0,
+            "vacuum_perp": 15.0,
+            "vacuum": 15.0,
+            "min_image_distance": 15.2396,
+            "slab_thickness": 19.283,
+            "slab_frac_span": 0.5625,
+            "surface_area": 2009.159,
+            "surface_atoms": 700,
+            "vacuum_target": 15.0,
+            "internal_max_gap": 0.433,
+            "dangling_bonds": 80,
+            "dangling_by_element": {
+              "C": 16,
+              "H": 16,
+              "N": 24,
+              "Zn": 24
+            },
+            "h_count": 960,
+            "carbon_atoms": 768,
+            "carbon_interior": 504,
+            "c_coordination": {
+              "3": 360,
+              "4": 144
+            },
+            "c_missing_h": 0,
+            "c_missing_h_indices": [],
+            "charge_sum": null
+          }
+        }
+      }
+    },
+    {
+      "name": "render",
+      "status": "ok",
+      "detail": "runs\\demo_sod_zif8\\preview.png",
+      "artifacts": [
+        "runs\\demo_sod_zif8\\preview.png"
+      ],
+      "data": {
+        "elapsed_s": 1.23
+      }
+    },
+    {
+      "name": "manifest",
+      "status": "ok",
+      "detail": "runs/demo_sod_zif8",
+      "artifacts": [],
+      "data": {
+        "ingested": true
+      }
+    }
+  ],
+  "artifacts": {
+    "raw.cif": "runs\\demo_sod_zif8\\raw.cif",
+    "repaired.cif": "runs\\demo_sod_zif8\\repaired.cif",
+    "standardized.cif": "runs\\demo_sod_zif8\\standardized.cif",
+    "slab.cif": "runs\\demo_sod_zif8\\slab.cif",
+    "final.cif": "runs\\demo_sod_zif8\\final.cif",
+    "export.vasp": "runs\\demo_sod_zif8\\structure.vasp",
+    "export.cif": "runs\\demo_sod_zif8\\structure.cif",
+    "export.xyz": "runs\\demo_sod_zif8\\structure.xyz",
+    "preview.png": "runs\\demo_sod_zif8\\preview.png",
+    "library": "D:\\Dev\\Project5-skill-cif\\library\\demo_sod_zif8"
+  },
+  "validation": {
+    "ok": true,
+    "checks": [
+      {
+        "name": "natoms",
+        "ok": true,
+        "detail": "2208 atoms",
+        "severity": "error"
+      },
+      {
+        "name": "composition",
+        "ok": true,
+        "detail": "Zn96 H960 C768 N384 (2208 atoms; 4 elements)",
+        "severity": "error"
+      },
+      {
+        "name": "finite_coordinates",
+        "ok": true,
+        "detail": "all coordinates finite",
+        "severity": "error"
+      },
+      {
+        "name": "lattice",
+        "ok": true,
+        "detail": "a,b,c = 48.1661, 48.1661, 34.2826 Å; alpha,beta,gamma = 90.00, 90.00, 60.00 deg; V = 68879.175 Å^3",
+        "severity": "error"
+      },
+      {
+        "name": "duplicate_atoms",
+        "ok": true,
+        "detail": "no atom pair closer than 0.4 Å",
+        "severity": "error"
+      },
+      {
+        "name": "min_distance",
+        "ok": true,
+        "detail": "shortest interatomic distance 1.100 Å (C-H)",
+        "severity": "error"
+      },
+      {
+        "name": "vacuum",
+        "ok": true,
+        "detail": "真空层（垂直）= 15.000 Å；最小周期像距离 = 15.240 Å；要求 ≥ 15.00 Å",
+        "severity": "error"
+      },
+      {
+        "name": "slab_continuity",
+        "ok": true,
+        "detail": "largest internal gap along the surface normal is 0.43 Å (vacuum layer 15.00 Å, slab thickness 19.28 Å)",
+        "severity": "warning"
+      },
+      {
+        "name": "dangling_bonds",
+        "ok": false,
+        "detail": "80 dangling bond(s) on 700 surface atoms: C:16, H:16, N:24, Zn:24",
+        "severity": "warning"
+      },
+      {
+        "name": "hydrogen",
+        "ok": true,
+        "detail": "960 H atoms",
+        "severity": "error"
+      },
+      {
+        "name": "carbon_coordination",
+        "ok": true,
+        "detail": "all 504 interior C atoms have >= 3 bonds",
+        "severity": "error"
+      },
+      {
+        "name": "charge",
+        "ok": true,
+        "detail": "no oxidation states in the structure (charge not assessed)",
+        "severity": "info"
+      }
+    ],
+    "metrics": {
+      "natoms": 2208,
+      "formula": "Zn96 H960 C768 N384",
+      "reduced_formula": "ZnH10(C2N)4",
+      "element_counts": {
+        "C": 768,
+        "H": 960,
+        "N": 384,
+        "Zn": 96
+      },
+      "elements": [
+        "C",
+        "H",
+        "N",
+        "Zn"
+      ],
+      "lattice": {
+        "abc": [
+          48.1661,
+          48.1661,
+          34.2826
+        ],
+        "angles": [
+          90.0,
+          90.0,
+          60.0
+        ],
+        "volume": 68879.175,
+        "volume_per_atom": 31.1953
+      },
+      "density_g_cm3": 0.5268,
+      "duplicate_pairs": 0,
+      "min_distance": 1.1,
+      "min_distance_pair": [
+        "C",
+        "H"
+      ],
+      "min_distance_sites": [
+        1351,
+        443
+      ],
+      "min_distance_by_element_pair": {
+        "C-C": 1.3489,
+        "C-H": 1.1,
+        "C-N": 1.3424,
+        "C-Zn": 3.0138,
+        "H-H": 1.7963,
+        "H-N": 2.2044,
+        "H-Zn": 2.8672,
+        "N-N": 2.2279,
+        "N-Zn": 1.9911
+      },
+      "vacuum_gaps_all_axes": [
+        1.3424,
+        1.1,
+        15.2396
+      ],
+      "is_slab": true,
+      "is_cluster": false,
+      "vacuum_measured": 15.0,
+      "vacuum_perp": 15.0,
+      "vacuum": 15.0,
+      "min_image_distance": 15.2396,
+      "slab_thickness": 19.283,
+      "slab_frac_span": 0.5625,
+      "surface_area": 2009.159,
+      "surface_atoms": 700,
+      "vacuum_target": 15.0,
+      "internal_max_gap": 0.433,
+      "dangling_bonds": 80,
+      "dangling_by_element": {
+        "C": 16,
+        "H": 16,
+        "N": 24,
+        "Zn": 24
+      },
+      "h_count": 960,
+      "carbon_atoms": 768,
+      "carbon_interior": 504,
+      "c_coordination": {
+        "3": 360,
+        "4": 144
+      },
+      "c_missing_h": 0,
+      "c_missing_h_indices": [],
+      "charge_sum": null
+    }
+  },
+  "library": {
+    "library_entry": "D:\\Dev\\Project5-skill-cif\\library\\demo_sod_zif8",
+    "index": "D:\\Dev\\Project5-skill-cif\\library\\index.jsonl"
+  },
+  "ok": true,
+  "failed_step": null
+}

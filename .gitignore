@@ -5,8 +5,10 @@ __pycache__/
 .probe/
 _cache/
 runs/*
-!runs/demo_sod_zif8/
 !runs/README.md
+!runs/demo_sod_zif8/
+!runs/demo_sod_zif8/**
+library/
 *.egg-info/
 build/
 dist/

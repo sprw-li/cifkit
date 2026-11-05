@@ -32,3 +32,6 @@ cifkit = ["data/**/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "slow: full end-to-end pipeline tests (network cache required, minutes)",
+]

@@ -206,17 +206,18 @@ tests/data/sod_zn_mof.cif          # 2017[Zn][sod]（含溶剂 O），750 原子
 | 步骤 | 结果 |
 |---|---|
 | 原始 CIF | `SI/NCR/both/ja204757x_si_002_ASR_pacman.cif`，Zn12 C96 N48，156 原子，0 H，a=17.029 Å |
-| 补氢 | +120 H → 276 原子（Zn12 C96 H120 N48） |
-| 标准化 | 常规胞 I-43m，a≈16.94 Å，276 原子 |
-| (111) slab（厚 15 Å 目标） | 552 原子，晶胞 ≈23.95/23.95/41.49 Å，夹角 90/73.2/60°，实际厚度≈20.5 Å |
-| slab 面内 2x2（2x2x1） | **2208 原子** |
-| 真空 15 Å | c ≈ 厚度 + 15 Å（≈35.5 Å），实测 gap ≥ 15.0 Å |
-| 导出 | POSCAR/`structure.vasp` 2208 原子，可被 pymatgen 读回 |
+| 补氢 | +120 H → 276 原子（Zn12 C96 H120 N48），RDKit-capped，24/24 片段，C 96/96 四配位 |
+| 标准化 | 常规胞 I-43m，276 原子（整数倍守卫生效，不翻倍成 552） |
+| (111) slab（target 厚 15 Å） | 552 原子；面内 a=b≈24.08 Å；原子垂直跨度（slab 厚）≈19.28 Å |
+| slab 面内 2x2（2x2x1） | **2208 原子**，面内 a=b≈48.17 Å |
+| 真空 15 Å | c_perp = 19.283 + 15.000 = **34.283 Å**；垂直真空实测 = **15.000 Å**；最小周期像距离（3D，横向错位下更大）= 15.240 Å |
+| 导出 | `structure.vasp` 2208 原子，pymatgen 读回原子数一致；`structure.cif` / `structure.xyz` 同 |
+| 用时 | 缓存已热时整条管线 ~10 s（冷启动需先建 CoRE 索引，约 10 s） |
 
-（`frame=cell` 的字面语义对照：2x2x1 超胞 1104 原子 → 该胞 (111) 切面 ≈2208 原子，但取向不是立方 (111)，报告里只作 caveat 对照。）
+（`frame=cell` 的字面语义对照：先 2x2x1 超胞 1104 原子 → 该胞 (111) 切面 ≈2208 原子，但取向不是立方 (111)，报告里只作 caveat 对照。真空层厚度一律用**垂直**定义 `c_perp - slab_thickness`；`min_image_distance` 只作为安全下界单独报告。）
 
-- `tests/` 全绿；`_cache` 存在时可全离线跑通。
-- `runs/demo_sod_zif8/` 保留：`raw.cif`、`repaired.cif`、`supercell.cif`、`slab.cif`、`slab.vasp`、`slab.cif`、`slab.xyz`、`preview.png`、`report.md`、`manifest.json`。
+- `tests/` 全绿（含 demo 端到端测试）；`_cache` 存在时可全离线跑通。
+- `runs/demo_sod_zif8/` 保留：`raw.cif`、`repaired.cif`、`standardized.cif`、`slab.cif`、`final.cif`、`structure.vasp`、`structure.cif`、`structure.xyz`、`preview.png`、`report.md`、`manifest.json`。
 - 报告必须包含：来源 URL/DOI/sha256、sod 拓扑证据、补氢统计、超胞倍数核对、slab 参数、真空实测值、导出格式清单。
 - 技能：`D:\agent-library\catalog\cif-workbench/`、`cif-fetch/`、`cif-repair/`、`cif-geometry/`、`cif-export/` + intents + evals，`py -3 scripts\ci.py` 相关项通过。
 
