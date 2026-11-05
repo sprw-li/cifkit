@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cifkit"
+version = "0.1.0"
+description = "CIF 处理工作台：选型下载 / 修复（补氢、无序、近邻）/ 超胞切面真空 / 导出计算化学格式 / 校验入库"
+requires-python = ">=3.11"
+dependencies = [
+  "pymatgen",
+  "ase",
+  "numpy",
+  "scipy",
+  "networkx",
+  "matplotlib",
+  "openpyxl",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+cifkit = "cifkit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cifkit*"]
+
+[tool.setuptools.package-data]
+cifkit = ["data/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

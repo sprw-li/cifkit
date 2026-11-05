@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.probe/
+_cache/
+runs/*
+!runs/demo_sod_zif8/
+!runs/README.md
+*.egg-info/
+build/
+dist/
