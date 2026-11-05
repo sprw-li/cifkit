@@ -129,7 +129,7 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 | 可视化/分析 | `xsf`、`cfg`、`pdb`、`sdf`、`mol`、`struct`、`res` | ASE | 是（PDB/SDF/MOL 不表达周期性） |
 | 分子动力学 | `lammps`、`gromacs`、`gen` | ASE | 是（骨架，无力场/质量） |
 | 电子结构（输入） | `qe`、`cp2k`、`gaussian`、`orca`、`abacus`、`dftb`、`siesta`、`nwchem`、`aims`、`castep`、`abinit`、`crystal`、`onetep`、`dmol`、`turbomole` | ASE writer / 自写模板 | 模板：检查关键段落；**不是收敛输入** |
-| 其它 | `cube`（需数据数组/依赖）、`png`（预览） | 视依赖 | 视情况 |
+| （未实现） | `cube`、`png` | 需要 3D 数据数组/额外依赖，**不在当前 30 种内** | — |
 
 - 模板类格式在 `FORMAT_INFO` 描述里明确写"needs ... / template"；`write_bundle` 返回
   `template=True` + `missing` 列表（POTCAR/UPF/basis/skf/力场等）。
