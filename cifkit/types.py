@@ -24,6 +24,7 @@ class TaskSpec:
     cluster_mode: str = "sbu"
     supercell: tuple[int, int, int] | None = None
     surface: tuple[int, int, int] | None = None
+    surface_frame: str = "slab"  # "slab": cleave bulk then repeat in-plane; "cell": literal supercell-then-cleave
     vacuum: float | None = None
     slab_thickness: float | None = None
     output_formats: list[str] = field(default_factory=lambda: ["vasp"])

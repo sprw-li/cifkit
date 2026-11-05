@@ -146,11 +146,14 @@ def _step_surface(ctx: _Ctx) -> None:
         ctx.spec.surface,
         slab_thickness=ctx.spec.slab_thickness or 15.0,
         vacuum=ctx.spec.vacuum if ctx.spec.vacuum is not None else 15.0,
+        reps=ctx.spec.supercell,
+        frame=ctx.spec.surface_frame,
     )
     ctx.structure = slab
     ctx.save_cif("slab.cif", slab)
-    detail = (f"hkl={ctx.spec.surface} atoms={len(slab)} abc={[round(x,3) for x in slab.lattice.abc]} "
-              f"vacuum={info.get('vacuum')}")
+    detail = (f"hkl={ctx.spec.surface} frame={info.get('frame')} reps={info.get('reps')} "
+              f"atoms={len(slab)} abc={[round(x,3) for x in slab.lattice.abc]} "
+              f"vacuum={info.get('vacuum_measured', info.get('vacuum'))}")
     ctx.step("surface", detail, data={**info, "elapsed_s": round(time.time() - t0, 2)})
 
 

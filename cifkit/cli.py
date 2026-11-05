@@ -55,6 +55,8 @@ def _load_spec(args) -> TaskSpec:
         spec.output_formats = [f.strip() for f in args.format.split(",") if f.strip()]
     if getattr(args, "topology", None) and not spec.topology:
         spec.topology = args.topology
+    if getattr(args, "surface_frame", None) and spec.surface:
+        spec.surface_frame = args.surface_frame
     if getattr(args, "ingest", False):
         spec.raw_text = spec.raw_text or spec.query
     return spec
@@ -166,13 +168,19 @@ def cmd_geom(args) -> int:
         s = geom.standardize(s)
     if args.cluster:
         s = geom.extract_cluster(s, mode=args.cluster)
-    if args.supercell:
-        s = geom.make_supercell(s, tuple(args.supercell))
     if args.surface:
+        # physical default: cleave from the (standardized) bulk, repeat in the slab frame
         s, slab_info = geom.make_slab(
-            s, tuple(args.surface), slab_thickness=args.thickness or 15.0, vacuum=args.vacuum or 15.0
+            s,
+            tuple(args.surface),
+            slab_thickness=args.thickness or 15.0,
+            vacuum=args.vacuum or 15.0,
+            reps=tuple(args.supercell) if args.supercell else None,
+            frame=getattr(args, "surface_frame", "slab"),
         )
         info["slab"] = slab_info
+    elif args.supercell:
+        s = geom.make_supercell(s, tuple(args.supercell))
     if args.vacuum is not None:
         s, measured = geom.set_vacuum(s, args.vacuum)
         info["vacuum"] = measured
@@ -300,6 +308,8 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--source", default=None)
     pl.add_argument("--topology", default=None)
     pl.add_argument("--format", default=None, help="逗号分隔，如 vasp,cif,xyz")
+    pl.add_argument("--surface-frame", choices=["slab", "cell"], default=None,
+                    help="slab=先从体相切面再面内重复（默认）；cell=先超胞再切面（字面语义）")
     pl.add_argument("--ingest", action="store_true", help="把产物登记进 library/")
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_pipeline)
@@ -331,6 +341,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--standardize", action="store_true")
     g.add_argument("--supercell", nargs=3, type=int, default=None)
     g.add_argument("--surface", nargs=3, type=int, default=None)
+    g.add_argument("--surface-frame", choices=["slab", "cell"], default="slab",
+                   help="slab=先从体相切面再面内重复（物理默认）；cell=先超胞再切该胞的晶面（字面语义）")
     g.add_argument("--vacuum", type=float, default=None)
     g.add_argument("--thickness", type=float, default=None)
     g.add_argument("--cluster", default=None, choices=["sbu", "metal_cluster", "core"])

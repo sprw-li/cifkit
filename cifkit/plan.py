@@ -49,19 +49,28 @@ def build_plan(spec: TaskSpec) -> list[Step]:
     else:
         steps.append(Step("standardize", "standardize", description="标准胞/去重复"))
 
-    if spec.supercell:
-        steps.append(
-            Step("supercell", "supercell", params={"reps": spec.supercell}, description="扩展超胞")
-        )
-
     if spec.surface:
+        # Physical default: cleave (hkl) from the standardized bulk, then apply
+        # the requested repeats *in the slab frame* (2x2x1 => 2x2 in-plane, 1 along
+        # the normal). This is the standard surface workflow; the literal
+        # "supercell first, then cleave" is available with spec.surface_frame="cell".
         steps.append(
             Step(
                 "surface",
                 "surface",
-                params={"hkl": spec.surface, "slab_thickness": spec.slab_thickness, "vacuum": spec.vacuum},
-                description="切 (hkl) 表面",
+                params={
+                    "hkl": spec.surface,
+                    "slab_thickness": spec.slab_thickness,
+                    "vacuum": spec.vacuum,
+                    "reps": spec.supercell,
+                    "frame": spec.surface_frame,
+                },
+                description="切 (hkl) 表面并在面内重复",
             )
+        )
+    elif spec.supercell:
+        steps.append(
+            Step("supercell", "supercell", params={"reps": spec.supercell}, description="扩展超胞")
         )
 
     if spec.vacuum is not None:

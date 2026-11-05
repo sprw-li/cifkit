@@ -29,9 +29,12 @@ def test_demo_sentence_slots():
 def test_demo_plan_order():
     spec = parse_request(DEMO)
     names = [s.name for s in build_plan(spec)]
-    order = ["resolve", "verify-topology", "repair", "standardize", "supercell", "surface", "vacuum", "export", "validate"]
+    # 2x2x1 is folded into the surface step (slab-frame repeats), so there is no
+    # separate supercell step for the demo request.
+    order = ["resolve", "verify-topology", "repair", "standardize", "surface", "vacuum", "export", "validate"]
     idx = [names.index(n) for n in order]
     assert idx == sorted(idx)
+    assert "supercell" not in names
 
 
 def test_english_variant():

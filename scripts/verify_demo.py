@@ -119,24 +119,42 @@ class Checker:
                    f"H {h_raw}->{h_rep} (added={added}) C四键={c_ok} H/Zn={h_rep}/{zn} "
                    f"bad_C_bonds={sorted({x for x in cb if x != 4})}")
 
-        # 4. supercell
-        sup = steps.get("supercell") or {}
-        sd = sup.get("data", {})
-        sup_s = Structure.from_file(d / "supercell.cif")
-        exp = int(sd.get("expected") or 0)
-        ok = sup.get("status") == "ok" and len(sup_s) == exp and len(rep_s) * 8 == len(sup_s)
-        self.check("4 2x2x1 超胞原子数", ok, f"repaired={len(rep_s)} supercell={len(sup_s)} expected={exp}")
+        # 4. 2x2x1 (supercell step, or in-plane repeats of the slab)
+        if "supercell" in steps:
+            sd = steps["supercell"].get("data", {})
+            sup_s = Structure.from_file(d / "supercell.cif")
+            exp = int(sd.get("expected") or 0)
+            ok = steps["supercell"]["status"] == "ok" and len(sup_s) == exp and len(sup_s) == len(rep_s) * 4
+            detail = f"repaired={len(rep_s)} supercell={len(sup_s)} expected={exp}"
+        else:
+            sdata = (steps.get("surface") or {}).get("data", {})
+            base = int(sdata.get("base_atoms") or 0)
+            after = int(sdata.get("atoms_after_reps") or 0)
+            reps = tuple(sdata.get("reps") or ())
+            ok = (
+                reps == (2, 2, 1)
+                and base > 0
+                and after == base * 4
+                and after == len(Structure.from_file(d / "slab.cif"))
+            )
+            detail = f"frame={sdata.get('frame')} reps={reps} slab_base={base} after_reps={after}"
+        self.check("4 2x2x1 重复原子数", ok, detail)
 
         # 5. slab + vacuum
-        slab_s = Structure.from_file(d / "slab.cif")
-        final = d / "final.cif"
-        fin_s = Structure.from_file(final) if final.is_file() else slab_s
+        fin = d / "final.cif"
+        fin_s = Structure.from_file(fin) if fin.is_file() else Structure.from_file(d / "slab.cif")
+        slab_s = Structure.from_file(d / "slab.cif") if (d / "slab.cif").is_file() else fin_s
         vac = vacuum_gap(fin_s)
         target = 15.0
         vac_ok = vac + 1e-3 >= target
         surf = steps.get("surface") or {}
-        self.check("5 (111) slab + 真空层", surf.get("status") == "ok" and vac_ok,
-                   f"slab_atoms={len(slab_s)} final_atoms={len(fin_s)} measured_vacuum={vac:.3f}Å target={target}")
+        vac_step = steps.get("vacuum") or {}
+        self.check(
+            "5 (111) slab + 真空层",
+            surf.get("status") == "ok" and vac_step.get("status") == "ok" and vac_ok,
+            f"slab_atoms={len(slab_s)} final_atoms={len(fin_s)} measured_vacuum={vac:.3f}Å target={target} "
+            f"reported={((vac_step.get('data') or {}).get('measured'))}",
+        )
 
         # 6. exports
         vasp = d / "structure.vasp"

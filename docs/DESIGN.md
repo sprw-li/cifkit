@@ -13,7 +13,7 @@
 
 1. 真实下载/缓存的 SOD 拓扑 MOF（ZIF-8 体系），带来源、DOI、sha256；
 2. 补氢前后对照（缺多少 H → 补了多少，逐碳价态检查通过）；
-3. 2x2x1 超胞（原子数 = 原胞 × 8）；
+3. 2x2x1 超胞（= 原胞 × 4；对 surface 请求，物理默认语义是把 2x2x1 作为 **slab 面内重复**：先切 (111) 再面内 2x2，报告里必须写明 frame=slab 还是 frame=cell）；
 4. (111) slab（含表面周期、层厚、终止面选择依据）；
 5. 真空层 ≥ 15 Å（从原子到周期像的最小距离实测，不是名义值）；
 6. 计算化学格式导出（至少 VASP POSCAR，另加 CIF/XYZ 等）；
@@ -141,7 +141,11 @@ def repair_all(structure, *, add_hydrogen=False, resolve_disorder=True,
 def standardize(structure, *, target="conventional") -> Structure
 def make_supercell(structure, reps: tuple[int,int,int]) -> Structure
 def make_slab(structure, hkl, *, slab_thickness=15.0, vacuum=15.0,
-              termination=None) -> tuple[Structure, dict]   # dict: termination/层厚/悬空键等
+              termination=None, reps=None, frame="slab") -> tuple[Structure, dict]
+    # frame="slab"（默认）：从传入的体相结构切 (hkl)，再把 reps 作为 slab 面内重复
+    # frame="cell"：字面语义，先把体相结构按 reps 扩展，再切该胞的 (hkl)
+    # dict 必含：frame, hkl, reps, base_atoms, atoms_after_reps,
+    #            slab_thickness, vacuum_measured, termination, candidates
 def set_vacuum(structure, vacuum: float, axis=2) -> tuple[Structure, float]  # (新结构, 实测真空)
 def extract_cluster(structure, *, mode="sbu") -> Structure
 # export
@@ -177,7 +181,7 @@ python -m cifkit pipeline "TEXT" --outdir DIR [--format vasp,cif,xyz] [--source 
 python -m cifkit pipeline --spec spec.json --outdir DIR
 python -m cifkit fetch --topology sod [--name ZIF-8] [--raw|--ready] [--limit N] [--outdir DIR] [--json]
 python -m cifkit repair FILE -o OUT [--add-h] [--no-disorder] [--no-contacts] [--json]
-python -m cifkit geom FILE -o OUT [--standardize] [--supercell 2 2 1] [--surface 1 1 1] [--vacuum 15] [--thickness 15] [--cluster sbu] [--json]
+python -m cifkit geom FILE -o OUT [--standardize] [--supercell 2 2 1] [--surface 1 1 1] [--surface-frame slab|cell] [--vacuum 15] [--thickness 15] [--cluster sbu] [--json]
 python -m cifkit export FILE --format vasp,cif -o OUT [--json]
 python -m cifkit validate FILE [--json]
 python -m cifkit formats
@@ -196,6 +200,20 @@ tests/data/sod_zn_mof.cif          # 2017[Zn][sod]（含溶剂 O），750 原子
 ```
 
 ## 7. 验收与演示
+
+### 7.1 demo 的已知实测数字（ZIF-8 / sod，H-free 原始 CIF）
+
+| 步骤 | 结果 |
+|---|---|
+| 原始 CIF | `SI/NCR/both/ja204757x_si_002_ASR_pacman.cif`，Zn12 C96 N48，156 原子，0 H，a=17.029 Å |
+| 补氢 | +120 H → 276 原子（Zn12 C96 H120 N48） |
+| 标准化 | 常规胞 I-43m，a≈16.94 Å，276 原子 |
+| (111) slab（厚 15 Å 目标） | 552 原子，晶胞 ≈23.95/23.95/41.49 Å，夹角 90/73.2/60°，实际厚度≈20.5 Å |
+| slab 面内 2x2（2x2x1） | **2208 原子** |
+| 真空 15 Å | c ≈ 厚度 + 15 Å（≈35.5 Å），实测 gap ≥ 15.0 Å |
+| 导出 | POSCAR/`structure.vasp` 2208 原子，可被 pymatgen 读回 |
+
+（`frame=cell` 的字面语义对照：2x2x1 超胞 1104 原子 → 该胞 (111) 切面 ≈2208 原子，但取向不是立方 (111)，报告里只作 caveat 对照。）
 
 - `tests/` 全绿；`_cache` 存在时可全离线跑通。
 - `runs/demo_sod_zif8/` 保留：`raw.cif`、`repaired.cif`、`supercell.cif`、`slab.cif`、`slab.vasp`、`slab.cif`、`slab.xyz`、`preview.png`、`report.md`、`manifest.json`。
