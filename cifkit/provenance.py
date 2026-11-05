@@ -95,14 +95,12 @@ def write_manifest(outdir: str | Path, manifest: dict[str, Any]) -> str:
     return write_json(Path(outdir) / "manifest.json", manifest)
 
 
-def finish_run(result: RunResult) -> None:
+def finish_run(result: RunResult, manifest: dict[str, Any] | None = None) -> None:
     """Persist manifest + a human report; called by pipeline."""
     outdir = Path(result.outdir)
-    manifest = new_manifest(result.spec)
-    from cifkit.pipeline import _pipeline_state  # noqa: F401  (state attached by pipeline)
-
-    # pipeline attaches the manifest dict to the RunResult via _manifest attribute
-    manifest = getattr(result, "_manifest", manifest)  # type: ignore[attr-defined]
+    outdir.mkdir(parents=True, exist_ok=True)
+    if manifest is None:
+        manifest = getattr(result, "_manifest", None) or new_manifest(result.spec)
     result.manifest_path = write_manifest(outdir, manifest)
     result.artifacts["manifest"] = result.manifest_path
     report = render_report(result, manifest)

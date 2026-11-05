@@ -250,6 +250,10 @@ def run(spec: TaskSpec, *, embed: bool = False, ingest_run: bool = False) -> Run
             func(ctx)
         except Exception as exc:  # noqa: BLE001 - record and stop
             tb = traceback.format_exc()
+            if step.optional:
+                ctx.step(step.name, f"optional step failed: {type(exc).__name__}: {exc}",
+                         data={"traceback": tb}, status="skipped")
+                continue
             ctx.step(step.name, f"{type(exc).__name__}: {exc}", data={"traceback": tb}, status="failed")
             failed = step.name
             break
