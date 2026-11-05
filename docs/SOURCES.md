@@ -17,7 +17,9 @@
 （含 `requires_auth` / `auth_hint` / 缓存状态），CLI：`python -m cifkit sources [--probe] [--json]`。
 `get_source(name)` 支持别名（`core_mof` / `mp` / `aflowlib` / `file` …）并返回**单例**。
 `pick_source(spec)` 是 `auto` 规则入口：`mp-<digits>` → materials-project；
-`aflow:`/`AFLOWDATA/` → aflow；7 位数字 → cod；`.cif` → local；有 topology/name → core-mof。
+`aflow:`/`AFLOWDATA/` → aflow；7 位数字 → cod；`.cif` → local；有 **topology** → core-mof；
+只有名称时：**化学式**（GaN/NaCl/Fe2O3，能被 `Composition` 解析）→ aflow，
+**MOF 名称**（ZIF-8/UiO-66/HKUST-1，解析失败）→ core-mof。
 
 ### CoRE MOF 2024 缓存
 

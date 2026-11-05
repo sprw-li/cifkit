@@ -180,3 +180,20 @@ def test_aflow_live_search_and_fetch(tmp_path, monkeypatch):
     assert len(fetched.structure) > 0
     assert fetched.provenance["aurl"].startswith("https://aflowlib.duke.edu/")
     assert Path(fetched.provenance["cif_path"]).is_file()
+
+# ---------------------------------------------------------------------------
+# auto source selection (formula -> aflow, MOF name -> core-mof)
+# ---------------------------------------------------------------------------
+def test_pick_source_formula_vs_mof_name():
+    from cifkit.sources import pick_source
+    from cifkit.types import TaskSpec
+
+    assert pick_source(TaskSpec(structure_name="GaN")) == "aflow"
+    assert pick_source(TaskSpec(structure_name="NaCl")) == "aflow"
+    assert pick_source(TaskSpec(structure_name="ZIF-8")) == "core-mof"
+    assert pick_source(TaskSpec(structure_name="UiO-66")) == "core-mof"
+    assert pick_source(TaskSpec(structure_name="GaN", topology="sod")) == "core-mof"
+    assert pick_source(TaskSpec(structure_id="mp-149")) == "materials-project"
+    assert pick_source(TaskSpec(structure_id="7111973")) == "cod"
+    assert pick_source(TaskSpec(structure_id="aflowlib.duke.edu:AFLOWDATA/LIB1_WEB/Zn:PAW_PBE:06Sep2000/A9")) == "aflow"
+

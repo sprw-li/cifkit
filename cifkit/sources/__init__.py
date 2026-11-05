@@ -168,11 +168,30 @@ def _pick_source(spec: TaskSpec) -> str:
     if spec.topology:
         return "core-mof"
     if spec.structure_name:
+        # A plain inorganic formula (GaN / NaCl / Fe2O3) is usually an AFLOW/MP target;
+        # MOF names (ZIF-8, UiO-66, HKUST-1) never parse as a Composition, so they
+        # still go to core-mof.
+        if _looks_like_formula(spec.structure_name):
+            return "aflow"
         return "core-mof"
     raise ValueError(
         "无法确定数据源：spec 里没有 topology / structure_name / structure_id，也没有显式 source。"
-        "请给出要检索的拓扑（如 sod）、结构名（如 ZIF-8）或文件/COD id。"
+        "请给出要检索的拓扑（如 sod）、结构名（如 ZIF-8 / GaN）或文件/COO/MP/AFLOW id。"
     )
+
+
+def _looks_like_formula(name: str) -> bool:
+    """True for a parseable chemical formula; MOF names (ZIF-8/UiO-66) return False."""
+    text = str(name or "").strip().replace(" ", "")
+    if not text:
+        return False
+    try:
+        from pymatgen.core import Composition
+
+        comp = Composition(text)
+        return bool(comp.elements) and comp.reduced_formula != "None"
+    except Exception:  # noqa: BLE001 - not a formula
+        return False
 
 
 def pick_source(spec: TaskSpec) -> str:
