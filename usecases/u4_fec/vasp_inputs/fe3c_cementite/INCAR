@@ -1,0 +1,20 @@
+SYSTEM = fe3c_cementite  (Fe3C, SG 62 (Pnma))
+# ---- Fe-C carbide relaxation template (VASP 5/6, PAW PBE) -------------------
+PREC   = Accurate
+ENCUT  = 520
+EDIFF  = 1E-6
+EDIFFG = -0.02
+NSW    = 200
+IBRION = 2
+ISIF   = 3
+ISMEAR = 1
+SIGMA  = 0.2
+ISPIN  = 2
+MAGMOM = 12*2.2 4*0.0
+LORBIT = 11
+LWAVE  = .FALSE.
+LCHARG = .FALSE.
+# -----------------------------------------------------------------------------
+# NOTE: MAGMOM above is only a starting guess (Fe ~2.2 muB, C ~0).
+#       Fe-C carbides are ferromagnetic; keep ISPIN=2 also for the final static
+#       run or the total energy is not comparable.

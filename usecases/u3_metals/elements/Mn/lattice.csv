@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Mn,58,cI58,217,I-43m,8.53708,8.53708,8.53708,90.0,90.0,90.0,10.7275,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Mn:PAW_PBE:06Sep2000/A12,-9.028,58,cI58 (alpha-Mn),AFLOW LIB1 filtered client-side to spacegroup_relax=217,medium,217,cI29

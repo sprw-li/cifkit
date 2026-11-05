@@ -1,0 +1,31 @@
+# ============================================================================
+#  Static (single-point) calculation for the Hg ((01-1-1)) surface energy
+#  Workflow (both steps MUST use the same POTCAR / ENCUT / smearing):
+#    1) bulk:  VASP run on bulk_POSCAR  -> E_bulk_cell  [eV]
+#              mu = E_bulk_cell / 3    (energy per atom, 3 atoms)
+#    2) slab:  VASP run on slab_POSCAR  -> E_slab      [eV]
+#              E_surf = (E_slab - N_slab * mu) / (2 * A)
+#              N_slab = 15 atoms, A = 25.27 A^2
+#  Both slab surfaces are equivalent by construction (symmetric slab), hence 2A.
+# ============================================================================
+SYSTEM = Hg_slab_(01-1-1)
+PREC = Accurate
+ENCUT = 400.0          # must be the same in the bulk reference run
+EDIFF = 1E-6             # tight: surface energies are energy differences
+ISMEAR = 1               # Methfessel-Paxton (metal)
+SIGMA = 0.1
+ALGO = Fast
+LREAL = Auto
+ISPIN = 2
+LWAVE = .FALSE.
+LCHARG = .FALSE.
+# --- static: no ionic relaxation here -------------------------------------
+NSW = 0
+IBRION = -1
+ISIF = 2
+# To relax the slab instead, replace the three lines above with:
+#   NSW = 200
+#   IBRION = 2
+#   ISIF = 2
+# and freeze the bottom layers in slab_POSCAR (Selective dynamics: F F F).
+# Keep at least the two bottom layers frozen; relax the rest.

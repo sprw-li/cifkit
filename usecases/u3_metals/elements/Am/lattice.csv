@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Am,4,hP4,194,P6_3/mmc,3.474,3.474,11.25,90.0,90.0,120.0,29.3956,https://www.crystallography.net/cod/9008524.html,,4,"dhcp (hP4, experimental, COD)","COD (Crystallography Open Database, experimental entry 9008524) filtered to spacegroup 194",uncertain,194,hP4

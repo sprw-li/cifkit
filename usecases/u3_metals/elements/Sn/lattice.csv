@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Sn,4,tI4,141,I4_1/amd,5.82,5.82,3.17772,90.0,90.0,90.0,26.9093,,,4,"bct (A5, beta-Sn)",ASE reference_states (Kittel) + ase.build.bulk,high,141,tI2

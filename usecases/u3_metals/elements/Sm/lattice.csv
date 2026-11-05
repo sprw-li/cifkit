@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Sm,9,hR9,166,R-3m,3.65732,3.65732,26.3479,90.0,90.0,120.0,33.9126,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Sm_3:PAW_PBE:07Sep2000/C19,-4.71227,9,"rhombohedral (hR9, Sm-type)",AFLOW LIB1 filtered client-side to spacegroup_relax=166,medium,166,hR3

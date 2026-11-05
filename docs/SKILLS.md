@@ -11,6 +11,7 @@
 | `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**五个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
 | `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
+| `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件 | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件" |
 | `cif-export` | `catalog/cif-export/SKILL.md` | VASP POSCAR/CIF/XYZ/LAMMPS/QE/CP2K/XSF/Gaussian/ORCA/ABACUS 导出 + 读回验证 | “导出成 POSCAR/VASP 格式” |
 
 五个技能共用同一个 intent：`cif-structure-pipeline`（`category = science`），
@@ -74,10 +75,10 @@ intent candidates: cif-structure-pipeline
 ## 4. 评测证据（`py -3 scripts\eval_router.py --all`）
 
 ```text
-cases=79
-intent top1: 79/79 = 100.0%
-skill top1:  79/79 = 100.0%
-skill top5:  79/79 = 100.0%
+cases=83
+intent top1: 83/83 = 100.0%
+skill top1:  83/83 = 100.0%
+skill top5:  83/83 = 100.0%
 negatives=25  false-positive=0 (0.0%)  budget=10.0%
 slot cases=11  pass=11/11
 ```

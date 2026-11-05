@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Pu,16,mP16,11,P2_1/m,6.18595,4.82598,10.9719,90.0,101.787,90.0,20.04,https://www.crystallography.net/cod/1525989.html,,16,mP16 (alpha-Pu),"COD (Crystallography Open Database, experimental entry 1525989) filtered to spacegroup 11",uncertain,11,mP16

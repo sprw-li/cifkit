@@ -77,6 +77,21 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 
 ---
 
+## 应用实例（第 5 轮 4 个真实需求）
+
+| 需求 | 交付 | 关键数字 |
+|---|---|---|
+| Fd-3m 点群典例排成 png | [usecases/u1_fd3m](usecases/u1_fd3m/README.md) | 6 个真实结构（COD×5+AFLOW×1），spglib 全部 #227，3740×2822 PNG |
+| cF 与 tI 关系 / 14 种布拉维点阵 | [usecases/u2_bravais](usecases/u2_bravais/README.md) | Bain 路径 82 点：80×tI#139 + 精确 cI#229/cF#225；14 种点阵 14/14；12 组等价实测 |
+| 纯金属晶格 + 最密面表面能文件 | [usecases/u3_metals](usecases/u3_metals/README.md) | 87 种金属导出 69（ASE 58/AFLOW 7/COD 4），18 missing 有原因；真空全部 15.0 Å |
+| Fe-C 化合物 + 相图 + 计算套件 | [usecases/u4_fec](usecases/u4_fec/README.md) | 7 结构；0K hull 仅 Fe/C 端点，Fe3C=+0.0456、Fe2C=+0.0516 eV/atom |
+
+一键独立验收：`& $PY usecases\verify_usecases.py`（22/22 PASS）。
+技能：`catalog/cif-usecases`（intent `cif-advanced-usecases`，eval 83/83、负例 0/25）。
+总览与诚实局限见 [usecases/README.md](usecases/README.md)。
+
+---
+
 ## 关键设计
 
 - **诚实溯源**：每次运行写 `manifest.json`（查询、来源 URL/DOI/sha256、每步耗时、校验数字、工具版本），`--ingest` 额外入库到 `library/`（`index.jsonl` + 每 run 目录）。

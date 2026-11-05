@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Ga,8,oS8,64,Cmce,4.55889,7.69487,4.5522,90.0,90.0,90.0,19.9615,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Ga_h:PAW_RPBE:09Apr2002/A11,-2.92637,8,oS8 (alpha-Ga),AFLOW LIB1 filtered client-side to spacegroup_relax=64,medium,64,oS4

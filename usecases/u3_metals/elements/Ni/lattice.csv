@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Ni,4,cF4,225,Fm-3m,3.52,3.52,3.52,90.0,90.0,90.0,10.9036,,,4,fcc (A1),ASE reference_states (Kittel) + ase.build.bulk,high,225,cF1

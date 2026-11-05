@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Np,8,oP8,62,Pnma,4.723,4.887,6.663,90.0,90.0,90.0,19.2238,https://www.crystallography.net/cod/9008585.html,,8,oP8 (alpha-Np),"COD (Crystallography Open Database, experimental entry 9008585) filtered to spacegroup 62",uncertain,62,oP8

@@ -1,0 +1,8 @@
+﻿c_over_a,sg_tight_0.01,symbol_tight_0.01,bravais_tight_0.01,sg_loose_0.05,symbol_loose_0.05,bravais_loose_0.05,delta_to_special_metric
+0.99,139,I4/mmm,tI,229,Im-3m,cI,0.025562
+1.0,229,Im-3m,cI,229,Im-3m,cI,0.0
+1.01,139,I4/mmm,tI,229,Im-3m,cI,0.025562
+1.4,139,I4/mmm,tI,139,I4/mmm,tI,0.036333
+1.41,139,I4/mmm,tI,225,Fm-3m,cF,0.010771
+1.42,139,I4/mmm,tI,225,Fm-3m,cF,0.014791
+1.43,139,I4/mmm,tI,225,Fm-3m,cF,0.040353

@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Ra,2,cI2,229,Im-3m,5.148,5.148,5.148,90.0,90.0,90.0,68.2159,https://www.crystallography.net/cod/1509139.html,,2,"bcc (A2, experimental, COD)","COD (Crystallography Open Database, experimental entry 1509139) filtered to spacegroup 229",uncertain,229,cI1

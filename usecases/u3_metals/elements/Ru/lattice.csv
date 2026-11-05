@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Ru,2,hP2,194,P6_3/mmc,2.7,2.7,4.2768,90.0,90.0,120.0,13.5004,,,2,hcp (A3),ASE reference_states (Kittel) + ase.build.bulk,high,194,hP2

@@ -1,0 +1,16 @@
+SYSTEM = ref_c_graphite  (C, SG 194 (P6_3/mmc))  -- single point
+# ---- static (single point) template, use the relaxed CONTCAR as POSCAR -------
+PREC   = Accurate
+ENCUT  = 520
+EDIFF  = 1E-7
+NSW    = 0
+IBRION = -1
+ISMEAR = -5
+ISPIN  = 2
+MAGMOM = 4*0.0
+LORBIT = 11
+LWAVE  = .FALSE.
+LCHARG = .FALSE.
+# -----------------------------------------------------------------------------
+# ISMEAR=-5 (tetrahedron with Bloechl corrections) is good for the final energy
+# of metals PROVIDED the k-mesh is dense (see KPOINTS.static).

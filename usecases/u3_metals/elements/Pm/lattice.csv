@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Pm,2,hP2,194,P6_3/mmc,3.67657,3.67657,5.82151,90.0,90.0,120.0,34.0738,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Pm_3:PAW_PBE_KIN:SCAN:07Sep2000/A3,-43.9724,2,"hcp (A3, predicted)",AFLOW LIB1 filtered client-side to spacegroup_relax=194,medium,194,hP2

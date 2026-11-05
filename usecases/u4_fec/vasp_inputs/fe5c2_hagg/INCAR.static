@@ -1,0 +1,16 @@
+SYSTEM = fe5c2_hagg  (Fe5C2, SG 15 (C2/c))  -- single point
+# ---- static (single point) template, use the relaxed CONTCAR as POSCAR -------
+PREC   = Accurate
+ENCUT  = 520
+EDIFF  = 1E-7
+NSW    = 0
+IBRION = -1
+ISMEAR = -5
+ISPIN  = 2
+MAGMOM = 20*2.2 8*0.0
+LORBIT = 11
+LWAVE  = .FALSE.
+LCHARG = .FALSE.
+# -----------------------------------------------------------------------------
+# ISMEAR=-5 (tetrahedron with Bloechl corrections) is good for the final energy
+# of metals PROVIDED the k-mesh is dense (see KPOINTS.static).

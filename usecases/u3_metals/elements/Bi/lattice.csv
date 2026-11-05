@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Bi,6,hR6,166,R-3m,4.51147,4.51147,11.74512,90.0,90.0,120.0,34.5043,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Bi_d:PAW_PBE_KIN:SCAN:06Sep2000/A7,-78.5664,6,"rhombohedral (A7, alpha-Bi; hR2 primitive / hR6 hex cell)",AFLOW LIB1 filtered client-side to spacegroup_relax=166,medium,166,hR2

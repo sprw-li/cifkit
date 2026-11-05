@@ -1,0 +1,8 @@
+Automatic generation
+0
+Gamma
+  12  12  1
+  0.0  0.0  0.0
+# Generic template: replace 12 12 1 with elements/<El>/KPOINTS, which is
+# generated per element (~30 A per k-point in plane, kz = 1 for the slab).
+# Converge E_surf with respect to the mesh before publishing.

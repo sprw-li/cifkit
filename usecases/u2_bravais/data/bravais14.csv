@@ -1,0 +1,15 @@
+﻿bravais,name_cn,crystal_system,centering,construction,a,b,c,alpha,beta,gamma,natoms_cell,volume_per_atom,sg_number,sg_symbol,point_group,pointgroup_order,n_symops_conv,holohedry_point_group,holohedry_cn,expected_sg_number,bravais_measured,verified
+aP,简单三斜,三斜 triclinic,P,单原子 + P 三斜胞（a≠b≠c，α≠β≠γ≠90°）,4.0,4.7,5.5,78.0,95.0,103.0,1,98.45972,2,P-1,-1,2,2,-1,三斜全息（-1）,2,aP,1
+mP,简单单斜,单斜 monoclinic,P,单原子 + P 单斜胞（β=105°）,4.0,5.0,6.0,90.0,105.0,90.0,1,115.9111,10,P2/m,2/m,4,4,2/m,单斜全息（2/m）,10,mP,1
+mC,C 心单斜,单斜 monoclinic,C,"C 心基元 (0,0,0)+(1/2,1/2,0) + 单斜胞",4.0,5.0,6.0,90.0,105.0,90.0,2,57.95555,12,C2/m,2/m,4,8,2/m,单斜全息（2/m）,12,mC,1
+oP,简单正交,正交 orthorhombic,P,单原子 + P 正交胞（a≠b≠c）,3.7,4.3,5.1,90.0,90.0,90.0,1,81.141,47,Pmmm,mmm,8,8,mmm,正交全息（mmm）,47,oP,1
+oC,C 心正交,正交 orthorhombic,C,C 心基元 + 正交胞,3.7,4.3,5.1,90.0,90.0,90.0,2,40.5705,65,Cmmm,mmm,8,16,mmm,正交全息（mmm）,65,oC,1
+oI,体心正交,正交 orthorhombic,I,I 心基元 + 正交胞,3.7,4.3,5.1,90.0,90.0,90.0,2,40.5705,71,Immm,mmm,8,16,mmm,正交全息（mmm）,71,oI,1
+oF,面心正交,正交 orthorhombic,F,F 心基元 + 正交胞,3.7,4.3,5.1,90.0,90.0,90.0,4,20.28525,69,Fmmm,mmm,8,32,mmm,正交全息（mmm）,69,oF,1
+tP,简单四方,四方 tetragonal,P,单原子 + P 四方胞（a=b≠c）,4.0,4.0,5.0,90.0,90.0,90.0,1,80.0,123,P4/mmm,4/mmm,16,16,4/mmm,四方全息（4/mmm）,123,tP,1
+tI,体心四方,四方 tetragonal,I,I 心基元 + 四方胞,4.0,4.0,5.0,90.0,90.0,90.0,2,40.0,139,I4/mmm,4/mmm,16,32,4/mmm,四方全息（4/mmm）,139,tI,1
+hP,六方,三方/六方 trigonal-hexagonal,P,单原子 + 六方胞（a=b，γ=120°）,3.0,3.0,5.0,90.0,90.0,120.0,1,38.97114,191,P6/mmm,6/mmm,24,24,6/mmm,六方全息（6/mmm）,191,hP,1
+hR,菱方,三方/六方 trigonal-hexagonal,R,单原子 + 菱方胞（α=75°，非特殊角）,4.0,4.0,4.0,75.0,75.0,75.0,1,58.43706,166,R-3m,-3m,12,36,-3m,三方全息（-3m）,166,hR,1
+cP,简单立方,立方 cubic,P,单原子 + 立方胞,4.0,4.0,4.0,90.0,90.0,90.0,1,64.0,221,Pm-3m,m-3m,48,48,m-3m,立方全息（m-3m）,221,cP,1
+cI,体心立方,立方 cubic,I,I 心基元 + 立方胞,4.0,4.0,4.0,90.0,90.0,90.0,2,32.0,229,Im-3m,m-3m,48,96,m-3m,立方全息（m-3m）,229,cI,1
+cF,面心立方,立方 cubic,F,F 心基元 + 立方胞,4.0,4.0,4.0,90.0,90.0,90.0,4,16.0,225,Fm-3m,m-3m,48,192,m-3m,立方全息（m-3m）,225,cF,1

@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+U,4,oS4,63,Cmcm,3.38053,5.96655,5.69789,90.0,90.0,90.0,28.7317,https://aflowlib.duke.edu/AFLOWDATA/ICSD_WEB/ORCC/U1_ICSD_653373,-8.29858,4,oC4 (alpha-U),AFLOW LIB1/ICSD filtered client-side to spacegroup_relax=63,medium,63,oS2

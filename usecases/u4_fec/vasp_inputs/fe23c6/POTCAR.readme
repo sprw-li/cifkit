@@ -1,0 +1,42 @@
+POTCAR for fe23c6 = Fe23C6   (space group 225 (Fm-3m), cF116)
+=================================================================
+
+Recommended PAW-PBE potentials (VASP 5.4 / VASP 6 distribution
+"potpaw_PBE.54" or newer):
+
+    Fe_pv   (Fe, 3p6 3d7 4s1, 14 valence electrons)   <-- preferred for Fe-C
+    C       (C,  2s2 2p2,    4 valence electrons)
+
+If Fe_pv is not available, Fe (8 valence electrons) is acceptable, but then
+*all* structures and reference states must use the same Fe potential.
+
+The POTCAR file is NOT shipped with this kit (VASP licence).  Build it so that
+the element order matches the POSCAR species line:
+
+    cat ~/potpaw_PBE/Fe_pv/POTCAR ~/potpaw_PBE/C/POTCAR > POTCAR
+
+The POSCAR of this folder starts with the line:  Fe C
+
+--- how E_form is obtained from your own VASP totals ------------------------
+E_form(Fe_x C_y) = [E_tot(Fe_x C_y) - x*E_Fe - y*E_C] / (x + y)     [eV/atom]
+
+Use the SAME POTCAR / ENCUT / k-mesh family for the references:
+    E_Fe : ferromagnetic bcc Fe   (vasp_inputs/ref_fe_bcc)
+    E_C  : graphite               (vasp_inputs/ref_c_graphite)
+AFLOW's elemental C reference is the diamond-like cF8 structure; if you want to
+compare directly with the AFLOW numbers shipped in data/, also run
+    vasp_inputs/ref_c_diamond.
+Then write a CSV ``my_energies.csv`` with columns
+
+    x_C,energy_formation_eV_per_atom,comment
+
+and rebuild the hull with
+
+    python scripts/build_hull.py --energies my_energies.csv --out-png figures/my_hull.png
+
+--- sanity / known pitfalls ------------------------------------------------
+* check the magnetic state: Fe-C carbides are ferromagnetic; a non-magnetic
+  run can shift the energy by 0.1 eV/atom and more;
+* use EDIFFG=-0.02 eV/A for relaxation, then a static run for the final energy;
+* do not compare total energies computed with different ENCUT or POTCAR;
+* PBE (AFLOW LIB2 uses PBE) is not the same functional as PBEsol/SCAN.

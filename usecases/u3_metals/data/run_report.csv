@@ -1,0 +1,88 @@
+﻿element,status,reason,structure_type,structure_confidence,sg_check,lattice_source,densest_plane,slab_atoms,vacuum_measured,source_aurl,elapsed_s
+Li,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),10,15.0,,0.1
+Be,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),8,15.0,,0.11
+Na,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),10,15.0,,0.11
+Mg,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Al,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.18
+K,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),8,15.0,,0.11
+Ca,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),16,15.0,,0.19
+Sc,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.07
+Ti,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.07
+V,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.09
+Cr,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.09
+Mn,ok,exported (bulk + densest-plane slab),cI58 (alpha-Mn),medium,217,AFLOW LIB1 filtered client-side to spacegroup_relax=217,(012),232,15.0,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Mn:PAW_PBE:06Sep2000/A12,4.75
+Fe,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,1.21
+Co,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Ni,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.15
+Cu,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.18
+Zn,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.09
+Ga,ok,exported (bulk + densest-plane slab),oS8 (alpha-Ga),medium,64,AFLOW LIB1 filtered client-side to spacegroup_relax=64,(100),24,15.0,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Ga_h:PAW_RPBE:09Apr2002/A11,3.35
+Rb,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),8,15.0,,0.1
+Sr,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),16,15.0,,0.21
+Y,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.09
+Zr,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.1
+Nb,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.1
+Mo,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.1
+Tc,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.1
+Ru,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Rh,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.15
+Pd,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.15
+Ag,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.15
+Cd,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+In,ok,exported (bulk + densest-plane slab),"bct (A6, In)",high,139,ASE reference_states (Kittel) + ase.build.bulk,(01-1),10,15.0,,0.1
+Sn,ok,exported (bulk + densest-plane slab),"bct (A5, beta-Sn)",high,141,ASE reference_states (Kittel) + ase.build.bulk,(010),12,15.0,,0.13
+Cs,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),6,15.0,,0.08
+Ba,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),8,15.0,,0.07
+La,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),4,15.0,,0.07
+Ce,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),20,15.0,,0.13
+Pr,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Nd,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Pm,ok,exported (bulk + densest-plane slab),"hcp (A3, predicted)",medium,194,AFLOW LIB1 filtered client-side to spacegroup_relax=194,(0001),6,15.0,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Pm_3:PAW_PBE_KIN:SCAN:07Sep2000/A3,3.44
+Sm,ok,exported (bulk + densest-plane slab),"rhombohedral (hR9, Sm-type)",medium,166,AFLOW LIB1 filtered client-side to spacegroup_relax=166,(0001),9,15.0,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Sm_3:PAW_PBE:07Sep2000/C19,3.69
+Eu,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),8,15.0,,0.08
+Gd,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Tb,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.1
+Dy,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.07
+Ho,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Er,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.11
+Tm,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Yb,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),16,15.0,,0.14
+Lu,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Hf,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Ta,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.08
+W,ok,exported (bulk + densest-plane slab),bcc (A2),high,229,ASE reference_states (Kittel) + ase.build.bulk,(110),12,15.0,,0.09
+Re,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.06
+Os,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.08
+Ir,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.13
+Pt,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.13
+Au,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),24,15.0,,0.14
+Hg,ok,exported (bulk + densest-plane slab),"rhombohedral (A10, alpha-Hg; hR1 primitive / hR3 hex cell)",high,166,ASE reference_states (Kittel) + ase.build.bulk,(01-1-1),15,15.0,,0.09
+Tl,ok,exported (bulk + densest-plane slab),hcp (A3),high,194,ASE reference_states (Kittel) + ase.build.bulk,(0001),6,15.0,,0.07
+Pb,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),20,15.0,,0.12
+Bi,ok,exported (bulk + densest-plane slab),"rhombohedral (A7, alpha-Bi; hR2 primitive / hR6 hex cell)",medium,166,AFLOW LIB1 filtered client-side to spacegroup_relax=166,(10-1-2),24,15.0,https://aflowlib.duke.edu/AFLOWDATA/LIB1_WEB/Bi_d:PAW_PBE_KIN:SCAN:06Sep2000/A7,2.89
+Fr,failed,RuntimeError: no AFLOW entry with spacegroup_relax=229 for Fr (searched LIB1:0),,,,,,,,,1.25
+Ra,ok,exported (bulk + densest-plane slab),"bcc (A2, experimental, COD)",uncertain,229,"COD (Crystallography Open Database, experimental entry 1509139) filtered to spacegroup 229",(110),8,15.0,https://www.crystallography.net/cod/1509139.html,1.4
+Ac,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),16,15.0,,0.28
+Th,ok,exported (bulk + densest-plane slab),fcc (A1),high,225,ASE reference_states (Kittel) + ase.build.bulk,(111),20,15.0,,0.16
+Pa,ok,exported (bulk + densest-plane slab),tI2 (alpha-Pa),medium,139,AFLOW LIB1/ICSD filtered client-side to spacegroup_relax=139,(110),10,15.0,https://aflowlib.duke.edu/AFLOWDATA/ICSD_WEB/BCT/Pa1_ICSD_648329,8.32
+U,ok,exported (bulk + densest-plane slab),oC4 (alpha-U),medium,63,AFLOW LIB1/ICSD filtered client-side to spacegroup_relax=63,(001),12,15.0,https://aflowlib.duke.edu/AFLOWDATA/ICSD_WEB/ORCC/U1_ICSD_653373,6.66
+Np,ok,exported (bulk + densest-plane slab),oP8 (alpha-Np),uncertain,62,"COD (Crystallography Open Database, experimental entry 9008585) filtered to spacegroup 62",(1-1-2),48,15.0,https://www.crystallography.net/cod/9008585.html,3.43
+Pu,ok,exported (bulk + densest-plane slab),mP16 (alpha-Pu),uncertain,11,"COD (Crystallography Open Database, experimental entry 1525989) filtered to spacegroup 11",(2-1-1),192,15.0,https://www.crystallography.net/cod/1525989.html,5.59
+Am,ok,exported (bulk + densest-plane slab),"dhcp (hP4, experimental, COD)",uncertain,194,"COD (Crystallography Open Database, experimental entry 9008524) filtered to spacegroup 194",(0001),8,15.0,https://www.crystallography.net/cod/9008524.html,3.87
+Cm,failed,RuntimeError: no AFLOW entry with spacegroup_relax=194 for Cm (searched LIB1:0),,,,,,,,,2.24
+Bk,failed,RuntimeError: no AFLOW entry with spacegroup_relax=194 for Bk (searched LIB1:0),,,,,,,,,2.41
+Cf,failed,RuntimeError: no AFLOW entry with spacegroup_relax=194 for Cf (searched LIB1:0),,,,,,,,,1.34
+Es,failed,RuntimeError: no AFLOW entry with spacegroup_relax=225 for Es (searched LIB1:0),,,,,,,,,3.19
+Fm,failed,RuntimeError: Fm: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Md,failed,RuntimeError: Md: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+No,failed,RuntimeError: No: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Lr,failed,RuntimeError: Lr: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.14
+Rf,failed,RuntimeError: Rf: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Db,failed,RuntimeError: Db: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Sg,failed,RuntimeError: Sg: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Bh,failed,RuntimeError: Bh: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Hs,failed,RuntimeError: Hs: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Mt,failed,RuntimeError: Mt: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Ds,failed,RuntimeError: Ds: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Rg,failed,RuntimeError: Rg: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01
+Cn,failed,RuntimeError: Cn: no crystal structure available (ASE has no entry and no experimental space group is established),,,,,,,,,0.01

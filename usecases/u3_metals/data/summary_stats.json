@@ -1,0 +1,70 @@
+{
+ "n_metals_total": 87,
+ "n_exported": 69,
+ "n_missing": 18,
+ "missing_elements": [
+  "Fr",
+  "Cm",
+  "Bk",
+  "Cf",
+  "Es",
+  "Fm",
+  "Md",
+  "No",
+  "Lr",
+  "Rf",
+  "Db",
+  "Sg",
+  "Bh",
+  "Hs",
+  "Mt",
+  "Ds",
+  "Rg",
+  "Cn"
+ ],
+ "failure_reasons": {
+  "Fr": "RuntimeError: no AFLOW entry with spacegroup_relax=229 for Fr (searched LIB1:0)",
+  "Cm": "RuntimeError: no AFLOW entry with spacegroup_relax=194 for Cm (searched LIB1:0)",
+  "Bk": "RuntimeError: no AFLOW entry with spacegroup_relax=194 for Bk (searched LIB1:0)",
+  "Cf": "RuntimeError: no AFLOW entry with spacegroup_relax=194 for Cf (searched LIB1:0)",
+  "Es": "RuntimeError: no AFLOW entry with spacegroup_relax=225 for Es (searched LIB1:0)",
+  "Fm": "RuntimeError: Fm: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Md": "RuntimeError: Md: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "No": "RuntimeError: No: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Lr": "RuntimeError: Lr: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Rf": "RuntimeError: Rf: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Db": "RuntimeError: Db: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Sg": "RuntimeError: Sg: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Bh": "RuntimeError: Bh: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Hs": "RuntimeError: Hs: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Mt": "RuntimeError: Mt: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Ds": "RuntimeError: Ds: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Rg": "RuntimeError: Rg: no crystal structure available (ASE has no entry and no experimental space group is established)",
+  "Cn": "RuntimeError: Cn: no crystal structure available (ASE has no entry and no experimental space group is established)"
+ },
+ "by_confidence": {
+  "high": 58,
+  "medium": 7,
+  "uncertain": 4
+ },
+ "by_source": {
+  "ASE reference_states (Kittel)": 58,
+  "AFLOW (client-side SG filter)": 7,
+  "COD (experimental)": 4
+ },
+ "plane_counts": {
+  "(0001)": 28,
+  "(110)": 16,
+  "(111)": 16,
+  "(012)": 1,
+  "(100)": 1,
+  "(01-1)": 1,
+  "(010)": 1,
+  "(01-1-1)": 1,
+  "(10-1-2)": 1,
+  "(001)": 1,
+  "(1-1-2)": 1,
+  "(2-1-1)": 1
+ },
+ "element_dirs": 69
+}

@@ -1,0 +1,2 @@
+﻿element,Z,prototype,spacegroup_number,spacegroup_symbol,a,b,c,alpha,beta,gamma,V_per_atom,source_aurl,source_energy_atom,natoms,structure_type,lattice_source,structure_confidence,sg_check,pearson_primitive
+Pa,2,tI2,139,I4/mmm,3.93078,3.93078,3.19476,90.0,90.0,90.0,24.6812,https://aflowlib.duke.edu/AFLOWDATA/ICSD_WEB/BCT/Pa1_ICSD_648329,-9.4764,2,tI2 (alpha-Pa),AFLOW LIB1/ICSD filtered client-side to spacegroup_relax=139,medium,139,tI1

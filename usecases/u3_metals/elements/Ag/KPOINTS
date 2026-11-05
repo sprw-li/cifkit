@@ -1,0 +1,8 @@
+Automatic generation
+0
+Gamma
+  5  5  1
+  0.0  0.0  0.0
+# Ag (111) slab: kz = 1 (slab), in-plane ~30 A per k-point (moderately
+# conservative; converge E_surf w.r.t. the mesh before publishing). For the
+# bulk reference use an equivalent 3D mesh, e.g. 5 5 1.
