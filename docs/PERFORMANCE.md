@@ -18,6 +18,8 @@
 
 - 每条 run 用**独立子进程**（`python -m cifkit pipeline ... --json`）→ 无 GIL 限制、单条崩溃不影响其它；
   批处理总入口写 `batch_manifest.json`（每 run 的 exit code、秒数、stderr 尾部、摘要）。
+- 独立评审（Round 7）用 3 条**轻量本地 spec**（单 run ~5–7 s，固定启动开销占比大）测得：
+  `--jobs 1` 16.98 s → `--jobs 3` 8.87 s（**1.91×**）；与完整 demo 的 2.8× 方向一致，差在固定开销。
 - 一条 run 各写自己的 `outdir`，互不共享可变状态；缓存（CoRE/AFLOW/COD）由各源自己保证并发安全
   （见 `docs/ROBUSTNESS.md`）。
 - 失败语义：`batch` 全部成功 exit 0；任一失败 exit 1 但**其余 run 仍完成**并进入 manifest

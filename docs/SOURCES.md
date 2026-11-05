@@ -319,9 +319,13 @@ identify(structure, nets=None) -> {
 - **接入方式**：`cifkit` 的 `qmof` 适配器**只读本地镜像**，目录由 `$CIFKIT_QMOF_DIR` 指定
   （默认 `_cache/qmof/`）。期望 `qmof.csv` + `structures/*.cif`，或 `qmof_cifs.zip`
   （无 CSV 也能按 CIF 文件名检索）。
-- **实测程度（诚实）**：官方 figshare（DOI 10.6084/m9.figshare.13147324）与 GitHub 镜像
-  **在本环境不可达**（HTTP 403 / 超时），所以**没有做 live 下载实测**；适配器逻辑用本地临时镜像
-  + 单元测试验证（search/fetch/provenance/缺失报错）。不伪造在线结果。
+- **实测程度（诚实）**：本环境尝试过的下载路径：
+  - figshare **file-level** 下载 → HTTP **403**；
+  - figshare **article-level versions zip**（`ndownloader.figshare.com/articles/13147324/versions/1`）
+    → 曾返回 200（约 351 MB），但多次下载被截断、后续 HEAD 返回 502（本网络不稳定），**未取得完整数据**；
+  - GitHub codeload 可下载（200）但仓库只含代码/示例，**不含 QMOF 数据库**（数据在 figshare）。
+  因此**没有完成 QMOF live 验证**；`scripts/bootstrap_qmof.py` 提供"下载+提取+sha256 记录"，网络可达时可用。
+  适配器逻辑用本地临时镜像 + 单元测试验证（search/fetch/provenance/缺失报错），不伪造在线结果。
 - **限制**：QMOF 没有 RCSR 拓扑列（`topology_evidence=unknown`），拓扑仍需 `cifkit.topology.verify`；
   许可/再分发受 CoRE/CSD 来源约束，使用前核对官方说明。
 - **缺失时行为**：`cifkit sources` 显示 `local mirror missing (set CIFKIT_QMOF_DIR ...)`；

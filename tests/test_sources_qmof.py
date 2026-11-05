@@ -73,3 +73,18 @@ def test_qmof_zip_mirror_without_csv(tmp_path, monkeypatch):
     fetched = src.fetch(hits[0])
     assert len(fetched.structure) > 50
     assert fetched.provenance["cif_name"].endswith(".cif")
+
+
+@pytest.mark.skipif(
+    not qmof_available(), reason="QMOF mirror not bootstrapped (run scripts/bootstrap_qmof.py)"
+)
+def test_qmof_real_mirror_search_and_fetch():
+    """Real QMOF data (downloaded from the figshare article zip) must parse and fetch."""
+    src = QMOFSource()
+    hits = src.search(SourceQuery(limit=3))
+    assert hits, "QMOF mirror exists but search returned nothing"
+    fetched = src.fetch(hits[0])
+    assert len(fetched.structure) > 0
+    assert fetched.provenance["source"] == "qmof"
+    assert fetched.provenance["sha256"]
+    assert fetched.record.natoms == len(fetched.structure)
