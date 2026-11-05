@@ -136,6 +136,23 @@ def test_repair_creates_output_parent_dir(tmp_path):
     assert out.is_file()
 
 
+def test_fetch_json_with_outdir_stdout_is_pure_json(tmp_path):
+    """P1 (Round 4): `fetch --json --outdir` stdout must stay a single JSON array.
+
+    The "wrote ..." status line belongs on stderr; docs/SKILL use this combo.
+    """
+    out = tmp_path / "fetch"
+    proc = _run([
+        "fetch", "--source", "local", "--id", str(H_FREE),
+        "--outdir", str(out), "--json",
+    ])
+    assert proc.returncode == 0, proc.stderr
+    hits = json.loads(proc.stdout)  # must not raise
+    assert isinstance(hits, list) and hits
+    assert (out / "raw.cif").is_file()
+    assert "wrote" in proc.stderr
+
+
 def test_sources_command_lists_databases():
     """`cifkit sources --json` must list every adapter with auth metadata."""
     proc = _run(["sources", "--json"])

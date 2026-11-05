@@ -431,18 +431,6 @@ def validate_structure(structure: Structure, *, spec=None, extra: dict | None = 
     h_count = int(counts.get("H", 0))
     metrics["h_count"] = h_count
     repair_h = bool(getattr(spec, "repair_h", False)) if spec is not None else False
-    hydrogen_ok = h_count > 0
-    hydrogen_detail = f"{h_count} H atoms"
-    if not repair_h:
-        report.add("hydrogen", True, detail=hydrogen_detail + " (repair_h not requested)", severity="info")
-    else:
-        report.add(
-            "hydrogen",
-            hydrogen_ok,
-            detail=hydrogen_detail if hydrogen_ok else "no H atoms although repair_h was requested",
-            severity="error",
-        )
-
     valence = _carbon_valence(structure, cn, interior)
     metrics.update(valence)
     c_ok = valence["c_missing_h"] == 0
@@ -451,6 +439,30 @@ def validate_structure(structure: Structure, *, spec=None, extra: dict | None = 
         if c_ok
         else f"{valence['c_missing_h']} interior C atom(s) with < 3 bonds (missing H?)"
     )
+    if not repair_h:
+        report.add("hydrogen", True, detail=f"{h_count} H atoms (repair_h not requested)", severity="info")
+    elif h_count > 0:
+        report.add("hydrogen", True, detail=f"{h_count} H atoms", severity="info")
+    elif valence["carbon_interior"] > 0 and valence["c_missing_h"] > 0:
+        # a genuinely under-hydrogenated organic framework: repair failed
+        report.add(
+            "hydrogen",
+            False,
+            detail=(
+                f"no H atoms and {valence['c_missing_h']} interior C atom(s) with missing H "
+                "(repair_h was requested)"
+            ),
+            severity="error",
+        )
+    else:
+        # inorganic / already-computation-ready structure: H completion is a legitimate no-op
+        report.add(
+            "hydrogen",
+            True,
+            detail="0 H atoms, but no organic H sites need completion (inorganic/computation-ready; repair was a no-op)",
+            severity="info",
+        )
+
     if repair_h:
         report.add("carbon_coordination", c_ok, detail=c_detail, severity="error")
     else:

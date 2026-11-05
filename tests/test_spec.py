@@ -63,6 +63,36 @@ def test_missing_structure_is_reported():
     assert any("没有识别到拓扑" in n for n in spec.notes)
 
 
+def test_inorganic_formula_and_ids():
+    """Round 4: MP/AFLOW ids and inorganic formulas must be recognised."""
+    gan = parse_request("帮我下载 GaN 的晶体结构，补氢后导出 VASP")
+    assert gan.structure_name == "GaN"
+    assert gan.repair_h is True
+
+    fe2o3 = parse_request("下载 Fe2O3 的结构并加 15Å 真空层")
+    assert fe2o3.structure_name == "Fe2O3"
+    assert fe2o3.vacuum == 15.0
+
+    mp = parse_request("下载 mp-149 的 CIF 并导出 POSCAR")
+    assert mp.structure_id == "mp-149"
+    assert mp.source == "materials-project"
+
+    aurl = parse_request(
+        "从 aflowlib.duke.edu:AFLOWDATA/LIB1_WEB/Zn:PAW_PBE:06Sep2000/A9 下载 CIF 并导出 POSCAR"
+    )
+    assert aurl.source == "aflow"
+    assert aurl.structure_id and "AFLOWDATA" in aurl.structure_id
+    assert aurl.structure_name is None  # stray formula token must not pollute the query
+
+    # MOF names must not be mistaken for formulas; "CoRE" must not become Co-Re
+    mof = parse_request("从 CoRE MOF 里下载 RCSR 为 sod 的 ZIF-8")
+    assert mof.structure_name == "ZIF-8"
+    assert mof.topology == "sod"
+
+    no_name = parse_request("把 CIF 导出成 POSCAR")
+    assert no_name.structure_name is None
+
+
 def test_route_cli_json():
     out = subprocess.run(
         [sys.executable, "-m", "cifkit", "route", DEMO, "--json"],

@@ -187,3 +187,30 @@ def test_validate_metrics_have_the_report_keys(zif8_prim: Structure, zif8_slab) 
         "slab_thickness",
     ):
         assert key in slab_metrics, key
+
+
+def test_hydrogen_check_is_noop_for_inorganic_structure() -> None:
+    """Round 4: repair_h on an inorganic structure with no organic H sites is OK.
+
+    Previously the validator failed any ``repair_h`` run whose final structure had
+    zero H atoms, which wrongly failed e.g. a GaN AFLOW download (H completion is a
+    legitimate no-op for inorganic/DFT structures).
+    """
+    gan = Structure(Lattice.cubic(4.5), ["Ga", "N"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+    report = validate_structure(gan, spec=TaskSpec(repair_h=True))
+    hydrogen = next(c for c in report.checks if c.name == "hydrogen")
+    assert hydrogen.ok is True
+    assert hydrogen.severity == "info"
+    assert "no-op" in hydrogen.detail
+    assert report.ok is True
+
+
+def test_hydrogen_check_still_fails_under_hydrogenated_organic() -> None:
+    """A carbon framework with missing H must still fail the hydrogen check."""
+    # diamond-like C network where every interior C has only 2 neighbours in the
+    # (small) cell -> missing H; the carbon_coordination check must flag it too.
+    carbon = Structure(Lattice.cubic(2.5), ["C"], [[0, 0, 0]], validate_proximity=False)
+    report = validate_structure(carbon, spec=TaskSpec(repair_h=True))
+    hydrogen = next(c for c in report.checks if c.name == "hydrogen")
+    assert hydrogen.ok is False
+    assert hydrogen.severity == "error"

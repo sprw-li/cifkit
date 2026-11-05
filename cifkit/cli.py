@@ -192,7 +192,11 @@ def cmd_fetch(args) -> int:
             ),
         }
         (out / "source.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-        print(f"wrote {path} (sha256={raw_sha[:16]}...)")
+        if args.json:
+            # keep stdout a single valid JSON document (the hits array above)
+            print(f"wrote {path} (sha256={raw_sha[:16]}...)", file=sys.stderr)
+        else:
+            print(f"wrote {path} (sha256={raw_sha[:16]}...)")
     return 0
 
 

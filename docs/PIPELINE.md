@@ -227,23 +227,27 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 附加：`tests/test_cli.py` 增加 UTF-16 spec 用例（8 条），应用层支持 UTF-16BE。
 
 附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
-测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试）。
+测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；数据源扩展后全量为 **144**）。
 
 ### 8.2 数据源扩展（CoRE MOF / COD / Materials Project / AFLOW）
 
 原先只有 CoRE MOF 2024 + COD + local；本轮补齐 **Materials Project** 与 **AFLOW**，
-并加 cifkit sources 让 agent 先看数据源状态再选型。
+并加 `cifkit sources` 让 agent 先看数据源状态再选型。
 
 | source | 实现 | 需要的条件 | 实测 |
 |---|---|---|---|
-| materials-project | sources/materials_project.py | MP_API_KEY（免费申请） | 无 key 时失败信息可读、联网 401 被转成 ValueError；**mock 测试**覆盖 search/fetch（CIF 由 structure dict 生成、JSON/CIF 双 sha256）；本机无 key 故未做 live 检索 |
-| flow | sources/aflow.py | 免 key | **live 实测**：AFLUX 检索 ZnO（3 hits）、按 aurl 下载 Zn A9 CIF、跑完 pipeline（7 artifacts、exit 0）；CIF 文件名含 \:\ 需 percent-encode |
-| cod | 已有 | 免 key | live 实测 id 7111973 下载与落盘 |
-| core-mof | 已有 | 本地缓存 | demo 主路径不变 |
+| `materials-project` | `sources/materials_project.py` | `MP_API_KEY`（免费申请） | 无 key 时失败信息可读、联网 401 被转成 ValueError；**mock 测试**覆盖 search/fetch（CIF 由 structure dict 生成、JSON/CIF 双 sha256）；本机无 key 故未做 live 检索 |
+| `aflow` | `sources/aflow.py` | 免 key | **live 实测**：AFLUX 检索 ZnO（3 hits）、按 aurl 下载 Zn A9 CIF、跑完 pipeline（7 artifacts、exit 0）；CIF 文件名含冒号需 percent-encode（`%3A`） |
+| `cod` | 已有 | 免 key | live 实测 id 7111973 下载与落盘 |
+| `core-mof` | 已有 | 本地缓存 | demo 主路径不变 |
 
-- 选型/经验表见 docs/SOURCES.md §7d；技能正文 catalog/cif-fetch/SKILL.md。
-- 路由：intent cif-structure-pipeline 增加数据源关键词与 examples；评测 79 条全过、
-  负例 0/25；ci.py --fast exit 0。
-- 测试：新增 	ests/test_sources_mp_aflow.py（10 条，MP mock + AFLOW mock/live）与
-  	ests/test_cli.py 中 sources/MP 无 key 2 条；全套 **139** 条。
+- 选型/经验表见 `docs/SOURCES.md` 第 7d 节；技能正文 `catalog/cif-fetch/SKILL.md`。
+- 自然语言：`spec.parse_request` 现在能识别无机化学式（GaN/Fe2O3）与 `mp-149`/AFLOW aurl；
+  `auto` 数据源规则：化学式 → aflow，MOF 名称 → core-mof；显式 id 时清空误识别的 formula token。
+- 校验：`validate` 的 hydrogen 检查区分「有机缺氢」与「无机/计算就绪 no-op」——
+  前者（有 interior C 缺键）仍是 error，后者（GaN 这类 0 H 无机结构）记为 info，不再误判失败。
+- 路由：intent `cif-structure-pipeline` 增加数据源关键词与 examples；评测 79 条全过、
+  负例 0/25；`ci.py --fast` exit 0。
+- 测试：新增 `tests/test_sources_mp_aflow.py`（11 条，MP mock + AFLOW mock/live + auto 选源）、
+  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **144** 条。
 

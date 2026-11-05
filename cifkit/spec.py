@@ -89,10 +89,56 @@ _TYPICAL = re.compile(r"(典型|经典|代表性|typical|canonical|classic|最�
 _SOURCE_PATTERNS = [
     ("core-mof", re.compile(r"(core[-\s]?mof|core\s+mof)", re.IGNORECASE)),
     ("cod", re.compile(r"(crystallography open database|\bcod\b|晶体学开放数据库)", re.IGNORECASE)),
-    ("materials-project", re.compile(r"(materials project|\bmp\b\s*数据库)", re.IGNORECASE)),
+    ("materials-project", re.compile(r"(materials project|\bmp\b\s*数据库|mp-\d+)", re.IGNORECASE)),
     ("qmof", re.compile(r"\bqmof\b", re.IGNORECASE)),
+    ("aflow", re.compile(r"\b(aflow|aflowlib)\b", re.IGNORECASE)),
     ("local", re.compile(r"(本地文件|local file|这个文件|该文件|附件)", re.IGNORECASE)),
 ]
+
+#: tokens that look formula-ish but are acronyms/property words — never structure names
+_FORMULA_ACRONYMS = {
+    "CIF", "MOF", "MOFS", "POSCAR", "CONTCAR", "VASP", "XYZ", "AFLOW", "COD", "MP",
+    "QE", "CP2K", "LAMMPS", "RCSR", "DFT", "SI", "HPC", "SOD", "PCU", "DIA", "FCU",
+    "TBO", "BCU", "HMS", "QTZ", "CAG", "LTA", "NBO", "ACS", "BTO", "RNA", "RHT",
+    "SHE", "SRS", "PTS", "MOG", "TFA", "ANA", "ABW", "BEA", "CHA", "FAU", "MFI",
+    "MOR", "OUTCAR", "INCAR", "KPOINTS", "XSF", "GJF", "ORCA", "ABACUS", "API",
+}
+#: common no-digit binary/ternary formulas that would otherwise be hard to spot
+_FORMULA_WHITELIST = {
+    "GaN", "GaAs", "AlN", "AlP", "GaP", "InN", "InP", "SiC", "ZnO", "ZnS", "CdTe",
+    "CdS", "BN", "MgO", "CaO", "CuO", "NiO", "BeO", "PbS", "PbTe", "NaCl", "KCl",
+    "CsCl", "LiF", "NaF", "AgCl", "BaTiO3",
+}
+_FORMULA_TOKEN = re.compile(r"(?<![A-Za-z0-9])((?:[A-Z][a-z]?\d*){2,8})(?![A-Za-z0-9])")
+
+
+def _looks_like_formula_token(token: str, text: str, end: int) -> bool:
+    upper = token.upper()
+    if upper in _FORMULA_ACRONYMS:
+        return False
+    has_digit = any(ch.isdigit() for ch in token)
+    if not has_digit and token not in _FORMULA_WHITELIST:
+        return False
+    # "CoRE MOF" must not become a Co-Re formula: reject when followed by MOF/数据库
+    tail = text[end:end + 6]
+    if re.match(r"\s*(?:MOF|mof|数据库|结构数据库)", tail):
+        return False
+    try:
+        from pymatgen.core import Composition
+
+        comp = Composition(token)
+    except Exception:  # noqa: BLE001 - not a formula
+        return False
+    return bool(comp.elements) and comp.reduced_formula != "None"
+
+
+def _find_formula_token(text: str) -> str | None:
+    """Best-effort extraction of an inorganic formula (GaN / Fe2O3) from free text."""
+    for match in _FORMULA_TOKEN.finditer(text):
+        token = match.group(1)
+        if _looks_like_formula_token(token, text, match.end()):
+            return token
+    return None
 
 
 def _extract_formats(text: str) -> list[str]:
@@ -128,16 +174,32 @@ def parse_request(text: str, outdir: Path | str | None = None) -> TaskSpec:
         if name in low:
             spec.structure_name = name.upper()
             break
+    if spec.structure_name is None and spec.topology is None:
+        formula = _find_formula_token(text)
+        if formula:
+            spec.structure_name = formula
 
     # --- explicit identifiers / local path --------------------------------
     m = re.search(r"\b(?:cod[:\s]*)?(\d{7})\b", text)
     if m:
         spec.structure_id = m.group(1)
         spec.source = "cod"
+    m = re.search(r"\b(mp-\d+)\b", text, re.IGNORECASE)
+    if m:
+        spec.structure_id = m.group(1).lower()
+        spec.source = "materials-project"
+    m = re.search(r"((?:https?://)?aflowlib\.duke\.edu/[^\s，。；;]+|aflowlib\.duke\.edu:[^\s，。；;]+)", text)
+    if m:
+        spec.structure_id = m.group(1).rstrip("。，;；")
+        spec.source = "aflow"
     m = re.search(r"([A-Za-z]:\\[^\s，。；;]+\.cif|[^\s，。；;]+\.cif)", text)
     if m:
         spec.structure_id = m.group(1)
         spec.source = "local"
+    if spec.structure_id:
+        # an explicit id/URL is authoritative; a stray formula-like token must not
+        # pollute the search query (e.g. LIB1 from an AFLOW aurl)
+        spec.structure_name = None
 
     # --- source ----------------------------------------------------------
     if spec.source == "auto":
