@@ -80,12 +80,16 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 ## 测试与复现
 
 ```powershell
-& $PY -m pytest tests -q            # 119 passed（含 demo 端到端；需要 _cache）
+# 一键体检（selftest → pytest → verify_demo → router/eval/ci）
+& $PY scripts\check_all.py
+
+& $PY -m pytest tests -q            # 127 passed（含 demo 端到端；需要 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
-& $PY scripts\verify_demo.py runs\demo_sod_zif8   # 8/8
+& $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
+& $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / spec 6 / topology 15 / validate 12。
+测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / spec 6 / topology 15 / validate 12 / cli 8。
 
 ---
 
@@ -109,8 +113,10 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 1（独立对抗式评审，`reviewer-r1`）**：[docs/REVIEW-ROUND1.md](docs/REVIEW-ROUND1.md)，结论 **PASS / 无 P0**。
   - 评审员自写脚本独立复算：sha256 三方一致、DOI 经 Crossref 核实且来源标注 `curated`、拓扑 net 签名可复算、补氢几何/价态全对、垂直真空 15.000 Å、2208=552×4、导出读回一致；重跑 exit 0、`verify_demo` 8/8、pytest 119 全绿。
   - 提出 4 个 P1（JSON 污染、真空口径文档、artifacts 计数、字节数过期）+ 7 个 P2。
-- **Round 2（修复轮）**：P1 全部修复、P2 全部处理，见 [docs/PIPELINE.md §8](docs/PIPELINE.md)；新增 `tests/test_cli.py`（7 条 CLI 合同测试），测试总数 **126**。
-- **Round 3**：修复后的二次独立复核（记录追加到 `docs/REVIEW-ROUND2.md`）。
+- **Round 2（修复轮）**：P1 全部修复、P2 基本处理，见 [docs/PIPELINE.md §8](docs/PIPELINE.md)；新增 `tests/test_cli.py`（8 条 CLI 合同测试），测试总数 **127**。
+- **Round 3（二次独立复核）**：[docs/REVIEW-ROUND2.md](docs/REVIEW-ROUND2.md)，结论 **PASS**：4/4 P1 FIXED、无假修复、无新 P0/P1、无回归；127 passed、verify_demo 8/8、结构产物与留档逐字节一致。
+- **Round 4（收尾修复）**：按 Round 3 剩余建议加强 DOI 校验（record/provenance 一致性 + DOI 正则 + curated 标注 + 可选 `--online` Crossref 解析）、统一 report 产物清单、更新文档数字、新增 `scripts/check_all.py` 一键体检。
+- **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
 
 ---
 

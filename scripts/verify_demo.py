@@ -8,12 +8,30 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
 from pymatgen.core import Structure
 
 RADII = {"H": 0.31, "C": 0.76, "N": 0.71, "O": 0.66, "S": 1.05, "Zn": 1.22, "Cd": 1.44, "Zr": 1.75}
+
+
+def _crossref_check(doi: str, timeout: float = 20.0) -> dict:
+    """Resolve a DOI through Crossref; used only with ``--online``."""
+    import urllib.request
+
+    url = f"https://api.crossref.org/works/{doi}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "cifkit-verify/0.1 (mailto:none)"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        title = ((data.get("message") or {}).get("title") or [""])[0]
+        if resp.status != 200 or not title:
+            return {"ok": False, "detail": f"status={resp.status} title={title!r}"}
+        return {"ok": True, "detail": f"status=200 title={title[:80]!r}"}
+    except Exception as exc:  # noqa: BLE001 - network is optional
+        return {"ok": False, "detail": f"crossref failed: {type(exc).__name__}: {exc}"}
 
 
 def sha256(path: Path) -> str:
@@ -98,8 +116,9 @@ def carbon_valence_ok(envs: list[dict]) -> tuple[bool, dict]:
 
 
 class Checker:
-    def __init__(self, outdir: Path):
+    def __init__(self, outdir: Path, *, online: bool = False):
         self.dir = outdir
+        self.online = online
         self.rows: list[tuple[str, bool, str]] = []
         self.manifest = json.loads((outdir / "manifest.json").read_text(encoding="utf-8"))
 
@@ -122,13 +141,24 @@ class Checker:
         if ok:
             got = sha256(raw)
             sha_ok = bool(prov.get("sha256")) and got == prov["sha256"]
-            doi = rec.get("doi") or prov.get("doi")
-            doi_note = prov.get("doi_note")
-            # curated-DOI records must say so explicitly; do not silently trust a DOI
-            doi_ok = bool(doi) and (not doi_note or "curated" in str(doi_note).lower() or "metadata" in str(doi_note).lower())
+            doi = str(rec.get("doi") or prov.get("doi") or "")
+            prov_doi = str(prov.get("doi") or "")
+            doi_note = prov.get("doi_note") or ""
+            doi_format_ok = bool(re.match(r"^10\.\d{4,9}/\S+$", doi))
+            # a curated DOI must be labelled curated in provenance, and record/provenance must agree
+            consistent = (not prov_doi) or (prov_doi == doi)
+            note_lower = str(doi_note).lower()
+            note_ok = ("curated" in note_lower) or ("metadata" in note_lower) or ("数据集元数据" in str(doi_note))
+            doi_ok = doi_format_ok and consistent and note_ok
+            detail = (f"sha256 matches={sha_ok} record={rec.get('record_id')} doi={doi or '-'} "
+                      f"fmt={doi_format_ok} consistent={consistent} note_ok={note_ok}")
+            if self.online and doi_ok:
+                cross = _crossref_check(doi)
+                doi_ok = doi_ok and cross["ok"]
+                detail += f" crossref={cross['detail']}"
+            elif not self.online:
+                detail += " (offline: existence 未联网核验，用 --online 可查 Crossref)"
             ok = sha_ok and doi_ok
-            detail = (f"sha256 matches={sha_ok} record={rec.get('record_id')} doi={doi} "
-                      f"doi_note={str(doi_note)[:60]}")
         self.check("1 来源追溯（sha256/record/DOI）", ok, detail)
 
         # 2. topology evidence
@@ -236,11 +266,18 @@ class Checker:
 
 
 def main(argv: list[str]) -> int:
-    outdir = Path(argv[1] if len(argv) > 1 else "runs/demo_sod_zif8")
+    import argparse
+
+    ap = argparse.ArgumentParser(description="独立验收 demo 产物")
+    ap.add_argument("outdir", nargs="?", default="runs/demo_sod_zif8")
+    ap.add_argument("--online", action="store_true",
+                    help="additionally resolve the DOI through api.crossref.org (needs network)")
+    args = ap.parse_args(argv[1:])
+    outdir = Path(args.outdir)
     if not (outdir / "manifest.json").is_file():
         print(f"manifest.json 不存在：{outdir}", file=sys.stderr)
         return 2
-    return Checker(outdir).run()
+    return Checker(outdir, online=args.online).run()
 
 
 if __name__ == "__main__":

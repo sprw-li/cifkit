@@ -37,16 +37,35 @@ def _print_json(data) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
 
 
+def _read_spec_text(path: str | Path) -> str:
+    """Read a JSON spec tolerating UTF-8 (with/without BOM) and UTF-16.
+
+    Windows PowerShell 5.1 `>` / Out-File writes UTF-16LE and `Set-Content`
+    may add a BOM; users should not have to debug codecs for a spec file.
+    """
+    raw = Path(path).read_bytes()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    if raw[:3] == b"\xef\xbb\xbf":
+        return raw.decode("utf-8-sig")
+    return raw.decode("utf-8")
+
+
 def _load_spec(args) -> TaskSpec:
     if getattr(args, "spec", None):
-        text = Path(args.spec).read_text(encoding="utf-8-sig")  # tolerate PowerShell 5.1 BOM
+        try:
+            text = _read_spec_text(args.spec)
+        except UnicodeDecodeError as exc:
+            raise SystemExit(
+                f"error: --spec 编码无法识别（{args.spec}）：{exc}。请保存为 UTF-8（无 BOM）或 UTF-16。"
+            ) from exc
         try:
             raw = json.loads(text)
         except json.JSONDecodeError as exc:
             raise SystemExit(
                 f"error: --spec 不是合法 JSON（{args.spec}）：{exc.msg} at line {exc.lineno} col {exc.colno}. "
-                "Windows PowerShell 5.1 的 `>` / Out-File 默认写 UTF-16/BOM，请用 "
-                "`Set-Content -Encoding utf8` 或本工具接受的 utf-8-sig 保存。"
+                "提示：`>`/Out-File 可能写入 UTF-16 或 BOM；本工具支持 UTF-8/UTF-8-BOM/UTF-16，"
+                "但仍需保证内容是合法 JSON。"
             ) from exc
         if not isinstance(raw, dict):
             raise SystemExit(f"error: --spec 顶层必须是 JSON 对象，得到 {type(raw).__name__}")

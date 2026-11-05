@@ -75,6 +75,23 @@ def test_spec_with_utf8_bom(tmp_path):
     assert data["ok"] is True
 
 
+def test_spec_with_utf16_encoding(tmp_path):
+    """--spec must tolerate UTF-16 (PowerShell 5.1 `>` default) as well."""
+    spec = {
+        "query": "utf16 spec",
+        "source": "local",
+        "structure_id": str(H_FREE),
+        "repair_h": True,
+        "output_formats": ["cif"],
+    }
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_text(json.dumps(spec), encoding="utf-16")
+    out = tmp_path / "run"
+    proc = _run(["pipeline", "--spec", str(spec_path), "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout)["ok"] is True
+
+
 def test_failed_run_writes_report_without_duplicate_steps(tmp_path):
     """P2-2: a failed run still writes manifest/report, one failed step, and section 4."""
     out = tmp_path / "run"

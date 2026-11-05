@@ -96,20 +96,25 @@ def write_manifest(outdir: str | Path, manifest: dict[str, Any]) -> str:
 
 
 def finish_run(result: RunResult, manifest: dict[str, Any] | None = None) -> None:
-    """Persist report + manifest (manifest lists itself and the report)."""
+    """Persist report + manifest; both are listed in ``artifacts`` consistently.
+
+    The report is rendered *after* seeding the report/manifest artifact entries,
+    so a run's "产物" list always matches ``manifest["artifacts"]`` (this also
+    holds for ``--ingest`` runs, where the library entry is appended and both
+    files are rewritten).
+    """
     outdir = Path(result.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     if manifest is None:
         manifest = getattr(result, "_manifest", None) or new_manifest(result.spec)
-    # 1) render report first (it quotes artifacts, not paths of itself)
-    report = render_report(result, manifest)
     report_path = outdir / "report.md"
-    report_path.write_text(report, encoding="utf-8")
+    manifest_path = outdir / "manifest.json"
     result.artifacts["report"] = str(report_path)
-    # 2) manifest knows about every artifact, including itself
+    result.artifacts["manifest"] = str(manifest_path)
+    result.manifest_path = str(manifest_path)
     manifest["artifacts"] = dict(result.artifacts)
-    result.manifest_path = write_manifest(outdir, manifest)
-    result.artifacts["manifest"] = result.manifest_path
+    report = render_report(result, manifest)
+    report_path.write_text(report, encoding="utf-8")
     manifest["artifacts"] = dict(result.artifacts)
     write_manifest(outdir, manifest)
 
