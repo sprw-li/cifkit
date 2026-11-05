@@ -5,14 +5,19 @@
 
 ## 1. 数据源一览
 
-| source | 类 | 用途 | 元数据 | 网络 |
+| source | 类 | 用途 | 元数据 | 网络 / key |
 |---|---|---|---|---|
-| `core-mof` | `sources/core_mof.py` | **首选**：CoRE MOF 2024，按拓扑 / 常用名检索 | 有拓扑列（仅 ASR） | 离线（zip 已缓存） |
-| `cod` | `sources/cod.py` | 兜底：Crystallography Open Database 检索/下载 | **无拓扑列** | 需要网络（下载后缓存） |
+| `core-mof` | `sources/core_mof.py` | **MOF 首选**：CoRE MOF 2024，按拓扑 / 常用名检索 | 有 RCSR 拓扑列（仅 ASR） | 离线（zip 已缓存） |
+| `cod` | `sources/cod.py` | 实验晶体兜底：Crystallography Open Database | **无拓扑列** | 网络（下载后缓存） |
+| `materials-project` | `sources/materials_project.py` | DFT 结构：按 `mp-<id>` / 化学式检索 | 无 RCSR 拓扑列；有 material_id/spacegroup | 网络 + **需要 `MP_API_KEY`** |
+| `aflow` | `sources/aflow.py` | 无机/合金计算结构：AFLUX 检索 + aflowlib CIF | **无拓扑列** | 网络，免 key |
 | `local` | `sources/local.py` | 用户本地 `.cif` / 测试 fixture | 无 | 无 |
 
-`available_sources()` 返回 `{name: description}`；`get_source(name)` 支持别名
-（`core_mof` / `core-mof-2024` / `file` …）并返回**单例**。
+`available_sources()` 返回 `{name: description}`；`source_status()` 返回结构化清单
+（含 `requires_auth` / `auth_hint` / 缓存状态），CLI：`python -m cifkit sources [--probe] [--json]`。
+`get_source(name)` 支持别名（`core_mof` / `mp` / `aflowlib` / `file` …）并返回**单例**。
+`pick_source(spec)` 是 `auto` 规则入口：`mp-<digits>` → materials-project；
+`aflow:`/`AFLOWDATA/` → aflow；7 位数字 → cod；`.cif` → local；有 topology/name → core-mof。
 
 ### CoRE MOF 2024 缓存
 
@@ -207,6 +212,62 @@ pipeline `verify-topology` 步骤重复解析。
   （`variant="raw"`，`h_expected` 来自 `base.expected_hydrogen`，notes 标明非实测）。
 - `fetch` 计算文件 sha256，`provenance["cif_path"]` 指向原文件。
 
+## 7b. Materials Project 适配器（需要 API key）
+
+- 端点：`GET https://api.materialsproject.org/materials/summary/`，header `X-API-KEY`。
+  key 来源：环境变量 `MP_API_KEY`（旧名 `PMG_MAPI_KEY`），申请：https://materialsproject.org/api。
+  未设置 key 时 `search/fetch` 抛 `ValueError` 并给出申请与设置提示（不会 traceback/联网）。
+- 检索：`structure_id="mp-149"`（可逗号分隔多个）→ `material_ids` 查询；
+  `structure_name` 若是化学式（`NaCl` / `Fe2O3`）→ `formula=` 查询；不是化学式（如 `ZIF-8`）
+  → 返回空（MP 无名称检索），请改用 core-mof/COD。
+- `topology` 查询 → 返回空（MP 无 RCSR 拓扑列）；拓扑断言需 `topology.verify`。
+- `fetch`：取 `structure` dict → pymatgen `Structure` → 生成 CIF 存
+  `_cache/materials-project/<mpid>.cif`，**同时**保存 API JSON `<mpid>.mp.json`。
+  provenance 同时记录 `structure_json_sha256` 与 `sha256`(CIF)，并标
+  `cif_generated=True`（不是 deposited CIF）。
+- 许可：记录 `Materials Project usage terms` 说明，提醒再分发/发表前自行确认；
+  工具不替用户做版权判断。
+- 经验：MP 是 **DFT 计算结构**（通常已含 H、无部分占据/无序），一般不需要补氢/修无序；
+  要"原始缺氢/有统计原子"的 CIF 请用 CoRE NCR 或 COD。
+
+## 7c. AFLOW 适配器（免 key）
+
+- 检索：AFLUX `https://aflow.org/API/aflux/?species(Zn,O),nspecies(2),paging(0,N)`。
+  `paging` 响应是 `{"1 of 289": {...}}` 字典（本适配器兼容 dict/list）。
+  `structure_name` 必须是化学式（`ZnO`/`GaN`）；不是化学式（`ZIF-8`）→ 返回空。
+- `structure_id`：接受 aflowlib **aurl/URL**（`aflowlib.duke.edu:AFLOWDATA/.../A9`
+  或完整 URL）。**注意**：`aflow:<auid>` 目前无法通过公共 AFLUX 反查 aurl
+  （实测 `auid(...)` 查询返回空），会抛 `ValueError` 并提示改用 aurl 或 `--name <化学式>`。
+- `fetch`：`{aurl}/?files` 列文件 → 选主 CIF（排除 `_sprim/_sconv/_corner`）→
+  下载。**坑**：CIF 文件名含 `:`，必须 URL-encode（`%3A`），否则服务器 404。
+- 缓存 `_cache/aflow/<slug>.cif`；provenance 记录 aurl/auid/文件名的 sha256。
+- 经验：AFLOW 覆盖无机/金属/合金（ICSD_WEB + LIB1/2/3），MOF 极少；无 RCSR 拓扑列；
+  结构是 DFT 弛豫结果，不含有机 H 补氢需求。
+
+## 7d. 数据源选择决策表（经验）
+
+| 需求 | 首选 | 备选 / 说明 |
+|---|---|---|
+| "典型 RCSR 拓扑（sod/pcu…）的 MOF" | **core-mof** | 拓扑列只在 ASR；要原始缺氢 CIF 用 `prefer_raw`（NCR） |
+| 已知 CSD/CoRE refcode 或 MOF 常用名（ZIF-8/MOF-5…） | **core-mof** | COD 可兜底但无拓扑列 |
+| 已知 `mp-<id>` / DFT 结构 / 带隙等性质 | **materials-project** | 需 key；结构已计算就绪 |
+| 无机/合金/金属间化合物晶体结构 | **aflow** | 免 key；`--name` 传化学式 |
+| 实验小分子/无机晶体、无拓扑要求 | **cod** | 公有领域；无拓扑列，需结构比对 |
+| 用户本地文件 | **local** | 最快，无网络 |
+
+三档拓扑证据仍然适用：只有 CoRE ASR 能直接给 `metadata`；MP/AFLOW/COD/local 一律
+`unknown`，请求拓扑时由 `topology.verify` 做结构比对（`verified/mismatch/unknown`）。
+
+```powershell
+$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+& $PY -m cifkit sources --probe                 # 各源状态 + 可达性
+& $PY -m cifkit fetch --source core-mof --topology sod --raw --limit 3
+& $PY -m cifkit fetch --source cod --id 7111973 --outdir runs\cod
+& $PY -m cifkit fetch --source mp --id mp-149 --outdir runs\mp      # 需 MP_API_KEY
+& $PY -m cifkit fetch --source aflow --name ZnO --limit 3
+& $PY -m cifkit fetch --source aflow --id "aflowlib.duke.edu:AFLOWDATA/LIB1_WEB/Zn:PAW_PBE:06Sep2000/A9" --outdir runs\aflow
+```
+
 ## 8. 测试策略
 
 - `tests/test_sources.py`：离线优先（`_cache/core-mof-2024/` 缺失自动 skip）——
@@ -216,7 +277,16 @@ pipeline `verify-topology` 步骤重复解析。
   必须 `ok=True/evidence=verified` 且 detail/signature 有数值；CsCl 型强不匹配 →
   `mismatch`；Si/O 主族 → `unknown`；无参考拓扑 → `unknown`；CoRE 缓存存在时验证
   默认参考路径与真实 pcu 结构 mismatch。
-- 运行：`.venv\Scripts\python.exe -m pytest tests/test_sources.py tests/test_topology.py -q`
+- `tests/test_sources_mp_aflow.py`：
+  - MP：无 key 时报 `ValueError`（含申请地址）；monkeypatch `_REQUEST_JSON` 后测
+    `search("mp-22862")` + `fetch`（生成 CIF、JSON sha256、`cif_generated=True`）；
+    拓扑查询返回空；非法 id 报错。
+  - AFLOW：`normalize_aurl` 两种格式；`_formula_query("ZnO")`；CIF 选择优先主文件；
+    `_REQUEST_TEXT` mock 后测 `search(aurl)` + `fetch`（URL-encode `%3A`）；
+    `topology` 查询返回空；`aflow_available()` skipif 的**联网真下载**用例。
+  - CLI：`tests/test_cli.py::test_sources_command_lists_databases`、
+    `test_fetch_mp_without_key_fails_clearly`。
+- 运行：`.venv\Scripts\python.exe -m pytest tests/test_sources.py tests/test_topology.py tests/test_sources_mp_aflow.py -q`
 
 ## 9. 已知限制
 
@@ -228,3 +298,12 @@ pipeline `verify-topology` 步骤重复解析。
 - 稠密 net（高配位、多平行边）的环统计有预算上限，超限诚实降级 `unknown`。
 - NCR 无 DOI 元数据列：只有 `RAW_EXEMPLARS` 收录的文献样例带 DOI，其余 raw 记录的
   `doi=None`，notes 会说明。
+- **Materials Project**：需要用户自己的 API key（本工具不内置 key，也不代注册）；
+  MP 的 `search` 只支持 material_id / 化学式，**不支持按名称**（"ZIF-8" 查不到）；
+  MP 数据以 DFT 结构为主，拓扑需结构比对；许可条款请自行确认。
+- **AFLOW**：`structure_id` 只支持 aurl/URL；`aflow:<auid>` 无法经公共 AFLUX 反查
+  （实测返回空），需改传 aurl 或用化学式检索；AFLOW 无 MOF 拓扑标签、MOF 覆盖很少。
+- MP/AFLOW 的 CIF 与 provenance 语义：MP 的 CIF 由 API JSON 生成（`cif_generated=True`），
+  AFLOW 下载的是 aflowlib 仓库里的 CIF 文件；两者的 sha256 都单独记录，可复核。
+- 许可：CoRE MOF 2024 为 CC-BY-4.0（DataCite 核实）；COD 公有领域；MP/AFLOW 只记录
+  官方 usage terms 提示，**不替用户断言可再分发**。

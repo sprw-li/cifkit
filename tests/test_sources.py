@@ -43,7 +43,7 @@ def core_source():
 # ---------------------------------------------------------------------------
 def test_available_sources():
     sources = available_sources()
-    assert set(sources) == {"core-mof", "cod", "local"}
+    assert set(sources) >= {"core-mof", "cod", "local", "materials-project", "aflow"}
     assert all(isinstance(desc, str) and desc for desc in sources.values())
 
 

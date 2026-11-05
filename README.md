@@ -54,13 +54,24 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | 子命令 | 作用 | 示例 |
 |---|---|---|
 | `pipeline` | 一条管线，产出 manifest/report/预览 | 见上 |
-| `fetch` | 按 RCSR 拓扑 / 名称 / id 从 CoRE MOF 2024、COD、本地检索并落盘 | `fetch --topology sod --raw --limit 5` |
+| `fetch` | 按 RCSR 拓扑 / 名称 / id 从 **CoRE MOF 2024、COD、Materials Project、AFLOW、本地**检索并落盘 | `fetch --topology sod --raw`；`fetch --source aflow --name ZnO` |
+| `sources` | 列出数据源、是否需要 key、缓存/网络状态（智能选型入口） | `sources --probe` |
 | `repair` | 补氢 / 无序占位 / 过近原子 / 价态检查 | `repair raw.cif -o fixed.cif --add-h --json` |
 | `geom` | 标准化 / 超胞 / (hkl) slab / 真空 / 金属簇-SBU | `geom s.cif -o slab.cif --standardize --surface 1 1 1 --supercell 2 2 1 --vacuum 15` |
 | `export` | VASP/CIF/XYZ/LAMMPS/QE/CP2K/XSF（7 种，写出后尽量读回校验） | `export slab.cif --format vasp,cif -o out` |
 | `validate` | 结构校验（原子数、最近邻、真空、悬空键、C 配位…） | `validate final.cif --json` |
 | `route` | 一句话 → TaskSpec + 计划（不执行） | `route "…"`；退出码 2 = 缺少结构信息 |
 | `formats` / `selftest` | 格式列表 / 环境自检 | |
+
+**数据源（5 个）**：
+
+| source | 覆盖 | key | 拓扑元数据 | 经验 |
+|---|---|---|---|---|
+| `core-mof` | CoRE MOF 2024（MOF；NCR 原始 CIF） | 免（本地缓存） | **有**（仅 ASR） | 拓扑/MOF 首选；要缺氢原始 CIF 用 `--raw` |
+| `cod` | Crystallography Open Database | 免 | 无 | 实验晶体兜底；公有领域；拓扑需结构比对 |
+| `materials-project` | Materials Project（DFT） | **`MP_API_KEY`** | 无 | 只支持 `mp-id`/化学式，不支持名称；结构已计算就绪 |
+| `aflow` | AFLOW（无机/合金） | 免 | 无 | 只支持化学式/aurl；MOF 极少；CIF 名含 `:` 需 URL-encode |
+| `local` | 本地 `.cif` | 免 | 无 | 最快；拓扑需结构比对 |
 
 环境：`.venv`（`--system-site-packages`）内含 `pymatgen`、`ase`、`openbabel-wheel`、`pytest`，继承全局 `rdkit`/`numpy`/`scipy`/`networkx`/`matplotlib`；`cifkit` 已 editable 安装，任意目录可 `python -m cifkit`。
 
@@ -83,13 +94,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 127 passed（含 demo 端到端；需要 _cache）
+& $PY -m pytest tests -q            # 139 passed（含 demo 端到端；需要 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / spec 6 / topology 15 / validate 12 / cli 8。
+测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 10 / spec 6 / topology 15 / validate 12 / cli 10。
 
 ---
 
@@ -117,6 +128,10 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 3（二次独立复核）**：[docs/REVIEW-ROUND2.md](docs/REVIEW-ROUND2.md)，结论 **PASS**：4/4 P1 FIXED、无假修复、无新 P0/P1、无回归；127 passed、verify_demo 8/8、结构产物与留档逐字节一致。
 - **Round 4（收尾修复）**：按 Round 3 剩余建议加强 DOI 校验（record/provenance 一致性 + DOI 正则 + curated 标注 + 可选 `--online` Crossref 解析）、统一 report 产物清单、更新文档数字、新增 `scripts/check_all.py` 一键体检。
 - **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
+- **Round 6（数据源扩展）**：补齐 **Materials Project**（需 `MP_API_KEY`）与 **AFLOW**（免 key）适配器，
+  COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
+  路由 intent 增数据源关键词/examples（评测 79/79、负例 0/25），测试总数 **139**。
+  - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
 
 ---
 
@@ -127,6 +142,9 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - 切面终止面是几何启发式（悬空键 + 化学计量偏差），不是表面能计算；表面有悬空键是正常现象。
 - 导出 7 种格式；`gaussian/orca/abacus` 未实现，会明确报 unsupported（不会静默写错）。
 - CoRE 2024 的 NCR 原始 CIF 只有 curated 样例带 DOI；其余 raw 记录 `doi=None` 并在 notes 说明。
+- 数据源限制：Materials Project 需要用户自己的 `MP_API_KEY`（只支持 `mp-id`/化学式检索，不支持 "ZIF-8" 这类名称）；
+  AFLOW 的 `structure_id` 只支持 aurl/URL（`aflow:<auid>` 无法经公共 AFLUX 反查），MOF 覆盖很少；
+  MP/AFLOW 只记录官方 usage terms 提示，工具不替用户判断再分发许可。
 
 ## 文档索引
 

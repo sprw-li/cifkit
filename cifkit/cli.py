@@ -129,19 +129,28 @@ def cmd_pipeline(args) -> int:
 
 
 def cmd_fetch(args) -> int:
-    from cifkit.sources import get_source
+    from cifkit.sources import get_source, pick_source
+    from cifkit.types import SourceQuery, TaskSpec
 
-    src = get_source(args.source)
-    from cifkit.types import SourceQuery
-
+    spec = TaskSpec(
+        source=args.source,
+        topology=args.topology,
+        structure_name=args.name,
+        structure_id=args.id,
+    )
+    source_name = pick_source(spec) if str(args.source or "auto").lower() in ("", "auto") else args.source
+    src = get_source(source_name)
     query = SourceQuery(
         topology=args.topology,
         typical=not args.no_typical,
         prefer_raw=args.raw,
         structure_name=args.name,
+        structure_id=args.id,
         limit=args.limit,
-        source=args.source,
+        source=source_name,
     )
+    if not args.json:
+        print(f"source={source_name}")
     hits = src.search(query)
     if args.json:
         _print_json([h.to_dict() for h in hits])
@@ -184,6 +193,38 @@ def cmd_fetch(args) -> int:
         }
         (out / "source.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         print(f"wrote {path} (sha256={raw_sha[:16]}...)")
+    return 0
+
+
+def cmd_sources(args) -> int:
+    from cifkit.sources import source_status
+
+    rows = source_status()
+    if args.probe:
+        from cifkit.sources.aflow import aflow_available
+        from cifkit.sources.cod import cod_available
+        from cifkit.sources.materials_project import mp_available
+
+        probes = {"cod": cod_available, "aflow": aflow_available, "materials-project": mp_available}
+        for row in rows:
+            probe = probes.get(row["name"])
+            if probe is not None:
+                try:
+                    row["network"] = bool(probe())
+                except Exception as exc:  # noqa: BLE001
+                    row["network"] = False
+                    row["network_error"] = f"{type(exc).__name__}: {exc}"
+    if args.json:
+        _print_json(rows)
+    else:
+        for row in rows:
+            mark = "OK " if row.get("available") else "!! "
+            auth = "需要 key" if row.get("requires_auth") else "免 key"
+            net = f" network={'up' if row.get('network') else 'down'}" if "network" in row else ""
+            print(f"[{mark}] {row['name']:18s} {auth:7s} {row['status']}{net}")
+            print(f"        {row['description']}")
+            if row.get("auth_hint") and not row.get("available"):
+                print(f"        hint: {row['auth_hint']}")
     return 0
 
 
@@ -377,10 +418,12 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_pipeline)
 
-    f = sub.add_parser("fetch", help="按拓扑/名称检索结构数据库并落盘")
-    f.add_argument("--source", default="core-mof")
+    f = sub.add_parser("fetch", help="按拓扑/名称/id 检索结构数据库并落盘")
+    f.add_argument("--source", default="auto",
+                   help="auto|core-mof|cod|materials-project|aflow|local（auto 按拓扑/名称/id 推断）")
     f.add_argument("--topology", default=None)
-    f.add_argument("--name", default=None)
+    f.add_argument("--name", default=None, help="结构名或化学式（如 ZIF-8 / GaN）")
+    f.add_argument("--id", default=None, help="结构 id：mp-149 / 7111973 / aflowlib.duke.edu:AFLOWDATA/...")
     f.add_argument("--raw", action="store_true", help="优先返回需要修复的原始 CIF（缺氢等）")
     f.add_argument("--ready", dest="raw", action="store_false")
     f.add_argument("--no-typical", action="store_true")
@@ -388,6 +431,11 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--outdir", default=None)
     f.add_argument("--json", action="store_true")
     f.set_defaults(func=cmd_fetch)
+
+    srcs = sub.add_parser("sources", help="列出可用数据源、是否需要 key、缓存/网络状态")
+    srcs.add_argument("--probe", action="store_true", help="联网探测各站可达性（慢）")
+    srcs.add_argument("--json", action="store_true")
+    srcs.set_defaults(func=cmd_sources)
 
     rp = sub.add_parser("repair", help="修复 CIF：补氢 / 无序占位 / 过近原子")
     rp.add_argument("file")

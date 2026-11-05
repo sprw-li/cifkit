@@ -1,9 +1,15 @@
 """Source adapters: database lookup + download, behind one registry.
 
+Available sources: ``core-mof`` (CoRE MOF 2024, 有 RCSR 拓扑列), ``cod``
+(Crystallography Open Database，公有领域、无拓扑列), ``materials-project``
+(Materials Project，需 ``MP_API_KEY``，DFT 结构、无拓扑列), ``aflow``
+(AFLOW，免 key、无机/合金、无拓扑列), ``local`` (本地 CIF)。
+
 Every adapter returns ``StructureRecord`` hits from ``search`` and a
 ``FetchedStructure`` from ``fetch``. ``resolve(spec)`` picks adapters based on
-``spec.source`` (``auto`` = core-mof when a topology/name is requested, cod for
-7-digit COD ids, local for filesystem ``.cif`` paths).
+``spec.source``. ``auto`` 规则：``mp-<digits>`` → materials-project；``aflow:``/
+``AFLOWDATA/`` → aflow；7 位数字 → cod；``.cif`` → local；有 topology/name →
+core-mof（MOF 拓扑库）；显式 ``--source`` 优先。
 
 ``resolve`` 的 ``prefer_raw`` 语义（task-1 硬性要求）
 ----------------------------------------------------
@@ -31,16 +37,20 @@ from functools import lru_cache
 
 from cifkit.types import FetchedStructure, SourceQuery, StructureRecord, TaskSpec
 
+from cifkit.sources.aflow import AFLOWSource
 from cifkit.sources.cod import CODSource
 from cifkit.sources.core_mof import CoreMOFSource
 from cifkit.sources.local import LocalSource
+from cifkit.sources.materials_project import MaterialsProjectSource, api_key as mp_api_key, key_source as mp_key_source
 
 __all__ = [
     "SourceQuery",
     "StructureRecord",
     "FetchedStructure",
     "available_sources",
+    "source_status",
     "get_source",
+    "pick_source",
     "resolve",
 ]
 
@@ -48,6 +58,8 @@ _SOURCE_TYPES: dict[str, type] = {
     "core-mof": CoreMOFSource,
     "cod": CODSource,
     "local": LocalSource,
+    "materials-project": MaterialsProjectSource,
+    "aflow": AFLOWSource,
 }
 
 _ALIASES = {
@@ -63,8 +75,18 @@ _ALIASES = {
     "local": "local",
     "file": "local",
     "filesystem": "local",
+    "materials-project": "materials-project",
+    "materials_project": "materials-project",
+    "materialsproject": "materials-project",
+    "mp": "materials-project",
+    "materialsproject.org": "materials-project",
+    "aflow": "aflow",
+    "aflowlib": "aflow",
+    "aflow.org": "aflow",
+    "aflowlib.duke.edu": "aflow",
 }
 
+_MP_ID_RE = re.compile(r"^mp-\d+$")
 _COD_ID_RE = re.compile(r"^\d{7}$")
 _LOCAL_SUFFIXES = (".cif", ".mmcif", ".mcif")
 
@@ -84,6 +106,35 @@ def _canonical(name: str) -> str:
 def available_sources() -> dict[str, str]:
     """Return ``{source_name: human description}``."""
     return {name: cls.description for name, cls in _SOURCE_TYPES.items()}
+
+
+def source_status() -> list[dict]:
+    """Structured source list for the ``cifkit sources`` command / agent selection."""
+    rows: list[dict] = []
+    for name, cls in _SOURCE_TYPES.items():
+        requires = bool(getattr(cls, "requires_auth", False))
+        row = {
+            "name": name,
+            "description": cls.description,
+            "requires_auth": requires,
+            "auth_hint": getattr(cls, "auth_hint", ""),
+            "available": True,
+            "status": "ready",
+        }
+        if name == "materials-project":
+            row["available"] = bool(mp_api_key())
+            row["status"] = f"key set via {mp_key_source()}" if row["available"] else "missing MP_API_KEY"
+        elif name == "core-mof":
+            try:
+                from cifkit.sources.core_mof import zip_path
+
+                row["available"] = zip_path().is_file()
+                row["status"] = "cache ready" if row["available"] else "cache missing (run scripts/bootstrap_data.py)"
+            except Exception:  # noqa: BLE001
+                row["available"] = False
+                row["status"] = "cache check failed"
+        rows.append(row)
+    return rows
 
 
 @lru_cache(maxsize=None)
@@ -110,6 +161,10 @@ def _pick_source(spec: TaskSpec) -> str:
             return "local"
         if _COD_ID_RE.match(structure_id):
             return "cod"
+        if _MP_ID_RE.match(structure_id):
+            return "materials-project"
+        if structure_id.startswith(("aflow:", "AFLOWDATA/")) or "AFLOWDATA" in structure_id or "aflowlib" in structure_id:
+            return "aflow"
     if spec.topology:
         return "core-mof"
     if spec.structure_name:
@@ -118,6 +173,11 @@ def _pick_source(spec: TaskSpec) -> str:
         "无法确定数据源：spec 里没有 topology / structure_name / structure_id，也没有显式 source。"
         "请给出要检索的拓扑（如 sod）、结构名（如 ZIF-8）或文件/COD id。"
     )
+
+
+def pick_source(spec: TaskSpec) -> str:
+    """Public wrapper: decide which adapter ``spec`` should use (see module docstring)."""
+    return _pick_source(spec)
 
 
 def _query_for(spec: TaskSpec, source_name: str) -> SourceQuery:

@@ -39,7 +39,8 @@ cifkit/            # 可安装 Python 包（python -m cifkit）
     core_mof.py    # CoRE MOF 2024/2019：元数据、拓扑过滤、CIF 提取、缓存
     cod.py         # Crystallography Open Database 检索/下载
     local.py       # 本地 .cif 文件
-    materials_project.py  # 可选，MP API key 存在时
+    materials_project.py  # Materials Project（需 MP_API_KEY，DFT 结构）
+    aflow.py       # AFLOW（免 key，无机/合金，AFLUX + aflowlib CIF）
     index.py       # 本地结构索引构建（zip -> index.json）
   repair/          # 修复层（队友 repair）
     __init__.py    # repair_all(structure, options) -> (Structure, RepairReport)

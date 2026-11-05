@@ -8,7 +8,7 @@
 | skill | catalog 路径 | 管什么 | 典型触发语 |
 |---|---|---|---|
 | `cif-workbench` | `catalog/cif-workbench/SKILL.md` | **总入口**：一条 `pipeline` 跑完 下载→拓扑核实→修复→超胞→切面→真空→导出→校验→manifest | “下载典型 sod 的 MOF，补氢，2x2x1 超胞，切 (111)，加 15 Å 真空，导出计算化学格式” |
-| `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：CoRE MOF 2024（离线缓存、拓扑过滤）、COD 兜底、本地文件；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
+| `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**五个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
 | `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
 | `cif-export` | `catalog/cif-export/SKILL.md` | VASP POSCAR/CIF/XYZ/LAMMPS/QE/CP2K/XSF/Gaussian/ORCA/ABACUS 导出 + 读回验证 | “导出成 POSCAR/VASP 格式” |
@@ -74,10 +74,10 @@ intent candidates: cif-structure-pipeline
 ## 4. 评测证据（`py -3 scripts\eval_router.py --all`）
 
 ```text
-cases=73
-intent top1: 73/73 = 100.0%
-skill top1:  73/73 = 100.0%
-skill top5:  73/73 = 100.0%
+cases=79
+intent top1: 79/79 = 100.0%
+skill top1:  79/79 = 100.0%
+skill top5:  79/79 = 100.0%
 negatives=25  false-positive=0 (0.0%)  budget=10.0%
 slot cases=11  pass=11/11
 ```
@@ -96,6 +96,9 @@ slot cases=11  pass=11/11
 | “把这个结构的CIF导出成POSCAR/VASP格式” | 同上 | cif-export |
 | “把这个MOF结构导出成VASP格式” | 同上 | cif-export |
 | “从CoRE MOF下载一个sod拓扑的典型结构，要raw的CIF” | 同上 | cif-fetch |
+| “从 Materials Project 下载 mp-149 的 CIF” | cif-structure-pipeline | cif-fetch（数据源检索类） |
+| “从 AFLOW 下载 GaN 的晶体结构” | cif-structure-pipeline | cif-fetch |
+| “从 Materials Project 下载 mp-149 的 CIF 然后导出 POSCAR” | cif-structure-pipeline | cif-workbench（下载+导出=管线） |
 | “查一下RCSR为sod的MOF有哪些” | 同上 | cif-fetch |
 | “download a sod topology MOF CIF, add hydrogens, build a 2x2x1 supercell, cut a (111) surface with 15 A vacuum, export POSCAR” | 同上 | cif-workbench |
 

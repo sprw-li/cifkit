@@ -134,3 +134,34 @@ def test_repair_creates_output_parent_dir(tmp_path):
     data = json.loads(proc.stdout)
     assert data["natoms"] == 276
     assert out.is_file()
+
+
+def test_sources_command_lists_databases():
+    """`cifkit sources --json` must list every adapter with auth metadata."""
+    proc = _run(["sources", "--json"])
+    assert proc.returncode == 0, proc.stderr
+    rows = json.loads(proc.stdout)
+    by_name = {row["name"]: row for row in rows}
+    assert {"core-mof", "cod", "local", "materials-project", "aflow"} <= set(by_name)
+    assert by_name["materials-project"]["requires_auth"] is True
+    assert by_name["aflow"]["requires_auth"] is False
+    assert "description" in by_name["cod"]
+
+
+def test_fetch_mp_without_key_fails_clearly(monkeypatch):
+    """MP without a key must fail with an actionable message, not a traceback."""
+    env = {"PYTHONIOENCODING": "utf-8"}
+    import os
+
+    base_env = dict(os.environ)
+    base_env.pop("MP_API_KEY", None)
+    base_env.pop("PMG_MAPI_KEY", None)
+    base_env.update(env)
+    proc = __import__("subprocess").run(
+        [sys.executable, "-m", "cifkit", "fetch", "--source", "mp", "--id", "mp-149"],
+        cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=base_env, timeout=120,
+    )
+    assert proc.returncode != 0
+    combined = proc.stdout + proc.stderr
+    assert "MP_API_KEY" in combined
