@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from cifkit.cache import cache_dir
+from cifkit.locks import atomic_write_text, file_lock
 from cifkit.sources.base import count_hydrogen, expected_hydrogen, sha256_bytes
 from cifkit.types import FetchedStructure, SourceQuery, StructureRecord
 
@@ -368,11 +369,29 @@ def _sha256_file(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def _load_cached_index(idx_file: Path, archive: Path, csv_file: Path) -> dict[str, Any] | None:
+    """Return a valid cached index, or ``None`` (missing/corrupt/stale)."""
+    if not idx_file.is_file():
+        return None
+    try:
+        with idx_file.open("r", encoding="utf-8") as handle:
+            cached = json.load(handle)
+    except Exception:  # noqa: BLE001 - corrupt cache -> rebuild
+        return None
+    if cached.get("schema") == SCHEMA and _index_fresh(cached, archive, csv_file):
+        return cached
+    return None
+
+
 def build_index(*, rebuild: bool = False) -> dict[str, Any]:
     """Build/load the JSON index of the CoRE MOF 2024 zip.
 
     Reads only the first ``_HEADER_BYTES`` of each CIF (formula + cell), so ~8300
-    files cost 1–2 s; the result is cached in ``_cache/core-mof-2024/index.json``.
+    files cost 1-2 s; the result is cached in ``_cache/core-mof-2024/index.json``.
+
+    Concurrency: parallel processes may build the index simultaneously; writers
+    take an advisory lock (``index.json.lock``) and replace the file atomically,
+    so a reader never sees a partially written JSON.
     """
     global _INDEX_CACHE, _META_CACHE
     archive = zip_path()
@@ -383,58 +402,63 @@ def build_index(*, rebuild: bool = False) -> dict[str, Any]:
         )
     csv_file = csv_path()
     idx_file = index_path()
-    if not rebuild and idx_file.is_file():
-        try:
-            with idx_file.open("r", encoding="utf-8") as handle:
-                cached = json.load(handle)
-            if cached.get("schema") == SCHEMA and _index_fresh(cached, archive, csv_file):
+    if not rebuild:
+        cached = _load_cached_index(idx_file, archive, csv_file)
+        if cached is not None:
+            _INDEX_CACHE = cached
+            _META_CACHE = None
+            return cached
+
+    with file_lock(idx_file.with_name(idx_file.name + ".lock"), timeout=120.0):
+        # double-checked locking: another process may have finished while we waited
+        if not rebuild:
+            cached = _load_cached_index(idx_file, archive, csv_file)
+            if cached is not None:
                 _INDEX_CACHE = cached
                 _META_CACHE = None
                 return cached
-        except Exception:  # noqa: BLE001 - rebuild on corrupt cache
-            pass
 
-    started = time.time()
-    csv_rows = _read_csv_rows(csv_file)
-    ncr_flags = _read_ncr_flags(xlsx_path())
-    entries: dict[str, dict[str, Any]] = {}
-    with zipfile.ZipFile(archive) as archive_handle:
-        for member in archive_handle.namelist():
-            if not member.endswith(".cif"):
-                continue
-            with archive_handle.open(member) as handle:
-                head = handle.read(_HEADER_BYTES).decode("utf-8", "replace")
-            entries[member] = _entry_from_cif(member, head, csv_rows, ncr_flags)
+        started = time.time()
+        csv_rows = _read_csv_rows(csv_file)
+        ncr_flags = _read_ncr_flags(xlsx_path())
+        entries: dict[str, dict[str, Any]] = {}
+        with zipfile.ZipFile(archive) as archive_handle:
+            for member in archive_handle.namelist():
+                if not member.endswith(".cif"):
+                    continue
+                with archive_handle.open(member) as handle:
+                    head = handle.read(_HEADER_BYTES).decode("utf-8", "replace")
+                entries[member] = _entry_from_cif(member, head, csv_rows, ncr_flags)
 
-    variants = Counter(entry.get("variant") for entry in entries.values())
-    index = {
-        "schema": SCHEMA,
-        "built_at": now(),
-        "build_seconds": round(time.time() - started, 2),
-        "dataset": {
-            "name": "CoRE MOF 2024",
-            "version": DATASET_VERSION,
-            "doi": DATASET_DOI,
-            "url": DATASET_URL,
-            "file_url": DATASET_FILE_URL,
-            "license": DATASET_LICENSE,
-        },
-        "zip": {**_file_fingerprint(archive), "sha256": _sha256_file(archive)},
-        "csv": {**_file_fingerprint(csv_file), "sha256": _sha256_file(csv_file)},
-        "xlsx": _file_fingerprint(xlsx_path()),
-        "n_entries": len(entries),
-        "n_computation_ready": int(variants.get("computation-ready", 0)),
-        "n_raw": int(variants.get("raw", 0)),
-        "topology_columns_note": (
-            "拓扑列只覆盖 SI/CR/ASR（ASR_data_SI_*.csv，1372 行）；SI/NCR/* 原始 CIF 没有拓扑元数据，"
-            "其拓扑必须用 cifkit.topology.verify 结构比对核实"
-        ),
-        "entries": entries,
-    }
-    idx_file.write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    _INDEX_CACHE = index
-    _META_CACHE = None
-    return index
+        variants = Counter(entry.get("variant") for entry in entries.values())
+        index = {
+            "schema": SCHEMA,
+            "built_at": now(),
+            "build_seconds": round(time.time() - started, 2),
+            "dataset": {
+                "name": "CoRE MOF 2024",
+                "version": DATASET_VERSION,
+                "doi": DATASET_DOI,
+                "url": DATASET_URL,
+                "file_url": DATASET_FILE_URL,
+                "license": DATASET_LICENSE,
+            },
+            "zip": {**_file_fingerprint(archive), "sha256": _sha256_file(archive)},
+            "csv": {**_file_fingerprint(csv_file), "sha256": _sha256_file(csv_file)},
+            "xlsx": _file_fingerprint(xlsx_path()),
+            "n_entries": len(entries),
+            "n_computation_ready": int(variants.get("computation-ready", 0)),
+            "n_raw": int(variants.get("raw", 0)),
+            "topology_columns_note": (
+                "拓扑列只覆盖 SI/CR/ASR（ASR_data_SI_*.csv，1372 行）；SI/NCR/* 原始 CIF 没有拓扑元数据，"
+                "其拓扑必须用 cifkit.topology.verify 结构比对核实"
+            ),
+            "entries": entries,
+        }
+        atomic_write_text(idx_file, json.dumps(index, ensure_ascii=False, separators=(",", ":")))
+        _INDEX_CACHE = index
+        _META_CACHE = None
+        return index
 
 
 def _index_fresh(index: dict[str, Any], archive: Path, csv_file: Path) -> bool:

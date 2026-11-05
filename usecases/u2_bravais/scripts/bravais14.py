@@ -38,6 +38,15 @@ from pymatgen.core import Lattice, Structure  # noqa: E402
 
 SYMPREC = 0.05
 
+
+def retarget(outdir) -> None:
+    """Write CSV/PNG under ``<outdir>/data`` and ``<outdir>/figures``."""
+    global DATA, FIG
+    out = Path(outdir).expanduser().resolve()
+    DATA = out / "data"
+    FIG = out / "figures"
+
+
 #: 14 种布拉维点阵的构造 + 期望的"全息对称"（holohedry）空间群号。
 #: 单原子/最小基元 + 不同心化方式，spglib 应还原出该点阵的最大对称空间群。
 BRAVAIS_SPECS = [
@@ -375,7 +384,16 @@ def plot_relations(table: list[dict], equiv: list[dict], scan: list[dict]):
     return out
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="输出根目录（默认 usecases/u2_bravais）")
+    args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
+
     table = build_table()
     equiv = build_equivalences()
     scan = alpha_scan()

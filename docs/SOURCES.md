@@ -153,17 +153,51 @@ CoRE 元数据没有通用名称列（1372 行里只有 1 行 `name`），因此
 # core-mof:SI/NCR/both/ja204757x_si_002_ASR_pacman.cif verified 156
 ```
 
-## 5. `cifkit.topology` 结构比对
+## 5. `cifkit.topology` 结构比对（Round2：落盘参考 net 库 + identify）
 
-### underlying net（LQG）
+### 5.1 落盘参考 net 库（离线可用，`cifkit/data/nets/`）
+
+`<net>.json`（签名 + 来源溯源）+ `<net>-reference.cif`（参考结构，供审计/自验），随包分发；
+`verify`/`identify` **优先**用它，不联网、不需要 CoRE zip。支持：
+
+| net | CoRE MOF 2024 ASR 参考记录 | DOI | 原子数 | 签名要点 | 备注 |
+|---|---|---|---|---|---|
+| `sod` | `2015[Zn][sod]3[ASR]1` | 10.1021/ic5028256 | 138 | 4-c；CS `[4,10,20,34,52,74,100,130]` | ZIF-8，环分布完整 |
+| `pcu` | `2007[Zn][pcu]3[ASR]3` | 10.1021/ja074366o | 106 | 6-c；CS `[6,18,38,66,102,146,198,258]` | Zn4O(BDC)3 = MOF-5；环统计触顶（高配位） |
+| `dia` | `2017[Ni][dia]3[ASR]3` | 10.1021/jacs.6b10455 | 54 | 4-c；CS `[4,12,24,42,64,92,124,162]` | Ni 基 dia，环分布完整 |
+| `fcu` | `2015[Zr][fcu]3[ASR]1` | 10.1039/C5CP03920G | 114 | 12-c；CS `[12,42,92,162,252,362,492,642]` | UiO-66（Zr6 SBU 收缩） |
+| `tbo` | `2020[Cu][tbo]3[ASR]1` | 10.1021/acsami.0c18970 | 156 | 8-c；CS `[8,30,68,126,180,286,348,510]` | HKUST-1（Cu2 paddlewheel 收缩） |
+| `bcu` | `2018[Zr][bcu]3[ASR]1` | 10.1021/jacs.8b07050 | 70 | 8-c；CS `[8,26,56,98,152,218,296,386]` | Zr6 基 bcu；与 tbo 靠 CS 区分 |
+
+> 任务建议的 pcu 参考 `2015[Zn][pcu]3[ASR]2` **未采用**：经核查它不是 MOF-5，而是
+> 多齿 PAH 配体 + Zn4 簇结构（`topology(AllNodes)=scn`），按 ditopic-linker 简化会产生
+> 30 配位假 net。真正的 MOF-5 是 `2007[Zn][pcu]3[ASR]3` / `2011[Zn][pcu]3[ASR]8`
+> （Zn8 H24 C48 O26 = 2×Zn4O(BDC)3）。
+
+JSON 字段：`schema` / `net` / `source{record_id, refcode, coreid, doi, natoms, formula,
+spacegroup}` / `cif` + `cif_sha256` / `signature` / `net_summary` / `generated_at` /
+`generated_by{algorithm, command}` / `selection_reason`。
+
+- API：`available_reference_nets()` / `load_reference(net)` / `write_net_reference(...)` /
+  `regenerate_bundled_references()`。
+- 重建（生成侧，需要 CoRE zip 缓存）：
+  `python -c "from cifkit.topology import regenerate_bundled_references as r; print(r())"`
+- 参考结构要求：CoRE 2024 ASR（computation-ready）且 `topology(AllNodes)==net`。
+
+### underlying net（LQG，v2 含 SBU 收缩）
 
 1. 周期成键图：`structure.get_neighbor_list(3.2 Å)` + 共价半径判据
    `d ≤ (r_i + r_j) × 1.25`（抑制芳香环次近邻假键）。
 2. 金属节点：d/f 区 + 碱/碱土金属（p 区主族不算金属 → 纯主族体系走 `unknown`）。
-3. linker：去掉金属后的非金属连通分量；沿成键图传播平移量把跨晶胞边界的分子摆回
-   同一物理位置块，于是每条“金属–linker–金属”连接得到正确的**相对平移向量**；
-   每个 linker 连接的金属对构成 net 的边（LQG 商图）。单齿端基不计边；未连接金属
-   离子排除并记 warning；周期/聚合物组分跳过并记 warning。
+3. **SBU/金属簇收缩**：金属–金属直接键、以及无碳无机桥连单元（μ-O/μ-OH/μ-F/μ-Cl…，
+   连到 ≥2 个金属）把相关金属并成同一个 net 节点（MOF-5 的 Zn4O、UiO-66 的
+   Zr6O4(OH)4、HKUST-1 的 Cu2 paddlewheel 都靠这一步得到 6/12/8 配位净）。
+   含碳有机 linker 仍作为边；单齿端基不计边；孤立金属（簇）排除并记 warning；
+   周期/聚合物组分跳过并记 warning。
+4. 簇内整数平移量按金属–金属键/无机桥传播；有机 linker 的配位点减去簇内平移，
+   得到正确的**相对平移向量**（LQG 商图 shift）。
+5. 回退：SBU 收缩后没有任何有机 linker 连接（离子/无机体系，如 CsCl）时，退回 Round1
+   的"逐金属节点"表示，避免把离子晶体误收缩成单节点。
 
 ### 签名（signature）
 
@@ -173,8 +207,11 @@ CoRE 元数据没有通用名称列（1372 行里只有 1 行 `name`），因此
   与原胞/常规胞选择无关）；
 - `linkers_per_metal`、`n_metal_nodes`、`n_edges`、`n_linkers`。
 - 安全上限：CS 每起点 8000 状态、环枚举 20000 访问/（环大小,起点）、总 150000；
-  触顶时 `rings_truncated / coordination_sequence_truncated = True`，verify 会降级为
-  `unknown` 而不是拿不完整签名判 verified。
+  触顶时 `rings_truncated / coordination_sequence_truncated = True`。
+  `coordination_sequence_truncated=True` → `unknown`（配位序列都不可信，不能判 verified）；
+  **仅环统计触顶**（高配位 fcu/tbo/bcu/pcu 的正常情况）→ verify 用
+  "配位数 + 配位序列 + linker/金属比"判定，并在 `verified_on` 字段与 detail 里写清
+  "环统计不完整、未参与判定"；sod/dia 的环分布完整，会额外比环。
 
 ZIF-8 实测（原胞 6 Zn 与常规胞 12 Zn 完全一致）：
 配位数 `{"4": 1.0}`；配位序列 `[4, 10, 20, 34, 52, 74, 100, 130]`；
@@ -184,17 +221,39 @@ ZIF-8 实测（原胞 6 Zn 与常规胞 12 Zn 完全一致）：
 
 1. 显式 `record` 且元数据标注一致 → `metadata`；
 2. 结构与 CoRE ASR labeled 记录做化学式/原子数/晶胞指纹匹配（唯一且拓扑不冲突）
-   → `metadata` / `mismatch`；
-3. 计算 net 签名，先比便宜的（配位数、配位序列、linker 比）→ 不符直接 `mismatch`；
-4. 再比环分布 → 全一致 `verified`；`ok=False` 为 `mismatch`；
-5. 无金属节点 / 无参考签名 / 签名不完整 → `unknown`。
-
-参考结构：`reference=` 显式传入（Structure / 路径 / 提供 signature 的 dict），否则自动
-取 CoRE ASR 里该拓扑的典型计算就绪结构（Zn 优先、原子数小优先；sod →
-`2015[Zn][sod]3[ASR]1`）。参考自身签名不完整时同样降级 `unknown`。
+   → `metadata` / `mismatch`；CoRE 缓存不可用时该步自动跳过；
+3. 参考签名：显式 `reference=`（Structure / 路径 / 提供 signature 的 dict）> **落盘
+   `cifkit/data/nets/<net>.json`** > CoRE ASR 实时计算（离线时不需要第 3 项）；
+4. 计算 net 签名，先比便宜的（配位数、配位序列、linker 比）→ 不符直接 `mismatch`；
+5. 环统计两侧都完整时再比环分布 → 全一致 `verified`；任一侧不完整时按第 4 步
+   （`verified_on` 标注）；只可能 `verified`/`mismatch`/`unknown`，不会含糊；
+6. 无金属节点 / 无参考签名 → `unknown`。
 
 结果内进程缓存（化学式+晶胞+原子坐标指纹为键），避免 `resolve` 已核实过的结构在
-pipeline `verify-topology` 步骤重复解析。
+pipeline `verify-topology` 步骤重复解析；`topology.clear_cache()` 可清空（测试/长进程）。
+
+### identify：最佳 net 判定
+
+```python
+identify(structure, nets=None) -> {
+    "ok": bool, "net": str|None, "best_net": str|None,
+    "evidence": "verified"|"unknown", "detail": str,
+    "signature": {...}|None,
+    "candidates": [{"net","base_ok","rings_ok","issues","record_id","doi"}...],
+    "reference": {...}|None,
+}
+```
+
+- 在落盘参考里逐个比较（可传 `nets=["pcu","fcu"]` 限制候选集）；先比配位数/配位序列/
+  linker 比，环统计两侧完整时再比环分布。
+- 唯一命中 → `ok=True, net=<net>, evidence="verified"`；都不匹配 → `ok=False,
+  net=None, evidence="unknown"` 且 detail 给出"最接近 net + 差异摘要"；多个 net
+  同时匹配 → `unknown`（不硬猜）；无金属节点 → `unknown`。
+- 实测：`identify(MOF-5 pcu 参考结构) = pcu`、`identify(UiO-66 fcu 参考结构) = fcu`、
+  `identify(zif8_raw_hfree) = sod`。
+- 局限：SBU 收缩按"金属–金属键 / 无碳无机桥连原子"启发式；多齿配体（一个有机分子
+  连接 >2 个金属簇）目前按成对连接展开，不能还原成独立 linker 节点（这类结构的
+  AllNodes 拓扑常与 SingleNodes 不同，选参考时已避开）。
 
 ## 6. COD 适配器
 
@@ -253,6 +312,20 @@ pipeline `verify-topology` 步骤重复解析。
 - 经验：AFLOW 覆盖无机/金属/合金（ICSD_WEB + LIB1/2/3），MOF 极少；无 RCSR 拓扑列；
   结构是 DFT 弛豫结果，不含有机 H 补氢需求。
 
+## 7e. QMOF（Quantum MOF Database，本地镜像）
+
+- **定位**：CoRE/CSD 的 DFT 标注子集（Rosen et al.），有形成能/带隙等标签；适合"结构 + DFT 标签"。
+- **接入方式**：`cifkit` 的 `qmof` 适配器**只读本地镜像**，目录由 `$CIFKIT_QMOF_DIR` 指定
+  （默认 `_cache/qmof/`）。期望 `qmof.csv` + `structures/*.cif`，或 `qmof_cifs.zip`
+  （无 CSV 也能按 CIF 文件名检索）。
+- **实测程度（诚实）**：官方 figshare（DOI 10.6084/m9.figshare.13147324）与 GitHub 镜像
+  **在本环境不可达**（HTTP 403 / 超时），所以**没有做 live 下载实测**；适配器逻辑用本地临时镜像
+  + 单元测试验证（search/fetch/provenance/缺失报错）。不伪造在线结果。
+- **限制**：QMOF 没有 RCSR 拓扑列（`topology_evidence=unknown`），拓扑仍需 `cifkit.topology.verify`；
+  许可/再分发受 CoRE/CSD 来源约束，使用前核对官方说明。
+- **缺失时行为**：`cifkit sources` 显示 `local mirror missing (set CIFKIT_QMOF_DIR ...)`；
+  `fetch --source qmof` 给出可操作的 `FileNotFoundError`（含申请/下载地址与目录设置方法）。
+
 ## 7d. 数据源选择决策表（经验）
 
 | 需求 | 首选 | 备选 / 说明 |
@@ -286,6 +359,11 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
   必须 `ok=True/evidence=verified` 且 detail/signature 有数值；CsCl 型强不匹配 →
   `mismatch`；Si/O 主族 → `unknown`；无参考拓扑 → `unknown`；CoRE 缓存存在时验证
   默认参考路径与真实 pcu 结构 mismatch。
+- `tests/test_topology_nets.py`：**完全离线**（只读 `cifkit/data/nets/`，不联网、不依赖
+  CoRE zip）——参考 JSON/CIF 的 sha256 与溯源字段、6 个 net 的数值签名、各参考结构
+  `verify` 自身 net（关掉 metadata 指纹走结构比对）、交叉错配 mismatch
+  （pcu↔sod、fcu↔pcu、tbo↔bcu、sod↔dia）、6 个 net 的 `identify`、无金属 → unknown、
+  以及 `CIFKIT_CACHE` 指向空目录时的离线自验。
 - `tests/test_sources_mp_aflow.py`：
   - MP：无 key 时报 `ValueError`（含申请地址）；monkeypatch `_REQUEST_JSON` 后测
     `search("mp-22862")` + `fetch`（生成 CIF、JSON sha256、`cif_generated=True`）；

@@ -54,6 +54,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | 子命令 | 作用 | 示例 |
 |---|---|---|
 | `pipeline` | 一条管线，产出 manifest/report/预览 | 见上 |
+| `batch` | 多条 pipeline 并发（每条独立子进程，写 batch_manifest.json） | `batch --spec "<一句话>" --spec "<另一句>" --jobs 4 --outdir runs\batch` |
 | `fetch` | 按 RCSR 拓扑 / 名称 / id 从 **CoRE MOF 2024、COD、Materials Project、AFLOW、本地**检索并落盘 | `fetch --topology sod --raw`；`fetch --source aflow --name ZnO` |
 | `sources` | 列出数据源、是否需要 key、缓存/网络状态（智能选型入口） | `sources --probe` |
 | `repair` | 补氢 / 无序占位 / 过近原子 / 价态检查 | `repair raw.cif -o fixed.cif --add-h --json` |
@@ -62,8 +63,15 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | `validate` | 结构校验（原子数、最近邻、真空、悬空键、C 配位…） | `validate final.cif --json` |
 | `route` | 一句话 → TaskSpec + 计划（不执行） | `route "…"`；退出码 2 = 缺少结构信息 |
 | `formats` / `selftest` | 格式列表 / 环境自检 | |
+| `teach` | Fd-3m 点群典例教学图（spglib 复核 → CSV + PNG） | `teach --spacegroup Fd-3m --outdir runs\uc\fd3m` |
+| `bravais` | Bain 路径 + 14 种布拉维点阵对称性实测 | `bravais --outdir runs\uc\bravais --bain-range 0.9:1.7:0.05` |
+| `metals` | 纯金属批量：bulk/slab/POSCAR/INCAR/KPOINTS（可打包 kit） | `metals --outdir runs\uc\metals --elements Fe,Cu,Mg` |
+| `fec` | Fe-C 结构 + 0 K 凸包 + VASP 模板（离线，可打包 kit） | `fec --outdir runs\uc\fec --zip` |
 
-**数据源（5 个）**：
+> `teach/bravais/metals/fec` 由 `cifkit/usecases_cli.py` 提供；`usecases/` 里的原脚本保留为 fallback
+> （`--help` 与默认输出目录兼容），都支持 `--outdir` 与 `--json`。
+
+**数据源（6 个）**：
 
 | source | 覆盖 | key | 拓扑元数据 | 经验 |
 |---|---|---|---|---|
@@ -72,8 +80,18 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | `materials-project` | Materials Project（DFT） | **`MP_API_KEY`** | 无 | 只支持 `mp-id`/化学式，不支持名称；结构已计算就绪 |
 | `aflow` | AFLOW（无机/合金） | 免 | 无 | 只支持化学式/aurl；MOF 极少；CIF 名含 `:` 需 URL-encode |
 | `local` | 本地 `.cif` | 免 | 无 | 最快；拓扑需结构比对 |
+| `qmof` | QMOF（DFT 标注 MOF；**本地镜像**） | 免 | 无 | 只读 `$CIFKIT_QMOF_DIR`；本环境 figshare/GitHub 不可达，未 live 下载 |
 
 环境：`.venv`（`--system-site-packages`）内含 `pymatgen`、`ase`、`openbabel-wheel`、`pytest`，继承全局 `rdkit`/`numpy`/`scipy`/`networkx`/`matplotlib`；`cifkit` 已 editable 安装，任意目录可 `python -m cifkit`。
+
+---
+
+## 并发与性能
+
+- 批量：`cifkit batch --spec ... --jobs N`（独立子进程；3 条 demo：串行 41.0 s → 并发 14.8 s，2.8×）。
+- slab 生成进程内缓存：同参数第二次 2.12 s → 0.014 s（~150×）。
+- 缓存并发安全：CoRE 索引构建用文件锁 + 原子写，3 进程冷建实测 8300 条完整。
+- 细节与复现命令：[docs/PERFORMANCE.md](docs/PERFORMANCE.md)、[docs/ROBUSTNESS.md](docs/ROBUSTNESS.md)。
 
 ---
 
@@ -86,8 +104,18 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | 纯金属晶格 + 最密面表面能文件 | [usecases/u3_metals](usecases/u3_metals/README.md) | 87 种金属导出 69（ASE 58/AFLOW 7/COD 4），18 missing 有原因；真空全部 15.0 Å |
 | Fe-C 化合物 + 相图 + 计算套件 | [usecases/u4_fec](usecases/u4_fec/README.md) | 7 结构；0K hull 仅 Fe/C 端点，Fe3C=+0.0456、Fe2C=+0.0516 eV/atom |
 
-一键独立验收：`& $PY usecases\verify_usecases.py`（22/22 PASS）。
-技能：`catalog/cif-usecases`（intent `cif-advanced-usecases`，eval 84/84、负例 0/25）。
+用 CI 子命令一键复跑（产物只写 `--outdir`，不动 `usecases/` 交付目录）：
+
+```powershell
+& $PY -m cifkit teach   --spacegroup Fd-3m --outdir runs\uc\fd3m --json
+& $PY -m cifkit bravais --outdir runs\uc\bravais --bain-range 0.9:1.7:0.05 --json
+& $PY -m cifkit metals  --outdir runs\uc\metals --elements Fe,Cu,Mg --json
+& $PY -m cifkit fec     --outdir runs\uc\fec --zip --json
+```
+
+一键独立验收：`& $PY usecases\verify_usecases.py`（22/22 PASS，旧交付物）；
+`& $PY -m pytest tests\test_usecase_cli.py -q`（4 子命令/JSON 纯度/错误码，本机 12 passed + 1 skipped，约 28 s）。
+技能：`catalog/cif-usecases`（intent `cif-advanced-usecases`；旧脚本仍可单独运行）。
 总览与诚实局限见 [usecases/README.md](usecases/README.md)。
 
 ---
@@ -109,13 +137,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 145 passed（含 demo 端到端；需要 _cache）
+& $PY -m pytest tests -q            # 226 passed（含 demo 端到端；需要 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11。
+测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11 / batch 3 / repair-carboxylate 17 / robustness 6 / slab-cache 4 / sources-qmof 4 / topology-nets 34 / usecase-cli 13。
 
 ---
 
@@ -145,14 +173,18 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
 - **Round 6（数据源扩展）**：补齐 **Materials Project**（需 `MP_API_KEY`）与 **AFLOW**（免 key）适配器，
   COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
-  路由 intent 增数据源关键词/examples（评测 79/79、负例 0/25），测试总数 **145**。
+  路由 intent 增数据源关键词/examples（评测 79/79、负例 0/25），测试总数 **226**。
   - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
 
 ---
 
 ## 局限（先说清楚）
 
-- 补氢针对有机配体/常规 MOF（C/N/O/S）；金属氢化物、自由基、纯无机周期体系会如实给 warning 或走几何兜底，见 `docs/REPAIR.md` §局限。
+- 补氢针对有机配体/常规 MOF（C/N/O/S/B/P 等）：已覆盖咪唑 ZIF-8 与羧酸根 MOF-5/UiO-66/HKUST-1
+  （BDC/BTC 环 C–H、UiO-66 的 μ3-OH、自由羧酸的 O–H；金属配位/桥联羧酸根 O 不加 H）。
+  金属氢化物、自由基、纯无机周期体系、有机金属 M–C 键（Cp/烷基/CO 等）会如实给 warning
+  或走几何兜底；μ3-O/μ3-OH 仅凭几何可能混淆（会保守不补并 warning），MIL-101 未验证，
+  详见 `docs/REPAIR.md` §8/§10。
 - 拓扑比对以单个金属原子为节点，未做 Zr6 等 SBU 收缩；参考取 CoRE 同拓扑 ASR 记录。
 - 切面终止面是几何启发式（悬空键 + 化学计量偏差），不是表面能计算；表面有悬空键是正常现象。
 - 导出 7 种格式；`gaussian/orca/abacus` 未实现，会明确报 unsupported（不会静默写错）。

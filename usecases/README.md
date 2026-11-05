@@ -10,13 +10,27 @@
 | 3 | 帮我逐一导出 100 种纯金属的晶格模拟数据，以及最密面的表面能模拟需要用到的文件 | [u3_metals](u3_metals/) | 69 种金属 × bulk/slab/POSCAR/INCAR/KPOINTS + summary.csv + kit.zip | ASE 参考态 58 / AFLOW 7 / COD 4 |
 | 4 | 铁碳化合物有哪些种，跟相图的关系是什么？帮我打包一个用于探究这个问题的计算套件 | [u4_fec](u4_fec/) | 7 个 Fe-C 化合物结构、0K 凸包图、相图笔记、VASP 模板、kit.zip | AFLOW LIB2 + ICSD |
 
-## 一键自检
+## 一键复跑（cifkit 子命令，推荐）
+
+4 个用例已固化成 `cifkit` 子命令（实现：`cifkit/usecases_cli.py`），产物统一写到 `--outdir`，
+不会改动本目录交付物；`--json` 时 stdout 是单个 JSON（日志走 stderr）。
 
 ```powershell
 $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING='utf-8'
 Set-Location 'D:\Dev\Project5-skill-cif'
-& $PY usecases\verify_usecases.py     # Lead 独立验收：4 个用例 22 项检查（spglib/CSV/zip/数值/文件完整性）
+
+& $PY -m cifkit teach   --spacegroup Fd-3m --outdir runs\uc\fd3m --json     # 6 个 Fd-3m 典例 → PNG+CSV
+& $PY -m cifkit bravais --outdir runs\uc\bravais --bain-range 0.9:1.7:0.05 --json
+& $PY -m cifkit metals  --outdir runs\uc\metals --elements Fe,Cu,Mg --json   # 子集；all=87 种金属
+& $PY -m cifkit fec     --outdir runs\uc\fec --zip --json                    # 离线：结构+凸包+VASP 模板
+```
+
+## 一键自检
+
+```powershell
+& $PY -m pytest tests\test_usecase_cli.py -q   # 4 子命令 help/JSON/错误码/离线小参数（约 30 s）
+& $PY usecases\verify_usecases.py              # 旧交付物独立验收：4 个用例 22 项检查
 ```
 
 最近一次结果：**22/22 PASS**（u1 spglib 全部 #227；u2 Bain c/a=√2 → #225、14 种点阵 14/14；
@@ -58,16 +72,19 @@ u3 69/69 目录文件齐全、真空全部 15.0 Å；u4 Fe3C +0.0456 eV/atom、h
   未逐条在线复核的已标注；解释"0 K DFT 全亚稳 vs 相图中 Fe₃C 常见亚稳相"的差异。
 - 套件 `fe_c_kit.zip`（87 文件）：结构、CSV、凸包脚本（可离线复跑/替换成自己的 VASP 能量）、VASP 输入模板、README。
 
-## 复现（各自 README 有完整命令）
+## 复现（旧脚本 fallback；各自 README 有完整命令）
+
+子命令内部就是 import 这些脚本的函数，默认输出目录与参数保持兼容；单步调试时仍可直接跑：
 
 ```powershell
-& $PY usecases\u1_fd3m\scripts\fetch_structures.py   # 联网抓取（已缓存则跳过）
-& $PY usecases\u1_fd3m\make_figure.py                # 复核 + CSV + PNG
-& $PY usecases\u2_bravais\scripts\bain_path.py
-& $PY usecases\u2_bravais\scripts\bravais14.py
-& $PY usecases\u3_metals\scripts\export_metals.py    # 断点续跑
-& $PY usecases\u3_metals\scripts\finalize_metals.py --zip
-& $PY usecases\u4_fec\scripts\build_hull.py          # 离线，断言 Fe3C 数值
+& $PY usecases\u1_fd3m\scripts\fetch_structures.py --outdir runs\uc\fd3m   # 联网抓取（已缓存则跳过）
+& $PY usecases\u1_fd3m\make_figure.py --outdir runs\uc\fd3m                # 复核 + CSV + PNG
+& $PY usecases\u2_bravais\scripts\bain_path.py --outdir runs\uc\bravais --bain-range 0.9:1.7:0.05
+& $PY usecases\u2_bravais\scripts\bravais14.py --outdir runs\uc\bravais
+& $PY usecases\u3_metals\scripts\export_metals.py --outdir runs\uc\metals --elements Fe,Cu,Mg  # 断点续跑
+& $PY usecases\u3_metals\scripts\finalize_metals.py --outdir runs\uc\metals --zip
+& $PY usecases\u4_fec\scripts\build_hull.py --out-csv runs\uc\fec\data\hull_points.csv --out-png runs\uc\fec\figures\fe_c_hull.png
+& $PY usecases\u4_fec\scripts\make_vasp_inputs.py --kit runs\uc\fec
 ```
 
 ## 诚实性与局限（统一说明）

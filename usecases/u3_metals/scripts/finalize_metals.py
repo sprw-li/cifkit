@@ -74,6 +74,25 @@ VALIDATION_PICKS = [
 ]
 
 
+def retarget(outdir) -> None:
+    """Point the aggregator (and its ``export_metals`` module) at another output root."""
+    global OUT_ROOT, DATA, ELEMENTS_DIR, RECORDS, FAILURES
+    out = Path(outdir).expanduser().resolve()
+    OUT_ROOT = out
+    DATA = out / "data"
+    ELEMENTS_DIR = out / "elements"
+    RECORDS = DATA / "records.json"
+    FAILURES = DATA / "failures.json"
+    import export_metals as _export  # the module the CLI imported (same sys.modules entry)
+
+    _export.OUT_ROOT = OUT_ROOT
+    _export.DATA = DATA
+    _export.ELEMENTS_DIR = ELEMENTS_DIR
+    _export.RECORDS = RECORDS
+    _export.FAILURES = FAILURES
+    _export.CANDIDATES = DATA / "aflow_lib1_candidates.json"
+
+
 def write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8-sig") as fh:
@@ -360,7 +379,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--zip", action="store_true", help="also build metals_kit.zip")
     ap.add_argument("--skip-validation", action="store_true")
     ap.add_argument("--validate-elements", default="", help="override the validation picks")
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="output root (default: usecases/u3_metals)")
     args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
 
     records = load_json(RECORDS, {})
     failures = load_json(FAILURES, {})

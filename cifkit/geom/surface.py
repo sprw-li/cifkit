@@ -34,6 +34,7 @@ candidate index, a float shift value, or an element symbol (e.g. ``"Zn"``).
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import time
 from collections import Counter
@@ -229,7 +230,113 @@ def _select_candidate(
 
 
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# In-process result cache
+# ---------------------------------------------------------------------------
+# Cutting a slab enumerates every termination and computes coordination
+# numbers; for a 500+-atom conventional cell one call costs ~1-3 s.  Batch
+# workflows (E_surf scans over (hkl), vacuum or termination) repeat identical
+# calls, so results are memoised per process.  The key includes a hash of the
+# structure and every geometry argument; values are copied on return because
+# callers may mutate the slab.
+_SLAB_CACHE: dict[tuple[Any, ...], tuple[Structure, dict[str, Any]]] = {}
+_SLAB_CACHE_ORDER: list[tuple[Any, ...]] = []
+_SLAB_CACHE_STATS = {"hits": 0, "misses": 0}
+_SLAB_CACHE_MAX = 24
+
+
+def _structure_digest(structure: Structure) -> str:
+    """Stable digest of a structure (lattice + species + fractional coords)."""
+    from pymatgen.io.cif import CifWriter
+
+    text = str(CifWriter(structure, symprec=None))
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def _slab_cache_key(
+    structure: Structure,
+    hkl: Sequence[int],
+    slab_thickness: float,
+    vacuum: float,
+    termination: Any,
+    reps: Sequence[int] | None,
+    frame: str,
+) -> tuple[Any, ...]:
+    return (
+        _structure_digest(structure),
+        _normalize_hkl(hkl),
+        round(float(slab_thickness), 6),
+        round(float(vacuum), 6),
+        repr(termination),
+        _normalize_reps(reps),
+        str(frame or "slab").strip().lower(),
+    )
+
+
+def slab_cache_info() -> dict[str, Any]:
+    """Stats for the in-process ``make_slab`` cache (tests / benchmarks)."""
+    return {
+        "size": len(_SLAB_CACHE),
+        "max": _SLAB_CACHE_MAX,
+        "hits": int(_SLAB_CACHE_STATS["hits"]),
+        "misses": int(_SLAB_CACHE_STATS["misses"]),
+    }
+
+
+def clear_slab_cache() -> None:
+    """Drop cached slabs and counters (tests)."""
+    _SLAB_CACHE.clear()
+    _SLAB_CACHE_ORDER.clear()
+    _SLAB_CACHE_STATS["hits"] = 0
+    _SLAB_CACHE_STATS["misses"] = 0
+
+
 def make_slab(
+    structure: Structure,
+    hkl: Sequence[int],
+    *,
+    slab_thickness: float = 15.0,
+    vacuum: float = 15.0,
+    termination: Any = None,
+    reps: Sequence[int] | None = None,
+    frame: str = "slab",
+) -> tuple[Structure, dict[str, Any]]:
+    """Cached wrapper around :func:`_make_slab_uncached`.
+
+    The returned ``info`` carries ``cache="hit"`` on memoised calls; geometry
+    arguments and the input structure fully determine the result.
+    """
+    key: tuple[Any, ...] | None = None
+    try:
+        key = _slab_cache_key(structure, hkl, slab_thickness, vacuum, termination, reps, frame)
+    except Exception:  # noqa: BLE001 - cache is best-effort, never break geometry
+        key = None
+    if key is not None and key in _SLAB_CACHE:
+        _SLAB_CACHE_STATS["hits"] += 1
+        slab, info = _SLAB_CACHE[key]
+        return slab.copy(), {**info, "cache": "hit"}
+    _SLAB_CACHE_STATS["misses"] += 1
+    slab, info = _make_slab_uncached(
+        structure,
+        hkl,
+        slab_thickness=slab_thickness,
+        vacuum=vacuum,
+        termination=termination,
+        reps=reps,
+        frame=frame,
+    )
+    if key is not None:
+        if len(_SLAB_CACHE_ORDER) >= _SLAB_CACHE_MAX:
+            oldest = _SLAB_CACHE_ORDER.pop(0)
+            _SLAB_CACHE.pop(oldest, None)
+        _SLAB_CACHE[key] = (slab.copy(), info)
+        _SLAB_CACHE_ORDER.append(key)
+        info = {**info, "cache": "miss"}
+    return slab, info
+
+
+def _make_slab_uncached(
     structure: Structure,
     hkl: Sequence[int],
     *,

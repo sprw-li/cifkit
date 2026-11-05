@@ -1,0 +1,79 @@
+{
+  "schema": "cifkit/net-signature/v1",
+  "net": "pcu",
+  "signature_version": "topology-v2-sbu",
+  "source": {
+    "record_id": "core-mof:SI/CR/ASR/2007[Zn][pcu]3[ASR]3.cif",
+    "refcode": "ja074366osi20070816_031204_ASR_pacman",
+    "coreid": "2007[Zn][pcu]3[ASR]3",
+    "doi": "10.1021/ja074366o",
+    "natoms": 106,
+    "formula": "Zn8 H24 C48 O26",
+    "spacegroup": "P 1"
+  },
+  "cif": "pcu-reference.cif",
+  "cif_sha256": "f32e6e751798e4de182a4374297863515270f6e677c96747c8683eec6cc6cea9",
+  "signature": {
+    "coordination_numbers": {
+      "6": 1.0
+    },
+    "coordination_sequence": [
+      6.0,
+      18.0,
+      38.0,
+      66.0,
+      102.0,
+      146.0,
+      198.0,
+      258.0
+    ],
+    "coordination_sequence_truncated": false,
+    "n_metal_nodes": 2,
+    "n_edges": 6,
+    "n_linkers": 6,
+    "linkers_per_metal": 3.0,
+    "ring_sizes": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "rings_per_node": {
+      "4": {
+        "per_cell": 1.5,
+        "per_node": 0.75,
+        "truncated": false
+      },
+      "5": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "6": {
+        "per_cell": 7.3333,
+        "per_node": 3.666667,
+        "truncated": false
+      },
+      "7": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": true
+      }
+    },
+    "rings_truncated": true
+  },
+  "net_summary": {
+    "n_nodes": 2,
+    "n_edges": 6,
+    "n_linkers": 6,
+    "sbu_contraction": true,
+    "warnings": []
+  },
+  "generated_at": "2026-11-05T20:34:13+08:00",
+  "generated_by": {
+    "algorithm": "topology-v2-sbu",
+    "command": "python -c \"from cifkit.topology import regenerate_bundled_references as r; print(r())\""
+  },
+  "selection_reason": "Zn4O(BDC)3 = MOF-5（Zn8 H24 C48 O26 = 2×MOF-5，topology(AllNodes)=pcu）；任务建议的 2015[Zn][pcu]3[ASR]2 经核查不是 MOF-5：它是多齿 PAH 配体 + Zn4 簇（AllNodes 标注 scn），按 ditopic-linker 简化会得到 30 配位假 net，故不采用"
+}

@@ -61,6 +61,18 @@ SLAB_THICKNESS = 12.0  # A (>= 3-5 atomic layers for every metal here)
 VACUUM = 15.0  # A
 VASP_ENCUT = 400.0
 
+
+def retarget(outdir) -> None:
+    """Write elements/, data/ and the tables under ``<outdir>`` instead of the use case dir."""
+    global OUT_ROOT, DATA, ELEMENTS_DIR, RECORDS, FAILURES, CANDIDATES
+    out = Path(outdir).expanduser().resolve()
+    OUT_ROOT = out
+    DATA = out / "data"
+    ELEMENTS_DIR = out / "elements"
+    RECORDS = DATA / "records.json"
+    FAILURES = DATA / "failures.json"
+    CANDIDATES = DATA / "aflow_lib1_candidates.json"
+
 #: elements that must get the textbook plane (verification set)
 CRITICAL = {
     "Fe": (1, 1, 0),
@@ -373,7 +385,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="recompute even if a record exists")
     ap.add_argument("--limit", type=int, default=0, help="only the first N elements")
     ap.add_argument("--list", action="store_true", help="print the element list and exit")
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="output root (default: usecases/u3_metals)")
     args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
 
     els = metals()
     if args.elements:

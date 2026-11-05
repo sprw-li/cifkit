@@ -5,6 +5,8 @@ Frozen command surface (skills/catalog wrappers and docs depend on it):
     python -m cifkit route "TEXT" [--json]
     python -m cifkit pipeline "TEXT" --outdir DIR [--format vasp,cif,xyz] [--source auto] [--ingest] [--json]
     python -m cifkit pipeline --spec spec.json ... --outdir DIR
+    python -m cifkit batch --spec "TEXT" [--spec "TEXT2"] [--jobs N] [--outdir runs/batch] [--json]
+    python -m cifkit batch --specs-file runs/specs.jsonl [--jobs N] [--json]
     python -m cifkit fetch --topology sod [--name ZIF-8] [--raw|--ready] [--limit N] [--outdir DIR] [--json]
     python -m cifkit repair FILE -o OUT [--add-h] [--no-disorder] [--no-contacts] [--json]
     python -m cifkit geom FILE -o OUT [--standardize] [--supercell 2 2 1] [--surface 1 1 1]
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -126,6 +129,110 @@ def cmd_pipeline(args) -> int:
         for key, path in result.artifacts.items():
             print(f"  {key}: {path}")
     return 0 if result.ok else 1
+
+
+def cmd_batch(args) -> int:
+    """Run several pipeline jobs concurrently (one subprocess per job)."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    jobs: list[dict] = []
+    if args.specs_file:
+        text = Path(args.specs_file).read_text(encoding="utf-8")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError as exc:
+                print(f"specs-file 第 {lineno} 行不是合法 JSON：{exc}", file=sys.stderr)
+                return 2
+            if isinstance(item, str):
+                item = {"spec": item}
+            if not isinstance(item, dict) or not (item.get("spec") or item.get("query")):
+                print(f"specs-file 第 {lineno} 行缺少 spec/query", file=sys.stderr)
+                return 2
+            jobs.append(item)
+    for query in args.spec or []:
+        jobs.append({"spec": query})
+    if not jobs:
+        print("batch: 至少给一个 --spec 或 --specs-file", file=sys.stderr)
+        return 2
+
+    root = Path(args.outdir)
+    root.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+
+    def _slug(text: str) -> str:
+        keep = [ch if (ch.isalnum() or ch in "-_") else "_" for ch in str(text)]
+        return "".join(keep)[:48] or "run"
+
+    def run_one(index: int, job: dict) -> dict:
+        query = str(job.get("spec") or job.get("query"))
+        outdir = Path(job["outdir"]) if job.get("outdir") else root / f"{index:02d}_{_slug(query)}"
+        cmd = [sys.executable, "-m", "cifkit", "pipeline", query, "--outdir", str(outdir), "--json"]
+        if getattr(job, "get", None) and job.get("source"):
+            cmd += ["--source", str(job["source"])]
+        if args.ingest:
+            cmd.append("--ingest")
+        t0 = time.time()
+        try:
+            proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=args.timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return {"index": index, "spec": query, "outdir": str(outdir), "ok": False,
+                    "returncode": None, "seconds": round(time.time() - t0, 2),
+                    "stderr_tail": f"timeout after {args.timeout}s", "summary": {}}
+        summary: dict = {}
+        try:
+            summary = json.loads(proc.stdout.strip() or "{}")
+        except json.JSONDecodeError:
+            summary = {"raw_stdout_tail": proc.stdout[-400:]}
+        return {
+            "index": index,
+            "spec": query,
+            "outdir": str(outdir),
+            "ok": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "seconds": round(time.time() - t0, 2),
+            "stderr_tail": proc.stderr[-500:],
+            "summary": summary,
+        }
+
+    results: list[dict] = []
+    jobs_n = max(1, int(args.jobs))
+    with ThreadPoolExecutor(max_workers=jobs_n) as pool:
+        futures = {pool.submit(run_one, i, job): i for i, job in enumerate(jobs)}
+        for future in as_completed(futures):
+            results.append(future.result())
+    results.sort(key=lambda item: item["index"])
+    manifest = {
+        "root": str(root),
+        "jobs": len(results),
+        "concurrency": jobs_n,
+        "ok": sum(1 for item in results if item["ok"]),
+        "seconds": round(time.time() - started, 2),
+        "runs": results,
+    }
+    (root / "batch_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if args.json:
+        _print_json(manifest)
+    else:
+        for item in results:
+            flag = "ok  " if item["ok"] else "fail"
+            print(f"[{flag}] {item['seconds']:6.2f}s  {item['spec'][:64]} -> {item['outdir']}")
+        print(f"\n{manifest['ok']}/{len(results)} ok in {manifest['seconds']}s "
+              f"(jobs={jobs_n}, manifest={root / 'batch_manifest.json'})")
+    return 0 if manifest["ok"] == len(results) else 1
 
 
 def cmd_fetch(args) -> int:
@@ -422,6 +529,17 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_pipeline)
 
+    b = sub.add_parser("batch", help="批量并发跑多条 pipeline（每条约一个子进程）")
+    b.add_argument("--spec", action="append", default=[], help="自然语言请求，可重复")
+    b.add_argument("--specs-file", default=None,
+                   help="JSONL 文件：每行 {\"spec\": \"...\", \"outdir\": \"...\"(可选), \"source\": \"...\"(可选)}")
+    b.add_argument("--outdir", default="runs/batch", help="批处理根目录（每 run 一个子目录）")
+    b.add_argument("--jobs", type=int, default=4, help="并发度（默认 4）")
+    b.add_argument("--timeout", type=float, default=600.0, help="单条超时秒数")
+    b.add_argument("--ingest", action="store_true")
+    b.add_argument("--json", action="store_true")
+    b.set_defaults(func=cmd_batch)
+
     f = sub.add_parser("fetch", help="按拓扑/名称/id 检索结构数据库并落盘")
     f.add_argument("--source", default="auto",
                    help="auto|core-mof|cod|materials-project|aflow|local（auto 按拓扑/名称/id 推断）")
@@ -483,6 +601,12 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("selftest", help="离线自检")
     st.add_argument("--verbose", action="store_true")
     st.set_defaults(func=cmd_selftest)
+
+    # use-case subcommands (cifkit teach / bravais / metals / fec) live in a
+    # separate module; registered last so they share the same parser conventions
+    from cifkit.usecases_cli import register as register_usecase_commands
+
+    register_usecase_commands(sub)
 
     return p
 

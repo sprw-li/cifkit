@@ -60,7 +60,10 @@ repair_all(s, add_hydrogen=True, resolve_disorder=True, remove_close_contacts=Tr
 1. **成键判据**：共价半径表（Cordero 2008，与 ASE 默认一致；pymatgen 2026 已移除
    `Element.covalent_radius`，所以表内置在 `bonds.py`）+ `Structure.get_neighbor_list`
    给出的**周期最小镜像**。非金属对用 `d < 1.15*(r_i+r_j)`；涉及金属的对用
-   `d < 1.30*(r_i+r_j)` 并标记为 **metal bond**。金属–金属、H–H 对不计成键。
+   `d < 1.30*(r_i+r_j)` 并标记为 **metal bond**，且**只有 donor 元素**
+   （`METAL_COORDINATING_ELEMENTS = {N,O,S,Se,P,F,Cl,Br,I,Te}`）才算配位键。
+   金属–金属、H–H 对不计成键；**金属···C 不算键**（见 §8.3：羧酸根 MOF 里
+   Zr···C ≈ 3.24 Å 这类穿空间接触若算成键会把羧基 C 算成五/六价，抑制环 C–H 补位）。
 2. **最小镜像**：`get_neighbor_list` 返回 `(i, j, image, distance)`，键方向向量为
    `cart[j] + image @ lattice - cart[i]`，所以跨晶胞边界的配体/环也能正确成键。
 3. **环识别**：对每个非金属原子做深度 ≤6 的平移感知 DFS（路径带累计平移向量，
@@ -88,10 +91,10 @@ repair_all(s, add_hydrogen=True, resolve_disorder=True, remove_close_contacts=Tr
 |---|---|---|
 | C | 4 | 芳香/双键碳由键级吸收，只补剩余 σ 位 |
 | N | 3（4 允许） | **与金属配位的 N 一律不补 H**（Zn–N 计 1 键；ZIF-8 两个环 N 都配位 → 0 N–H） |
-| O | 2 | 与金属配位不补；**羧酸根 O 视为去质子化阴离子，不补 H**（action 中有说明） |
+| O | 2（金属氧化物簇例外） | 与金属配位不补；羧酸根 O 不补（见 §8.1）；μ3/μ4 簇氧按 oxo/hydroxo 判据（§8.2）；**只有全结构无任何金属配位键（自由羧酸分子/分子晶体）才补 O–H** |
 | S | 2（4/6 允许） | 金属配位不补 |
 | B/P/Si/Se | 3/3/4/2 | 同上 |
-| 其他元素 | 不处理 | 见 §9 局限 |
+| 其他元素 | 不处理 | 见 §10 局限 |
 
 特殊情况：
 
@@ -143,7 +146,7 @@ RDKit 失败/不可用/片段是周期性有机聚合物（展开平移不一致
 
 * 每个 C 的键级和 + 新 H 键 = 4（`c_valence_ok`）；
 * C–H 键长范围、最小 H···H / H···重原子 / H···金属 写入 action；
-* 再叠加 §6 的独立 `valence.check_structure`（重新做一遍周期键感知），双保险。
+* 再叠加 §7 的独立 `valence.check_structure`（重新做一遍周期键感知），双保险。
 
 ## 5. 无序 / 占位（`disorder.py`）
 
@@ -193,7 +196,103 @@ ZIF-8 实测：348 原子（48 全占据 H + 144 个 H:0.5）→ 每个甲基 6 
   H···金属 <1.5 Å；
 * metrics 还包含 `min_distance`、`min_hh`、`min_h_heavy`、`min_h_metal`、价态直方图。
 
-## 8. 验收数字（本机实测，2026-11）
+## 8. 羧酸根 MOF（Round-2 WP2：MOF-5 / UiO-66 / HKUST-1）
+
+本轮把补氢从「咪唑 N–Zn」扩展到「羧酸根 + 金属氧簇 + Cu 桨轮」：新增
+`bonds.METAL_COORDINATING_ELEMENTS` / `bonds.classify_cluster_oxygen`，修改
+`hydrogen_demand()` 的 O 规则与 `valence` 的 O 例外。fixture 来源与生成方式见
+`tests/data/REPAIR_FIXTURES.md`，验收测试 `tests/test_repair_carboxylate.py`。
+
+### 8.1 羧酸根 O（–COO–）的补氢规则
+
+- **金属配位 O（单齿/桥联/螯合）一律不加 H**：羧酸根去质子化后 O 的价态由
+  `C–O`（单/双）与 `M–O` 配位键共同满足，加 H 会得到不中性的 –COOH。
+- 未配位但属于「带金属配位结构」的羧酸根 O：视为阴离子/缺陷，不加 H（在 action 中记录
+  "羧酸根 O（金属配位/桥联或去质子化阴离子），不补 H"）。
+- **只有整个结构没有任何金属配位键**（metal-free 的羧酸分子/分子晶体）才把单键 O
+  质子化：例如对苯二甲酸 H-free（C8H4O4）→ 补 2 个 O–H（`terephthalic_acid_hfree.cif`）。
+- 判据：`graph.metal_coordination`（结构中是否存在任何金属–donor 键）+
+  `is_carboxylate_oxygen()`；不是按距离猜质子化状态。
+
+### 8.2 UiO-66 `Zr6O4(OH)4` 的 μ3-O / μ3-OH 判据
+
+- `classify_cluster_oxygen()`：把「≥3 个金属邻居、无 H」的 O 按（金属元素, 配位数）分组，
+  比较组内**平均 M–O 距离**。若距离分成两族且间隙 ≥ 0.10 Å，**长的一族判为 μ-OH**
+  （补 1 个 H），短的一族判为 μ-O（oxo，不补 H）。
+- UiO-66 实测（CoRE CR）：4 个 μ3-O 的 Zr–O = 2.065 Å；4 个 μ3-OH 的 Zr–O = 2.268 Å；
+  间隙 0.20 Å，非常清楚。H-free fixture 里 8 个 O 全部无 H，仍能按距离分成 4+4，
+  给 4 个长 Zn–O 的 O 各补 1 个 O–H（O–H ≈ 0.96 Å，H 朝远离 Zr 的方向）。
+- 若组内只有 1 个 O、或距离连续无明确双峰：**保守按 oxo 不补 H**，并写 warning
+  「无法仅凭几何区分 oxo/OH」——oxo 与 hydroxo 的本质差别在质子/电荷，仅凭重原子
+  坐标并不总能区分，这是本方法的根本局限（见 §10）。
+- 结构本身已有 μ3-OH 的 H 时（H 完整 CR），O 键级和 = 3M + 1H → 不会重复加 H。
+
+### 8.3 金属···C 假键（羧酸根 MOF 通用坑）
+
+羧酸根 MOF 里羧基 C 与金属的穿空间距离很短（UiO-66 的 Zr···C ≈ 3.24 Å），早期实现
+用 `1.30*(r_M+r_C)` 判为配位键 → 羧基 C 出现 5 个邻居、键级和 6，芳香环 Kekulé 匹配
+失败/环 C 误判为"已满价"，导致 BDC/BTC 环 C–H 漏补并产生大量假 valence warning。
+
+修复：**金属键只允许 donor 元素**（`METAL_COORDINATING_ELEMENTS`：N/O/S/Se/P/F/Cl/Br/I/Te）。
+UiO-66 CR 的 48 个 Zr–O 键保留、24 个 Zr···C 假键消失，Zr 配位数从 12 修正为 8。
+代价是真正的有机金属 M–C σ 键（Zn–CH3、Cp 等）不会被当作配位键（见 §10 局限）。
+
+### 8.4 Cu 桨轮（HKUST-1）
+
+- `Cu···Cu ≈ 2.6 Å` 的金属–金属接触**不计键**（perceive 阶段直接跳过 metal–metal），
+  不影响有机片段与 H 计数。
+- Cu–O 羧酸根 O 不补 H；BTC（苯-1,3,5-三甲酸根）环上 3 个 C–H 在环平面内补齐。
+- H-free fixture 实测：Cu12 C72 O48 (132 原子) → Cu12 H24 C72 O48 (156 原子)，
+  RDKit 片段 8/8 成功（每个 BTC 片段 3 H），Cu CN=4，价态检查通过。
+
+### 8.5 真实 NCR 缺氢 CIF / MIL-101 的搜索结论（诚实记录）
+
+- **MOF-5**：CoRE MOF 2024 里 MOF-5 的 index 记录被归一化为
+  `heavy_key = Zn:1|C:6|O:3.25`（直接按 `Zn4 C24 H12 O13` 匹配不到，这也是最初误选
+  `2015[Zn][pcu]3[ASR]2` 的原因）。WP3 拓扑评审核实的真实记录是 **`2007[Zn][pcu]3[ASR]3`**
+  （refcode `ja074366osi20070816_031204_ASR_pacman`，DOI **10.1021/ja074366o**，topology pcu，
+  **Zn8 H24 C48 O26 = 2×Zn4O(BDC)3**，106 原子，primitive rhombohedral a=18.2486 Å、α=60°）。
+  该文件 2 个 μ4-O 各连 4 个 Zn（Zn–O = 1.943 Å）、6 个 BDC 各 4 个环 C–H，`--add-h` 为 no-op。
+  任务书中提到的 `SI/CR/ASR/2015[Zn][pcu]3[ASR]2.cif`（Zn4 H8 C24 O14）**不是 MOF-5**：它是
+  Zn4O2 + 三联苯四羧酸根、`topology(AllNodes)=scn` 的 pcu/scn MOF（DOI 10.1039/C5TA04552E），
+  H 完整且 `--add-h` no-op；`2011[Zn][pcu]3[ASR]8` 虽也是 MOF-5 记录，但其 CR 文件含额外 H/
+  几何异常（直接补氢会 added_h=27 且报 C 五价 warning），故未采用。
+  `mof5_hfree.cif` = 从 `2007[Zn][pcu]3[ASR]3` 删全部 24 H（synthetic，82 原子），
+  另用 **COD 真实 H-free CIF**（4340010，原始文件本身无 H，Zn32 C192 O104）做独立交叉验证；
+  H 完整对照为同记录 CR / COD 1516287。两套来源每 Zn 均为 3 H、6 C、3.25 O，一致。
+- **UiO-66**：找到真实 NCR 缺氢候选
+  `SI/NCR/mofchecker/c9sc01301f2_1_FSR_pacman.cif`（Zr6 H24 C48 O32，108→110 原子，
+  比 H 完整少 4 个 OH H）与 `SI/NCR/both/ja8b07050_si_003_FSR_pacman.cif`
+  （Zr6 H16 C48 O32，少 12 H）。但两者几何都不可靠：前者存在 1.27 Å 的 C···C 接触，
+  且 8 个 μ3-O 的 Zr–O 只有 2.125/2.149 Å 两个值、没有 oxo/OH 双峰；后者连接方式异常
+  （C–C 1.34–1.49 Å 混杂）。**保留前者为溯源 fixture `uio66_raw_ncr_h24.cif`，不参与验收**，
+  验收用 CoRE CR 删 H 的 synthetic fixture。
+- **HKUST-1**：CoRE 中所有同组成条目（CR 与 NCR）H 都已完整（H24），没有真实缺氢版
+  → 用 CoRE NCR 删 H 的 synthetic fixture。
+- **MIL-101**：CoRE 2024 无条目（按 Cr/C24/O 数与 name 搜索均为 0）；COD 有结构
+  `4000663`，但默认 pymatgen 解析失败（occupancy 1.00002），放宽 occupancy_tolerance 后
+  展开为 **16000 原子**（Cr816 C6528 O8560，a ≈ 88.87 Å）且含部分占据 O（192×O:0.5），
+  不适合做补氢验收 fixture。**本轮 MIL-101 未提供 fixture、未验证**。
+
+### 8.6 本轮验收数字（fixture → added_h / natoms / H）
+
+| fixture | 输入 | added_h | 输出 natoms | 输出 H | 对照 H 完整参考 | warnings |
+|---|---|---|---|---|---|---|
+| `mof5_hfree.cif`（CoRE `2007[Zn][pcu]3[ASR]3` 删 24 H，synthetic） | Zn8 C48 O26, 82 | **24** | 106 | 24 | CoRE `2007[Zn][pcu]3[ASR]3` 完全一致 | 0 |
+| `mof5_cod_hfree.cif`（COD 4340010，真实 H-free CIF） | Zn32 C192 O104, 328 | **96** | 424 | 96 | COD 1516287 完全一致 | 0 |
+| `uio66_hfree.cif`（CoRE CR 删 H，synthetic） | Zr6 C48 O32, 86 | **28** | 114 | 28 | CoRE CR 完全一致 | 0 |
+| `hkust1_hfree.cif`（CoRE NCR 删 H，synthetic） | Cu12 C72 O48, 132 | **24** | 156 | 24 | CoRE NCR 完全一致 | 0 |
+| `terephthalic_acid_hfree.cif`（synthetic 自由羧酸） | C8 H4 O4, 16 | **2** | 18 | 6 | —（2 个 O–H） | 0 |
+| `mof5_h.cif` / `mof5_cod_h.cif` / `uio66_h.cif` / `hkust1_h.cif`（真实 H 完整） | 106 / 424 / 114 / 156 | **0** | 不变 | 24/96/28/24 | 自身 | 0 |
+
+补氢类型拆分：MOF-5 `{sp2 C-H: 24}`（6 BDC × 4，COD 8 倍胞为 `{sp2 C-H: 96}` / 24 BDC）；
+UiO-66 `{sp2 C-H: 24, sp3 O-H: 4}`（6 BDC × 4 + 4 μ3-OH）；HKUST-1 `{sp2 C-H: 24}`（8 BTC × 3）。
+几何自检：环 C–H 在环平面内（最大偏离 < 0.1 Å）、H–C–C 角 115–125°、C–H 1.10 Å、
+O–H 0.96 Å、最小 H···H > 1.4 Å、最小 H···金属 > 2.0 Å；`check_structure` 全部通过
+（C 四配位、Zn CN=4 / Zr CN=8 / Cu CN=4）。**MOF-5 的 2 个 μ4-O（4 Zn，Zn–O 1.943 Å）
+与 24 个羧酸根 O 均未被加 H**（`classify_cluster_oxygen` 判为 oxo）。
+
+## 9. 验收数字（本机实测，2026-11）
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
@@ -217,18 +316,52 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 & $PY -m cifkit repair tests/data/sod_zn_mof.cif -o runs/_repair_solvent.cif --add-h --json
 # 750 原子含溶剂大结构：added_h = 0, removed_atoms = 0, warnings = []
 # （X 射线 N–H 0.86 Å 不被当成重叠；C 312/312 四配位）
+
+# --- Round-2 WP2：羧酸根 MOF -------------------------------------------------
+& $PY -m pytest tests/test_repair.py tests/test_repair_carboxylate.py -q
+# 29 passed（ZIF-8 12 + 羧酸根 17）
+
+& $PY -m cifkit repair tests/data/mof5_hfree.cif   -o runs/_wp2_mof5.cif   --add-h --json
+# added_h=24,  natoms=106, Zn8 H24 C48 O26, warnings=[], route=rdkit-capped,
+# per_ligand_h={4:6}, h_types={sp2 C-H:24}; 与 CoRE 2007[Zn][pcu]3[ASR]3 组成一致；
+# μ4-O（4 Zn，Zn-O 1.943 Å）与羧酸根 O 均未加 H
+
+& $PY -m cifkit repair tests/data/mof5_cod_hfree.cif -o runs/_wp2_mof5_cod.cif --add-h --json
+# added_h=96,  natoms=424, Zn32 H96 C192 O104, warnings=[]; 与 COD 1516287 组成一致
+# （COD 4340010 原始 CIF 本身无 H，独立真实数据交叉验证）
+
+& $PY -m cifkit repair tests/data/uio66_hfree.cif  -o runs/_wp2_uio66.cif  --add-h --json
+# added_h=28,  natoms=114, Zr6 H28 C48 O32, warnings=[], route=mixed（BDC RDKit + 4 个 μ3-OH 几何）,
+# per_ligand_h={4:6, 1:4}, h_types={sp2 C-H:24, sp3 O-H:4}; 与 CoRE CR 组成一致
+
+& $PY -m cifkit repair tests/data/hkust1_hfree.cif -o runs/_wp2_hkust1.cif --add-h --json
+# added_h=24,  natoms=156, Cu12 H24 C72 O48, warnings=[], route=rdkit-capped,
+# per_ligand_h={3:8}, h_types={sp2 C-H:24}; 与 CoRE NCR 组成一致
+
+& $PY -m cifkit repair tests/data/terephthalic_acid_hfree.cif -o runs/_wp2_tpa.cif --add-h --json
+# added_h=2（自由羧酸 2 个 O–H）, natoms=18, C8 H6 O4, warnings=[]
+
+# H 完整参考：必须 no-op（added_h=0, warnings=[]）
+& $PY -m cifkit repair tests/data/mof5_h.cif     --add-h --json
+& $PY -m cifkit repair tests/data/mof5_cod_h.cif --add-h --json
+& $PY -m cifkit repair tests/data/uio66_h.cif    --add-h --json
+& $PY -m cifkit repair tests/data/hkust1_h.cif   --add-h --json
 ```
 
-补氢几何实测（`tests/test_repair.py` 内独立校验，不复用补氢代码的键表）：
+补氢几何实测（`tests/test_repair.py` / `tests/test_repair_carboxylate.py` 内独立校验，
+不复用补氢代码的键表）：
 
-* 环 C–H：H 在环平面内（最大偏离 0.004 Å），H–C–N/C 角 125.7°；
+* 环 C–H：H 在环平面内（最大偏离 0.004 Å / 羧酸根 MOF < 0.1 Å），H–C–N/C 角 125.7°，
+  BDC/BTC 环 H–C–C 115–125°；
 * 甲基：H–C–C = 109.5°，H–C–H = 109.5°（理想四面体）；
 * 无 N–H（两个咪唑 N 都配位 Zn）；H···H 最小 1.796 Å；
+* 羧酸根 MOF：C–H 1.10 Å、μ3-O–H 0.96 Å，H 背离 Zr（H···Zr > 2.5 Å），
+  H···H > 1.4 Å、H···金属 > 2.0 Å；
 * 补氢后再 `cifkit validate` 通过，`C–H` 为最短键（1.10 Å）；
 * `2x2x1` 超胞（276×4 = 1104 原子）与 `(111)` slab + 15 Å 真空（实测 15.64 Å）可继续跑通
   （geom 队友的 `make_supercell` / `make_slab` 联调通过）。
 
-## 9. 局限（务必如实引用）
+## 10. 局限（务必如实引用）
 
 1. **只对有机骨架补 H**：C/N/O/S/B/P/Si/Se 的常规价态。硝酸根、高氯酸根、叠氮、硼烷/
    碳硼烷、金属有机配体（Cp、CO、卡宾、烷基）等特殊价态没有专门建模，可能不补或误补。
@@ -253,8 +386,20 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 10. **性能**：补氢需要按原子枚举候选并对 27 个周期像做距离检查；ZIF-8（276 原子）约 2 s，
     750 原子级约 10 s 量级，超大结构（>1 万原子）会明显变慢（无邻居裁剪）。
 11. **拓扑/化学正确性边界**：报告只声称"价态与几何合理"，不声称"已做量子化学验证"。
+12. **有机金属 M–C 键不建模**：金属键只认 donor 元素（N/O/S/Se/P/卤素/Te），
+    Zn–CH3、Cp、CO、卡宾等真正的 M–C σ 键不会被当作配位键 → 对应 C 可能被误判缺 H
+    （本轮羧酸根 MOF / 咪唑 MOF 不受影响，但有机金属体系不适用）。
+13. **μ3-O / μ3-OH 仅靠几何可能混淆**：判据是 M–O 距离双峰（§8.2）。若距离单峰或连续，
+    保守按 oxo 不补 H 并写 warning，可能少补 O–H；若结构在去质子化/脱 H 后发生弛豫，
+    距离判据也可能失效。oxo/hydroxo 的最终判定需要化学式 H 预算、电荷或中子/DFT 信息。
+14. **自由羧酸判定依赖"全结构无金属配位"**：带金属的 MOF 里若真有未配位的 –COOH
+    （缺陷/客体重排），会被保守当作阴离子不补 O–H；需要外部化学式/电荷信息才能判定。
+15. **真实缺氢 NCR 数据几何质量**：CoRE 2024 的 UiO-66 真实 NCR 缺氢候选几何扭曲
+    （1.27 Å C···C 接触、μ3-O 距离无双峰），本轮不用于验收；CoRE 2024 没有 canonical
+    MOF-5（MOF-5 fixture 来自 COD 真实 CIF）；HKUST-1 无真实缺氢版（用 synthetic）；
+    MIL-101 未验证（COD 4000663 解析为 16000 原子且含部分占据 O）。详见 §8.5。
 
-## 10. 复现与自测
+## 11. 复现与自测
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
@@ -262,6 +407,7 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 Set-Location 'D:\Dev\Project5-skill-cif'
 
 & $PY -m pytest tests/test_repair.py -q
+& $PY -m pytest tests/test_repair.py tests/test_repair_carboxylate.py -q
 & $PY -m pytest tests -q            # 全量（含其它模块）
 ```
 

@@ -370,6 +370,13 @@ def _rdkit_positions(
             continue
         if any(graph.metals[atom] for atom in component):
             continue  # non-metal bonds never link metals; defensive
+        if len(component) == 1 and not any(
+            not bond.metal for bond in graph.adj.get(component[0], ())
+        ):
+            # isolated atom (e.g. a mu3-O cluster oxygen left after cutting all
+            # metal bonds): no molecular conformer to build, place it with the
+            # VSEPR geometry fallback instead of a degenerate one-atom mol.
+            continue
         result.fragments_total += 1
         try:
             positions = _rdkit_positions_for_fragment(graph, component, demands)

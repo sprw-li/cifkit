@@ -1,0 +1,84 @@
+{
+  "schema": "cifkit/net-signature/v1",
+  "net": "sod",
+  "signature_version": "topology-v2-sbu",
+  "source": {
+    "record_id": "core-mof:SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+    "refcode": "ic5028256_si_002_ASR_pacman",
+    "coreid": "2015[Zn][sod]3[ASR]1",
+    "doi": "10.1021/ic5028256",
+    "natoms": 138,
+    "formula": "Zn6 H60 C48 N24",
+    "spacegroup": "P 1"
+  },
+  "cif": "sod-reference.cif",
+  "cif_sha256": "cbeebc95ca3deb5c243c611c2a58c13a1a0303a818a77ec1878567ddfc191510",
+  "signature": {
+    "coordination_numbers": {
+      "4": 1.0
+    },
+    "coordination_sequence": [
+      4.0,
+      10.0,
+      20.0,
+      34.0,
+      52.0,
+      74.0,
+      100.0,
+      130.0
+    ],
+    "coordination_sequence_truncated": false,
+    "n_metal_nodes": 6,
+    "n_edges": 12,
+    "n_linkers": 12,
+    "linkers_per_metal": 2.0,
+    "ring_sizes": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "rings_per_node": {
+      "4": {
+        "per_cell": 0.75,
+        "per_node": 0.125,
+        "truncated": false
+      },
+      "5": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "6": {
+        "per_cell": 0.6667,
+        "per_node": 0.111111,
+        "truncated": false
+      },
+      "7": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "8": {
+        "per_cell": 3.0,
+        "per_node": 0.5,
+        "truncated": false
+      }
+    },
+    "rings_truncated": false
+  },
+  "net_summary": {
+    "n_nodes": 6,
+    "n_edges": 12,
+    "n_linkers": 12,
+    "sbu_contraction": true,
+    "warnings": []
+  },
+  "generated_at": "2026-11-05T20:34:13+08:00",
+  "generated_by": {
+    "algorithm": "topology-v2-sbu",
+    "command": "python -c \"from cifkit.topology import regenerate_bundled_references as r; print(r())\""
+  },
+  "selection_reason": "ZIF-8（Zn(2-甲基咪唑)2，RCSR sod，CoRE ASR 计算就绪、H 完整，138 原子）；用于核实 NCR 原始缺氢 ZIF-8 的 sod 拓扑"
+}

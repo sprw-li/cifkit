@@ -32,6 +32,30 @@ from spec import (  # noqa: E402  (同目录模块)
 
 UA_NOTE = "COD data are in the public domain; AFLOW usage terms apply (see aflow.org)."
 
+#: base directory used to store relative paths in provenance (CLI may retarget it)
+REL_BASE = ROOT
+
+
+def retarget(outdir: Path) -> None:
+    """Write structures/provenance under ``<outdir>/data/`` instead of the use case dir.
+
+    Kept as a separate helper so ``cifkit/usecases_cli.py`` can import this module and
+    call ``main(["--outdir", ...])`` without touching the repo copy of u1_fd3m.
+    """
+    global STRUCT_DIR, PROVENANCE_JSON, REL_BASE
+    out = Path(outdir).expanduser().resolve()
+    STRUCT_DIR = out / "data" / "structures"
+    PROVENANCE_JSON = out / "data" / "provenance.json"
+    REL_BASE = out
+
+
+def _relative(path: Path) -> str:
+    """Relative path when it is under the current base, absolute otherwise."""
+    try:
+        return str(path.relative_to(REL_BASE))
+    except ValueError:
+        return str(path)
+
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -62,7 +86,7 @@ def fetch_cod(entry: dict) -> dict:
         "cache_path": str(cif_path),
         "cache_reused": bool(fetched.provenance.get("cache_reused")),
         "license": "COD public domain (https://www.crystallography.net/cod/)",
-        "local_cif": str(out.relative_to(ROOT)),
+        "local_cif": _relative(out),
         "fetched_at": fetched.provenance.get("fetched_at"),
     }
 
@@ -87,16 +111,20 @@ def fetch_aflow(entry: dict) -> dict:
         "cache_path": str(cif_path),
         "cache_reused": bool(prov.get("cache_reused")),
         "license": "AFLOW usage terms (https://aflow.org/)",
-        "local_cif": str(out.relative_to(ROOT)),
+        "local_cif": _relative(out),
         "fetched_at": prov.get("fetched_at"),
         "composition_aflow": structure.composition.reduced_formula,
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--force", action="store_true", help="已有本地 CIF 也重新抓取")
-    args = ap.parse_args()
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="输出根目录（默认 usecases/u1_fd3m；给出时写到 <outdir>/data/）")
+    args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
 
     STRUCT_DIR.mkdir(parents=True, exist_ok=True)
     PROVENANCE_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -118,7 +146,7 @@ def main() -> int:
                 row = dict(old_entries[entry["key"]])
                 row["sha256"] = sha256_bytes(data)
                 row["bytes"] = len(data)
-                row["local_cif"] = str(out.relative_to(ROOT))
+                row["local_cif"] = _relative(out)
                 row["note"] = "本次 --force 未启用，沿用已有本地 CIF 与上次抓取的 provenance"
             else:
                 row = {
@@ -127,7 +155,7 @@ def main() -> int:
                     "url": entry["url"], "search": entry["search"],
                     "sha256": sha256_bytes(data), "bytes": len(data),
                     "cache_path": "(local, fetched earlier)", "cache_reused": True,
-                    "license": UA_NOTE, "local_cif": str(out.relative_to(ROOT)),
+                    "license": UA_NOTE, "local_cif": _relative(out),
                     "fetched_at": "earlier run",
                     "note": "本次 --force 未启用，沿用已有本地 CIF（无上次 provenance 记录）",
                 }

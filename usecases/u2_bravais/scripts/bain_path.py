@@ -43,6 +43,14 @@ SYMPREC = 0.01                   # 严格：只有精确特殊度量才判为立
 SYMPREC_LOOSE = 0.05             # 默认容差，用于展示"容差窗口"
 
 
+def retarget(outdir) -> None:
+    """Write CSV/PNG under ``<outdir>/data`` and ``<outdir>/figures``."""
+    global DATA, FIG
+    out = Path(outdir).expanduser().resolve()
+    DATA = out / "data"
+    FIG = out / "figures"
+
+
 def scan_one(r: float, symprec: float) -> dict:
     s = bct(r, a_t=A_T)
     info = spg_info(s, symprec=symprec)
@@ -70,8 +78,16 @@ def scan_one(r: float, symprec: float) -> dict:
     }
 
 
-def make_bain_data() -> list[dict]:
-    grid = np.round(np.arange(C_OVER_A_MIN, C_OVER_A_MAX + 1e-9, C_OVER_A_STEP), 2)
+def make_bain_data(
+    c_over_a_min: float | None = None,
+    c_over_a_max: float | None = None,
+    c_over_a_step: float | None = None,
+) -> list[dict]:
+    """Scan the Bain path; the optional range is what ``cifkit bravais`` exposes."""
+    lo = C_OVER_A_MIN if c_over_a_min is None else float(c_over_a_min)
+    hi = C_OVER_A_MAX if c_over_a_max is None else float(c_over_a_max)
+    step = C_OVER_A_STEP if c_over_a_step is None else float(c_over_a_step)
+    grid = np.round(np.arange(lo, hi + 1e-9, step), 2)
     points = sorted({float(r) for r in grid} | {1.0, math.sqrt(2)})
     return [scan_one(r, SYMPREC) for r in points]
 
@@ -204,8 +220,25 @@ def plot_cells():
     return out
 
 
-def main() -> int:
-    rows = make_bain_data()
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="输出根目录（默认 usecases/u2_bravais）")
+    ap.add_argument("--bain-range", default=None,
+                    help="扫描范围 START:STOP:STEP（默认 0.9:1.7:0.01）")
+    args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
+    range_args = None
+    if args.bain_range:
+        parts = str(args.bain_range).split(":")
+        if len(parts) != 3:
+            raise SystemExit("--bain-range 需要 START:STOP:STEP，例如 0.9:1.7:0.01")
+        range_args = tuple(float(p) for p in parts)
+
+    rows = make_bain_data(*(range_args or ()))
     path = write_csv(rows, DATA / "bain_path.csv")
     tol = write_csv(make_tolerance_table(), DATA / "bain_tolerance.csv")
     f1 = plot_symmetry(rows)

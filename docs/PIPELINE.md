@@ -227,7 +227,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 附加：`tests/test_cli.py` 增加 UTF-16 spec 用例（8 条），应用层支持 UTF-16BE。
 
 附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
-测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；数据源扩展后全量为 **145**）。
+测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；数据源扩展后全量为 **226**）。
 
 ### 8.2 数据源扩展（CoRE MOF / COD / Materials Project / AFLOW）
 
@@ -249,20 +249,55 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 - 路由：intent `cif-structure-pipeline` 增加数据源关键词与 examples；评测 79 条全过、
   负例 0/25；`ci.py --fast` exit 0。
 - 测试：新增 `tests/test_sources_mp_aflow.py`（11 条，MP mock + AFLOW mock/live + auto 选源）、
-  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **145** 条。
+  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **226** 条。
 
 ### 8.3 进阶应用套件（第 5 轮 4 个测试实例）
 
-`usecases/` 下新增 4 个可复跑工作流，对应技能 `catalog/cif-usecases/SKILL.md`：
+`usecases/` 下新增 4 个可复跑工作流，对应技能 `catalog/cif-usecases/SKILL.md`。Round 2 起，
+它们已固化成 `cifkit` 的 4 个子命令（实现：`cifkit/usecases_cli.py`，内部 **import 原脚本函数**，
+不拼 subprocess；`--json` 时 stdout 纯 JSON、脚本日志走 stderr；产物只写 `--outdir`）：
 
-| 需求 | 目录 | 关键产物 | 自检 |
-|---|---|---|---|
-| Fd-3m 点群典例教学图 | `usecases/u1_fd3m/` | 6 个真实结构 2×3 面板 PNG（spglib 全部 #227）、讲稿 README | `make_figure.py` 可复跑 |
-| cF vs tI / 14 种布拉维 | `usecases/u2_bravais/` | Bain 路径 CSV(82)+图、14 种点阵表、12 组等价实测、report.md | `bain_path.py`/`bravais14.py` |
-| 纯金属晶格+表面能输入 | `usecases/u3_metals/` | 69 种金属 × bulk/slab/POSCAR/INCAR/KPOINTS、summary.csv、kit.zip | `verify_deliverables.py` 28/28 |
-| Fe-C 化合物/相图套件 | `usecases/u4_fec/` | 7 结构、0K 凸包图、相图笔记、VASP 模板、kit.zip | `build_hull.py` 断言 Fe3C=+0.0456 |
+```powershell
+& $PY -m cifkit teach   --spacegroup Fd-3m --outdir runs\uc\fd3m [--offline] [--json]
+& $PY -m cifkit bravais --outdir runs\uc\bravais [--bain-range 0.9:1.7:0.01] [--json]
+& $PY -m cifkit metals  --outdir runs\uc\metals [--elements all|Fe,Cu,Mg] [--zip] [--json]
+& $PY -m cifkit fec     --outdir runs\uc\fec [--zip] [--json]
+```
 
-Lead 独立验收：`python usecases/verify_usecases.py` → 22/22 PASS。
-路由：新增 intent `cif-advanced-usecases` + 4 条评测；eval 84/84、负例 0/25、槽位 11/11。
+注册方式（`cifkit/cli.py` 由 Lead 加两行，本模块不改 cli.py）：
+
+```python
+from cifkit.usecases_cli import register as register_usecase_commands
+register_usecase_commands(sub)      # build_parser() 末尾，return p 之前
+```
+
+注册前等价入口：`python -m cifkit.usecases_cli <cmd> ...`（测试自动检测两者）。
+
+| 需求 | 子命令 | 目录（旧脚本 fallback） | 关键产物 | 自检 |
+|---|---|---|---|---|
+| Fd-3m 点群典例教学图 | `teach` | `usecases/u1_fd3m/` | `data/structures/`+`data/examples.csv`+`figures/fd3m_examples.png`（spglib 全部 #227） | `pytest tests/test_usecase_cli.py` |
+| cF vs tI / 14 种布拉维 | `bravais` | `usecases/u2_bravais/` | `data/{bain_path,bain_tolerance,bravais14,equivalences,hR_alpha_scan}.csv` + 3 张 PNG | 同上 |
+| 纯金属晶格+表面能输入 | `metals` | `usecases/u3_metals/` | `elements/<El>/{bulk,slab,POSCAR,INCAR,KPOINTS}`、`metals_summary.csv`、`metals_kit.zip` | 同上 |
+| Fe-C 化合物/相图套件 | `fec` | `usecases/u4_fec/` | 7 结构、`data/hull_points.csv`、`figures/fe_c_hull.png`、`vasp_inputs/`、`fe_c_kit.zip` | 同上（断言 Fe3C=+0.0456） |
+
+实测（2026-11-05，`.venv`）：`teach --offline` → 6/6 #227（约 6 s）；`bravais --bain-range 0.9:1.7:0.05`
+→ bain 18 点、14/14 点阵、12 组等价、3 PNG（约 6 s）；`metals --elements Fe,Cu,Mg` → 3/3 元素、
+每元素 7 个文件、真空 15.0 Å（约 5 s）；`fec --zip` → 7 结构、10 个 vasp_inputs 目录、
+Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_usecase_cli.py -q` → 12 passed + 1 skipped（全量 opt-in），约 28 s。
+四命令 `--json` 均 stdout 可 `json.loads`；`teach --spacegroup Pnma` / `bravais --bain-range 1.7:0.9` /
+`metals --elements Xx` 均非 0 退出且报错清晰。
+
+旧交付物独立验收仍可用：`python usecases/verify_usecases.py` → 22/22 PASS。
+路由：intent `cif-advanced-usecases` + 4 条评测（`cif-usecases` 技能不变）。
 数据源经验：AFLOW CIF 的 PAW 势名归一化（已修在 `sources/aflow.py`）；AFLUX 的 `spacegroup_relax` 过滤不可靠，
 必须客户端过滤；LIB1 不能按最低 energy_atom 选元素基态；无 MP key 时不伪造 MP 结果。
+
+### 8.4 round 2 的工程化改进（并发/性能/数据源）
+
+- `cifkit batch`：多结构并发（独立子进程 + batch_manifest.json）；3 条 demo 串行 41.0 s → 并发 14.8 s。
+- `make_slab` 进程内缓存：同参数第二次 2.12 s → 0.014 s；键含结构 hash + 全部几何参数。
+- CoRE 索引构建：`cifkit/locks.py` 文件锁 + 原子写，3 进程并发冷建 8300 条无损坏；
+  `scripts/bootstrap_data.py --check` 可诊断冷启动缓存。
+- 数据源：`qmof` 本地镜像适配器（官方 figshare/GitHub 本环境不可达 → 未 live 实测，诚实标注；
+  缺失时报可操作错误）。
+- 细节：[docs/PERFORMANCE.md](PERFORMANCE.md)、[docs/ROBUSTNESS.md](ROBUSTNESS.md)。

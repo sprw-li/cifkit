@@ -1,0 +1,84 @@
+{
+  "schema": "cifkit/net-signature/v1",
+  "net": "dia",
+  "signature_version": "topology-v2-sbu",
+  "source": {
+    "record_id": "core-mof:SI/CR/ASR/2017[Ni][dia]3[ASR]3.cif",
+    "refcode": "ja6b10455_si_002_ASR_pacman",
+    "coreid": "2017[Ni][dia]3[ASR]3",
+    "doi": "10.1021/jacs.6b10455",
+    "natoms": 54,
+    "formula": "Ni2 H16 C24 N4 O8",
+    "spacegroup": "P 1"
+  },
+  "cif": "dia-reference.cif",
+  "cif_sha256": "e4bf563723e7913db116857eac498ee6405a7bc6cd3210bdb80631a9bf3e2210",
+  "signature": {
+    "coordination_numbers": {
+      "4": 1.0
+    },
+    "coordination_sequence": [
+      4.0,
+      12.0,
+      24.0,
+      42.0,
+      64.0,
+      92.0,
+      124.0,
+      162.0
+    ],
+    "coordination_sequence_truncated": false,
+    "n_metal_nodes": 2,
+    "n_edges": 4,
+    "n_linkers": 4,
+    "linkers_per_metal": 2.0,
+    "ring_sizes": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "rings_per_node": {
+      "4": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "5": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "6": {
+        "per_cell": 0.6667,
+        "per_node": 0.333333,
+        "truncated": false
+      },
+      "7": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "8": {
+        "per_cell": 0.75,
+        "per_node": 0.375,
+        "truncated": false
+      }
+    },
+    "rings_truncated": false
+  },
+  "net_summary": {
+    "n_nodes": 2,
+    "n_edges": 4,
+    "n_linkers": 4,
+    "sbu_contraction": true,
+    "warnings": []
+  },
+  "generated_at": "2026-11-05T20:34:13+08:00",
+  "generated_by": {
+    "algorithm": "topology-v2-sbu",
+    "command": "python -c \"from cifkit.topology import regenerate_bundled_references as r; print(r())\""
+  },
+  "selection_reason": "Ni 基 dia 拓扑 MOF（54 原子，小体系）；contract 后 4 配位、配位序列与环分布完整，适合作为 dia 参考指纹"
+}

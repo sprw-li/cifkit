@@ -138,13 +138,26 @@ def check_structure(
         if symbol == "N" and graph.metal_bond_count(atom) and order_sum == 4.0:
             continue  # metal-coordinated aromatic N (imine-like) is fine
         if symbol == "O":
-            # Carboxylate/carbonate oxygen: a deprotonated, uncoordinated O
-            # legitimately has bond sum 1; a metal-coordinated O with one
-            # short C-O can reach 3 (the dative metal bond is counted as 1).
-            if graph.metal_bond_count(atom) and abs(order_sum - 3.0) < 0.01:
+            # Oxygen in carboxylate MOFs can be:
+            #  * a normal O with bond sum 2;
+            #  * a carboxylate O: deprotonated uncoordinated O has sum 1,
+            #    metal-coordinated O with one short C-O reaches 2-3 (the
+            #    dative M-O bond is counted as order 1);
+            #  * a mu3/mu4 cluster O: pure coordination (sum == metal bonds,
+            #    i.e. 3 for mu3-oxo / 4 for mu4-oxo) or a mu-OH
+            #    (sum == metal bonds + 1 with exactly one H).
+            metal_bonds = graph.metal_bond_count(atom)
+            h_count = graph.h_neighbor_count(atom)
+            if is_carboxylate_oxygen(graph, atom) and abs(order_sum - round(order_sum)) < 0.01 and 1.0 <= order_sum <= 3.0:
                 continue
-            if abs(order_sum - 1.0) < 0.01 and is_carboxylate_oxygen(graph, atom):
-                continue
+            if metal_bonds and abs(order_sum - metal_bonds) < 0.01:
+                continue  # pure coordination: mu3-O / mu4-O oxo, or bridging O
+            if (
+                metal_bonds
+                and h_count == 1
+                and abs(order_sum - (metal_bonds + 1)) < 0.01
+            ):
+                continue  # mu3-OH / mu4-OH (one H + metal coordination)
         if any(abs(order_sum - value) < 0.01 for value in expected):
             continue
         bad_hetero.append(

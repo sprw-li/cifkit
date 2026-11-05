@@ -22,6 +22,7 @@ metallic Fe-C carbides, not converged settings for publication.
 """
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 from pathlib import Path
@@ -210,9 +211,15 @@ def write_reference_cells(vasp_dir: Path) -> None:
             encoding="utf-8")
 
 
-def main() -> int:
-    vasp_dir = KIT / "vasp_inputs"
-    struct_dir = KIT / "structures"
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--kit", type=Path, default=None,
+                    help="kit 根目录（默认 usecases/u4_fec；给出时读写都指向它）")
+    args = ap.parse_args(argv)
+    kit = Path(args.kit).expanduser().resolve() if args.kit else KIT
+
+    vasp_dir = kit / "vasp_inputs"
+    struct_dir = kit / "structures"
     if vasp_dir.exists():
         shutil.rmtree(vasp_dir)
     vasp_dir.mkdir(parents=True)
@@ -220,7 +227,7 @@ def main() -> int:
     # names that exist in both structures/ and data/fe_c_compounds.csv
     import csv as _csv
     names = []
-    with (KIT / "data" / "fe_c_compounds.csv").open(encoding="utf-8-sig") as fh:
+    with (kit / "data" / "fe_c_compounds.csv").open(encoding="utf-8-sig") as fh:
         for row in _csv.DictReader(fh):
             names.append((row["name"], row["formula"],
                           f"{row['spacegroup_number']} ({row['spacegroup_symbol']})",

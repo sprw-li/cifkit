@@ -23,6 +23,7 @@ justify is reported in :attr:`BondGraph.warnings` instead of being guessed.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable
 
@@ -67,6 +68,14 @@ H_BOND_LENGTH: dict[str, float] = {
 }
 # Elements that can form aromatic rings / accept ring pi bonds.
 AROMATIC_ELEMENTS = {"B", "C", "N", "O", "P", "S", "Se"}
+
+# A metal–X pair is only treated as a coordination bond when X is one of these
+# donor elements.  Metal–carbon contacts in carboxylate MOFs (Zr...C ~ 3.2 A,
+# Cu...C ~ 2.8 A) are *through-space* contacts, not bonds; without this filter
+# they would inflate the carbon bond-order sum to 5-6 and suppress ring C–H.
+# Consequence (documented): genuine organometallic metal–C sigma bonds are not
+# modelled by the repair layer.
+METAL_COORDINATING_ELEMENTS = {"N", "O", "S", "Se", "P", "F", "Cl", "Br", "I", "Te"}
 
 _METAL_CACHE: dict[str, bool] = {}
 _FALLBACK_METALS = {
@@ -176,6 +185,7 @@ class BondGraph:
     aromatic_atoms: set[int] = field(default_factory=set)
     aromatic_bonds: set[tuple] = field(default_factory=set)
     warnings: list[str] = field(default_factory=list)
+    metal_coordination: bool = False  # True if any metal-donor bond was found
 
     # -- basic helpers ------------------------------------------------------
     @property
@@ -297,6 +307,13 @@ def perceive_bonds(
                 continue  # metal–metal contacts are not coordination bonds
             if symbols[a] == "H" and symbols[b] == "H":
                 continue
+            if metals[a] or metals[b]:
+                # Only donor atoms count as coordination bonds (see
+                # METAL_COORDINATING_ELEMENTS); metal...C/M...H contacts are
+                # through-space and would corrupt the organic valence.
+                donor = b if metals[a] else a
+                if symbols[donor] not in METAL_COORDINATING_ELEMENTS:
+                    continue
             img = tuple(int(x) for x in off)
             factor = metal_factor if (metals[a] or metals[b]) else covalent_factor
             if float(dist) >= factor * (radii[a] + radii[b]):
@@ -322,6 +339,9 @@ def perceive_bonds(
         adj=adj,
         metals=metals,
         by_key=by_key,
+    )
+    graph.metal_coordination = any(
+        bond.metal for atom in range(n) for bond in adj[atom]
     )
     _assign_bond_orders(graph)
     return graph
@@ -678,6 +698,82 @@ def _solve_kekule_component(
 
 
 # ---------------------------------------------------------------------------
+# Cluster oxygen classification (mu3/mu4 oxo vs hydroxo)
+# ---------------------------------------------------------------------------
+def classify_cluster_oxygen(
+    graph: BondGraph,
+    *,
+    min_metal_bonds: int = 3,
+    gap_threshold: float = 0.10,
+) -> tuple[dict[int, str], list[str]]:
+    """Classify H-free cluster oxygen atoms (mu3/mu4) as ``oxo`` or ``hydroxo``.
+
+    Criterion
+    ---------
+    Oxygen atoms bonded to ``>= min_metal_bonds`` metal atoms and carrying no
+    H are grouped by (metal element, metal coordination number).  Inside a
+    group the mean M–O distance is used: if the distances split into two
+    families separated by at least ``gap_threshold`` Angstrom, the *longer*
+    family is assigned to ``hydroxo`` (mu-OH, one H needed) and the shorter
+    one to ``oxo`` (no H).  This is exactly the UiO-66 ``Zr6O4(OH)4`` cluster:
+    mu3-O has Zr–O ~2.065 A while mu3-OH has ~2.268 A.
+
+    If a group is a single atom or its distances are a continuum, the oxygen
+    is conservatively treated as ``oxo`` (no H added) and a warning is
+    recorded: geometry alone cannot always distinguish oxo from hydroxo.
+
+    Returns
+    -------
+    (labels, warnings)
+        ``labels`` maps O atom index -> ``"oxo"`` / ``"hydroxo"`` (only for
+        the H-free cluster oxygens considered); ``warnings`` are human
+        readable caveats.
+    """
+    groups: dict[tuple, list[tuple[int, float]]] = defaultdict(list)
+    for atom in range(graph.n_atoms):
+        if graph.symbols[atom] != "O":
+            continue
+        metal_bonds = [bond for bond in graph.adj.get(atom, ()) if bond.metal]
+        if len(metal_bonds) < min_metal_bonds:
+            continue
+        if graph.h_neighbor_count(atom):
+            continue
+        metal_key = tuple(sorted({graph.symbols[bond.j] for bond in metal_bonds}))
+        mean_distance = sum(bond.distance for bond in metal_bonds) / len(metal_bonds)
+        groups[(metal_key, len(metal_bonds))].append((atom, mean_distance))
+
+    labels: dict[int, str] = {}
+    warnings: list[str] = []
+    for (metal_key, coordination), items in sorted(groups.items(), key=lambda kv: str(kv[0])):
+        ordered = sorted(items, key=lambda item: item[1])
+        if len(ordered) < 2:
+            labels[ordered[0][0]] = "oxo"
+            continue
+        distances = [distance for _atom, distance in ordered]
+        gaps = [
+            (distances[index + 1] - distances[index], index)
+            for index in range(len(distances) - 1)
+        ]
+        best_gap, split = max(gaps)
+        spread = distances[-1] - distances[0]
+        if best_gap >= gap_threshold and spread >= 1.5 * gap_threshold:
+            for atom, _distance in ordered[: split + 1]:
+                labels[atom] = "oxo"
+            for atom, _distance in ordered[split + 1 :]:
+                labels[atom] = "hydroxo"
+        else:
+            for atom, _distance in ordered:
+                labels[atom] = "oxo"
+            if spread >= 0.08:
+                warnings.append(
+                    f"μ{coordination}-O（{','.join(metal_key)}）M–O 距离分布连续 "
+                    f"({distances[0]:.2f}–{distances[-1]:.2f} Å)，无法仅凭几何区分 oxo/OH，"
+                    "保守按 oxo 不补 H"
+                )
+    return labels, warnings
+
+
+# ---------------------------------------------------------------------------
 # Hydrogen demand
 # ---------------------------------------------------------------------------
 @dataclass
@@ -700,15 +796,25 @@ def hydrogen_demand(graph: BondGraph) -> list[HydrogenDemand]:
 
     Rules (see ``docs/REPAIR.md``):
 
-    * C: 4 - bond order sum.
+    * C: 4 - bond order sum.  This covers aromatic BDC/BTC ring carbons whose
+      C–H is missing; the Kekulé bond orders already account for the ring pi
+      bond, so exactly one H is requested per unsubstituted aromatic C.
     * N: 3 - bond order sum, but a metal-coordinated N gets **no** H (the
       metal bond fills its valence: ZIF-8 imidazolate N).
-    * O: 2 - bond order sum; a metal-coordinated O gets no H; a deprotonated
-      carboxylate O is treated as anionic (no H) and reported.
+    * O: 2 - bond order sum, with three metal-oxide specific rules:
+        1. carboxylate O (–COO–): metal-coordinated / anionic O gets **no**
+           H.  Only when the whole structure has no metal coordination at all
+           (a free carboxylic-acid crystal / molecule) is one O–H added.
+        2. cluster O with >=3 metal bonds (mu3/mu4): oxo -> no H;
+           mu-OH (longer M–O family, see :func:`classify_cluster_oxygen`)
+           -> exactly one H (UiO-66 Zr6O4(OH)4).
+        3. other metal-coordinated O: no H (bridging/chelating O).
     * S/P/B/Si/Se: same idea with their neutral valence.
     * Atoms with no bonds at all are only protonated when no metal is nearby
       (otherwise the missing bond is a missed coordination bond, not an H).
     """
+    cluster_labels, cluster_warnings = classify_cluster_oxygen(graph)
+    graph.warnings.extend(cluster_warnings)
     demands: list[HydrogenDemand] = []
     n = graph.n_atoms
     for atom in range(n):
@@ -738,15 +844,37 @@ def hydrogen_demand(graph: BondGraph) -> list[HydrogenDemand]:
         reason = "valence"
         detail = ""
         missing = target - order_sum
+        special = False
 
-        if metal_bonds and symbol in {"N", "O", "S", "Se"}:
+        if symbol == "O" and metal_bonds >= 3 and existing_h == 0:
+            # mu3/mu4 cluster oxygen: oxo (no H) vs hydroxo (one H)
+            label = cluster_labels.get(atom, "oxo")
+            if label == "hydroxo":
+                missing = 1.0
+                reason = "cluster-hydroxyl"
+                detail = (
+                    f"μ{metal_bonds}-OH：同组 O–M 距离明显偏长（欠饱和簇氧），补 1 个 H"
+                )
+            else:
+                missing = 0.0
+                reason = "cluster-oxo"
+                detail = f"μ{metal_bonds}-O 簇氧（oxo），不补 H"
+            special = True
+        elif metal_bonds and symbol in {"N", "O", "S", "Se"}:
             missing = 0.0
             reason = "metal-coordinated"
             detail = f"{symbol} 与金属配位（{metal_bonds} 个金属键），按价态不补 H"
-        elif symbol == "O" and missing > 0.01 and _is_carboxylate_oxygen(graph, atom):
-            missing = 0.0
-            reason = "carboxylate-O"
-            detail = "羧酸根 O 视为去质子化阴离子，不补 H（若确为 -COOH，需提供化学式/电荷信息）"
+        elif symbol == "O" and missing > 0.01 and is_carboxylate_oxygen(graph, atom):
+            if graph.metal_coordination:
+                missing = 0.0
+                reason = "carboxylate-O"
+                detail = (
+                    "羧酸根 O（金属配位/桥联或去质子化阴离子），不补 H；"
+                    "若确为自由 -COOH 需提供无金属的分子结构"
+                )
+            else:
+                reason = "free-carboxylic-acid"
+                detail = "结构中无任何金属配位键，按自由羧酸补 1 个 O–H"
 
         if missing > 0.01 and symbol in {"C", "N", "O", "S", "P", "B", "Si", "Se"}:
             missing_int = int(round(missing))
@@ -757,11 +885,11 @@ def hydrogen_demand(graph: BondGraph) -> list[HydrogenDemand]:
         if missing_int > 0 and abs(missing - missing_int) > 0.15:
             missing_int = int(np.floor(missing + 1e-6))
 
-        if missing_int:
+        if missing_int and not special:
             # do not over-protonate: at most the remaining sigma slots
             max_extra = max(0, target - graph.h_neighbor_count(atom) - int(round(order_sum - existing_h)))
             missing_int = max(0, min(missing_int, max_extra if max_extra else missing_int))
-        if missing < -0.01:
+        if missing < -0.01 and not special:
             graph.warnings.append(
                 f"原子 {atom}({symbol}) 键级和 {order_sum:.2f} 超过中性价态 {target}"
             )

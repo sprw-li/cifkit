@@ -57,6 +57,18 @@ warnings.filterwarnings("ignore", message=".*dict interface is deprecated.*")
 HALL_CHOICE2 = 526          # Fd-3m origin choice 2（尖晶石/烧绿石教科书 setting）
 
 
+def retarget(outdir) -> None:
+    """Write data/CSV/PNG under ``<outdir>/`` instead of the use case directory."""
+    from pathlib import Path as _Path
+
+    global STRUCT_DIR, EXAMPLES_CSV, FIG_DIR, FIGURE_PNG
+    out = _Path(outdir).expanduser().resolve()
+    STRUCT_DIR = out / "data" / "structures"
+    EXAMPLES_CSV = out / "data" / "examples.csv"
+    FIG_DIR = out / "figures"
+    FIGURE_PNG = FIG_DIR / "fd3m_examples.png"
+
+
 # ---------------------------------------------------------------- 基础工具
 def sym(site) -> str:
     """占位度最高的元素符号（严格 CIF 无混占时即为唯一元素）。"""
@@ -404,10 +416,14 @@ def write_csv(analyses: list[dict], symprec: float) -> Path:
     return EXAMPLES_CSV
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--symprec", type=float, default=0.05, help="spglib 对称性容差（Å，默认 0.05）")
-    args = ap.parse_args()
+    ap.add_argument("--outdir", type=Path, default=None,
+                    help="输出根目录（默认 usecases/u1_fd3m；给出时写到 <outdir>/data 与 <outdir>/figures）")
+    args = ap.parse_args(argv)
+    if args.outdir:
+        retarget(args.outdir)
 
     plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False

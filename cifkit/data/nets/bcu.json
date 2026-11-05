@@ -1,0 +1,74 @@
+{
+  "schema": "cifkit/net-signature/v1",
+  "net": "bcu",
+  "signature_version": "topology-v2-sbu",
+  "source": {
+    "record_id": "core-mof:SI/CR/ASR/2018[Zr][bcu]3[ASR]1.cif",
+    "refcode": "ja8b07050_si_002_ASR_pacman",
+    "coreid": "2018[Zr][bcu]3[ASR]1",
+    "doi": "10.1021/jacs.8b07050",
+    "natoms": 70,
+    "formula": "Zr6 H16 C24 O24",
+    "spacegroup": "P 1"
+  },
+  "cif": "bcu-reference.cif",
+  "cif_sha256": "845e2ae388b964d722219059b1d9706b1c3a585df05f340658c2db7783276182",
+  "signature": {
+    "coordination_numbers": {
+      "8": 1.0
+    },
+    "coordination_sequence": [
+      8.0,
+      26.0,
+      56.0,
+      98.0,
+      152.0,
+      218.0,
+      296.0,
+      386.0
+    ],
+    "coordination_sequence_truncated": false,
+    "n_metal_nodes": 1,
+    "n_edges": 4,
+    "n_linkers": 4,
+    "linkers_per_metal": 4.0,
+    "ring_sizes": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "rings_per_node": {
+      "4": {
+        "per_cell": 3.0,
+        "per_node": 3.0,
+        "truncated": false
+      },
+      "5": {
+        "per_cell": 0.0,
+        "per_node": 0.0,
+        "truncated": false
+      },
+      "6": {
+        "per_cell": 24.6667,
+        "per_node": 24.666667,
+        "truncated": true
+      }
+    },
+    "rings_truncated": true
+  },
+  "net_summary": {
+    "n_nodes": 1,
+    "n_edges": 4,
+    "n_linkers": 4,
+    "sbu_contraction": true,
+    "warnings": []
+  },
+  "generated_at": "2026-11-05T20:34:15+08:00",
+  "generated_by": {
+    "algorithm": "topology-v2-sbu",
+    "command": "python -c \"from cifkit.topology import regenerate_bundled_references as r; print(r())\""
+  },
+  "selection_reason": "Zr6 基 bcu MOF（Zr6 H16 C24 O24，topology(AllNodes)=bcu）；SBU 收缩后 8 配位，配位序列与 tbo/pcu 可区分"
+}

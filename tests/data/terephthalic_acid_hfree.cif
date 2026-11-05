@@ -1,0 +1,50 @@
+# generated using pymatgen
+data_HC2O
+_symmetry_space_group_name_H-M   'P 1'
+_cell_length_a   15.00000000
+_cell_length_b   15.00000000
+_cell_length_c   15.00000000
+_cell_angle_alpha   90.00000000
+_cell_angle_beta   90.00000000
+_cell_angle_gamma   90.00000000
+_symmetry_Int_Tables_number   1
+_chemical_formula_structural   HC2O
+_chemical_formula_sum   'H4 C8 O4'
+_cell_volume   3375.00000000
+_cell_formula_units_Z   4
+loop_
+ _symmetry_equiv_pos_site_id
+ _symmetry_equiv_pos_as_xyz
+  1  'x, y, z'
+loop_
+ _atom_site_type_symbol
+ _atom_site_label
+ _atom_site_symmetry_multiplicity
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  O  O0  1  0.25723006  0.44867226  0.46725969  1
+  C  C1  1  0.30739043  0.49862055  0.50687928  1
+  O  O2  1  0.27611512  0.56244621  0.56148350  1
+  C  C3  1  0.40614177  0.49748423  0.50181263  1
+  C  C4  1  0.44691521  0.43384223  0.44696508  1
+  C  C5  1  0.53982718  0.43038706  0.44020551  1
+  C  C6  1  0.59268950  0.49054694  0.48824087  1
+  C  C7  1  0.69094736  0.48435702  0.47897449  1
+  O  O8  1  0.73102550  0.43105349  0.43278918  1
+  O  O9  1  0.73441600  0.54540260  0.52814149  1
+  C  C10  1  0.55195621  0.55421281  0.54310686  1
+  C  C11  1  0.45896891  0.55767084  0.54987184  1
+  H  H12  1  0.40655595  0.38671382  0.40929107  1
+  H  H13  1  0.57072381  0.38060883  0.39734745  1
+  H  H14  1  0.59189321  0.60148239  0.58091669  1
+  H  H15  1  0.42851899  0.60755800  0.59280241  1
+# 
+# SYNTHETIC free carboxylic-acid fixture (metal-free molecular crystal):
+# terephthalic acid HOOC-C6H4-COOH generated with RDKit ETKDG (seed 42),
+# MMFF94 optimised, then the two acidic O-H hydrogens removed.
+# Formula: C8 H4 O4 (16 atoms) in a 15 A cubic box.
+# Expected H after repair: 2 (both free -COOH O-H); ring C-H are already present.
+# Purpose: verify that free carboxylic acid gets O-H while metal-coordinated
+# carboxylate O (MOF-5/UiO-66/HKUST-1 fixtures) does not.

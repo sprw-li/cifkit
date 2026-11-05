@@ -27,13 +27,27 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
+import re
 from collections import Counter, defaultdict, deque
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-__all__ = ["verify", "describe", "underlying_net", "is_metal_symbol", "signature"]
+__all__ = [
+    "verify",
+    "identify",
+    "describe",
+    "underlying_net",
+    "is_metal_symbol",
+    "signature",
+    "signature_base",
+    "available_reference_nets",
+    "load_reference",
+    "write_net_reference",
+]
 
 # ---------------------------------------------------------------------------
 # 元素 / 成键判据
@@ -50,6 +64,11 @@ _COORD_DEPTH = 8
 _CS_MAX_STATES = 8000      # 每个起点的配位序列 BFS 状态上限（防止稠密 net 爆炸）
 _RING_PATH_CAP = 20000     # 每个（环大小, 起点）的 DFS 访问上限
 _RING_BUDGET = 150000      # 一次环统计的总访问上限
+
+#: 落盘参考签名目录（随包分发：cifkit/data/nets/<net>.json + <net>-reference.cif）
+NETS_DATA_DIR = Path(__file__).resolve().parent / "data" / "nets"
+REFERENCE_SCHEMA = "cifkit/net-signature/v1"
+_SIGNATURE_VERSION = "topology-v2-sbu"
 
 
 def _element(sym: str):
@@ -121,44 +140,30 @@ def _bond_graph(structure) -> tuple[dict[int, list[tuple[int, tuple[int, int, in
 # ---------------------------------------------------------------------------
 # underlying net（LQG：节点 + 经 linker 的连接 + 平移向量）
 # ---------------------------------------------------------------------------
-def _build_net(structure):
-    """Return ``(net, reason)``; ``net`` is None when no metal node exists."""
-    adjacency, elements, warnings = _bond_graph(structure)
-    metals = [i for i, sym in enumerate(elements) if is_metal_symbol(sym)]
-    if not metals:
-        return None, {
-            "reason": "未识别到金属节点（主族元素/无金属体系），本工具不做拓扑断言",
-            "warnings": warnings,
-        }
-    metal_set = set(metals)
+def _nonmetal_components(adjacency, elements, metal_set) -> list[dict[str, Any]]:
+    """去掉金属后的非金属连通分量 = 有机 linker 分子或无机桥连单元。
 
-    # 1) 去掉金属后，有机/阴离子部分按周期成键图取连通分量 = linker 分子
+    对每个分量沿成键图传播平移量（整数组），得到"分量根 frame"下的金属配位点
+    ``(metal_index, translation)``；跨晶胞边界的分子也能正确还原。
+    """
     visited: set[int] = set()
-    components: list[list[int]] = []
+    components: list[dict[str, Any]] = []
     for start in range(len(elements)):
         if start in metal_set or start in visited:
             continue
-        comp: list[int] = []
+        atoms: list[int] = []
         queue = deque([start])
         visited.add(start)
         while queue:
             atom = queue.popleft()
-            comp.append(atom)
+            atoms.append(atom)
             for nb, _off in adjacency.get(atom, ()):
                 if nb in metal_set or nb in visited:
                     continue
                 visited.add(nb)
                 queue.append(nb)
-        components.append(comp)
-
-    # 2) 对每个 linker 分子传播平移量，把分子摆回同一个物理位置块；
-    #    这样跨晶胞边界的 linker 也能得到正确的金属-金属相对平移 (LQG 的 shift)。
-    edges: dict[int, list[tuple[int, tuple[int, int, int]]]] = defaultdict(list)
-    linkers: list[dict[str, Any]] = []
-    n_linkers = 0
-    for comp in components:
-        shifts: dict[int, tuple[int, int, int]] = {comp[0]: (0, 0, 0)}
-        queue = deque([comp[0]])
+        shifts: dict[int, tuple[int, int, int]] = {atoms[0]: (0, 0, 0)}
+        queue = deque([atoms[0]])
         consistent = True
         while queue:
             atom = queue.popleft()
@@ -173,52 +178,209 @@ def _build_net(structure):
                 else:
                     shifts[nb] = shifted
                     queue.append(nb)
-        if not consistent:
-            warnings.append(f"跳过非分子性（周期/聚合物）有机组分：{len(comp)} 个原子")
-            continue
-
         attachments: set[tuple[int, tuple[int, int, int]]] = set()
-        for atom in comp:
-            base = shifts[atom]
-            for nb, off in adjacency.get(atom, ()):
-                if nb in metal_set:
-                    attachments.add((nb, (off[0] - base[0], off[1] - base[1], off[2] - base[2])))
-        if len(attachments) < 2:
-            # 单齿配体 / 端基：不构成 net 的边
-            continue
+        if consistent:
+            for atom in atoms:
+                base = shifts[atom]
+                for nb, off in adjacency.get(atom, ()):
+                    if nb in metal_set:
+                        # metal 在该分量 frame 下的整数平移：neighbor image shift = off + atom_shift
+                        attachments.add((int(nb), (off[0] + base[0], off[1] + base[1], off[2] + base[2])))
+        components.append(
+            {
+                "atoms": atoms,
+                "consistent": consistent,
+                "has_carbon": any(elements[atom] == "C" for atom in atoms),
+                "attachments": attachments,
+            }
+        )
+    return components
 
-        n_linkers += 1
-        linkers.append({"atoms": sorted(comp), "n_attachment_sites": len(attachments)})
-        ordered = sorted(attachments)
-        for x in range(len(ordered)):
-            for y in range(x + 1, len(ordered)):
-                (m1, t1), (m2, t2) = ordered[x], ordered[y]
-                shift = (t2[0] - t1[0], t2[1] - t1[1], t2[2] - t1[2])
-                edges[m1].append((m2, shift))
-                edges[m2].append((m1, (-shift[0], -shift[1], -shift[2])))
 
-    # 3) 无连接的金属（孔道里的孤立离子）不作为 net 节点
-    connected = [m for m in metals if edges.get(m)]
-    isolated = len(metals) - len(connected)
-    if isolated:
-        warnings.append(f"{isolated} 个金属原子没有通过 linker 连接，已排除出 net")
+def _build_net_impl(structure, *, sbu: bool = True):
+    """Return ``(net, reason)``; ``net`` is None when no metal node exists.
 
-    nodes = [
-        {
-            "index": int(m),
-            "element": elements[m],
-            "frac": [float(x) for x in np.round(structure[m].frac_coords, 6)],
+    ``sbu=True``：Round2 v2 实现，含 **SBU/金属簇收缩** ——
+    * 金属–金属直接键、以及无碳无机桥连单元（μ-O/μ-OH/μ-F/μ-Cl…，连到 ≥2 个金属）
+      把相关金属并成同一个 net 节点（如 MOF-5 的 Zn4O、UiO-66 的 Zr6O4(OH)4、
+      HKUST-1 的 Cu2 paddlewheel）；
+    * 含碳的有机 linker 仍作为连接边，边两端是"金属簇节点"；
+    * 孤立金属簇不算节点；平移量（LQG shift）按各节点内部金属的整数平移传播计算。
+
+    ``sbu=False``：Round1 v1 表示（每个金属原子一个节点，所有非金属分量都当 linker），
+    用于 SBU 收缩后没有任何有机 linker 连接的无机/离子体系回退。
+    """
+    adjacency, elements, warnings = _bond_graph(structure)
+    metals = [i for i, sym in enumerate(elements) if is_metal_symbol(sym)]
+    if not metals:
+        return None, {
+            "reason": "未识别到金属节点（主族元素/无金属体系），本工具不做拓扑断言",
+            "warnings": warnings,
         }
-        for m in connected
-    ]
+    metal_set = set(metals)
+    components = _nonmetal_components(adjacency, elements, metal_set)
+
+    # ------------------------------------------------------------------
+    # 1) 金属簇（SBU）划分：union-find（v1 模式下每个金属单独一个节点）
+    # ------------------------------------------------------------------
+    parent: dict[int, int] = {m: m for m in metals}
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        root_a, root_b = find(a), find(b)
+        if root_a != root_b:
+            parent[root_a] = root_b
+
+    if sbu:
+        for metal in metals:
+            for nb, _off in adjacency.get(metal, ()):
+                if nb in metal_set and nb != metal:
+                    union(metal, nb)
+        for comp in components:
+            if not comp["consistent"] or comp["has_carbon"]:
+                continue
+            attached_metals = {metal for metal, _t in comp["attachments"]}
+            if len(attached_metals) >= 2:
+                ordered = sorted(attached_metals)
+                for metal in ordered[1:]:
+                    union(ordered[0], metal)
+
+    raw_groups: dict[int, list[int]] = defaultdict(list)
+    for metal in metals:
+        raw_groups[find(metal)].append(metal)
+    # rep = 最小原子编号，保证索引确定性
+    cluster_members = {min(members): sorted(members) for members in raw_groups.values()}
+
+    # ------------------------------------------------------------------
+    # 2) 簇内整数平移量：通过金属–金属键 / 无机桥连分量传播
+    # ------------------------------------------------------------------
+    cluster_of: dict[int, int] = {}
+    shift_of: dict[int, tuple[int, int, int]] = {}
+    if sbu:
+        relations: dict[int, list[tuple[int, tuple[int, int, int]]]] = defaultdict(list)
+        for metal in metals:
+            for nb, off in adjacency.get(metal, ()):
+                if nb in metal_set and nb != metal:
+                    relations[metal].append((int(nb), (int(off[0]), int(off[1]), int(off[2]))))
+        for comp in components:
+            if not comp["consistent"] or comp["has_carbon"]:
+                continue
+            attachments = sorted(comp["attachments"])
+            if len(attachments) < 2:
+                continue
+            (m0, t0) = attachments[0]
+            for metal, t in attachments[1:]:
+                delta = (t[0] - t0[0], t[1] - t0[1], t[2] - t0[2])
+                relations[m0].append((metal, delta))
+                relations[metal].append((m0, (-delta[0], -delta[1], -delta[2])))
+
+        for rep, members in cluster_members.items():
+            member_set = set(members)
+            assigned: dict[int, tuple[int, int, int]] = {rep: (0, 0, 0)}
+            queue = deque([rep])
+            ok = True
+            while queue:
+                atom = queue.popleft()
+                base = assigned[atom]
+                for nb, delta in relations.get(atom, ()):
+                    if nb not in member_set:
+                        continue
+                    shifted = (base[0] + delta[0], base[1] + delta[1], base[2] + delta[2])
+                    if nb in assigned:
+                        if assigned[nb] != shifted:
+                            ok = False
+                    else:
+                        assigned[nb] = shifted
+                        queue.append(nb)
+            if not ok or len(assigned) != len(members):
+                warnings.append(f"金属簇内部平移不一致，退回逐金属节点：{members}")
+                for metal in members:
+                    cluster_of[metal] = metal
+                    shift_of[metal] = (0, 0, 0)
+            else:
+                for metal in members:
+                    cluster_of[metal] = rep
+                    shift_of[metal] = assigned.get(metal, (0, 0, 0))
+    else:
+        for metal in metals:
+            cluster_of[metal] = metal
+            shift_of[metal] = (0, 0, 0)
+
+    members_by_cluster: dict[int, list[int]] = defaultdict(list)
+    for metal in metals:
+        members_by_cluster[cluster_of[metal]].append(metal)
+
+    frac = np.asarray([site.frac_coords for site in structure], dtype=float)
+    nodes_by_id: dict[int, dict[str, Any]] = {}
+    for rep in sorted(members_by_cluster):
+        members = sorted(members_by_cluster[rep])
+        positions = [frac[metal] + np.asarray(shift_of[metal], dtype=float) for metal in members]
+        center = np.mean(positions, axis=0)
+        symbols = {elements[metal] for metal in members}
+        nodes_by_id[rep] = {
+            "index": int(rep),
+            "element": symbols.pop() if len(symbols) == 1 else "+".join(sorted(symbols)),
+            "frac": [float(x) for x in np.round(center, 6)],
+            "members": members,
+            "size": len(members),
+        }
+
+    # ------------------------------------------------------------------
+    # 3) 含碳有机 linker → 连接不同金属簇节点的边（LQG shift）
+    # ------------------------------------------------------------------
+    edges: dict[int, list[tuple[int, tuple[int, int, int]]]] = defaultdict(list)
+    linkers: list[dict[str, Any]] = []
+    n_linkers = 0
+    for comp in components:
+        if not comp["consistent"]:
+            warnings.append(f"跳过非分子性（周期/聚合物）有机组分：{len(comp['atoms'])} 个原子")
+            continue
+        if sbu and not comp["has_carbon"]:
+            # 无碳无机桥已用于簇收缩；端基（只连 1 个金属）忽略
+            continue
+        sites: set[tuple[int, tuple[int, int, int]]] = set()
+        for metal, t in comp["attachments"]:
+            cluster = cluster_of[metal]
+            s = shift_of[metal]
+            sites.add((int(cluster), (t[0] - s[0], t[1] - s[1], t[2] - s[2])))
+        if len(sites) < 2:
+            continue
+        n_linkers += 1
+        linkers.append({"atoms": sorted(comp["atoms"]), "n_attachment_sites": len(sites)})
+        ordered_sites = sorted(sites)
+        for x in range(len(ordered_sites)):
+            for y in range(x + 1, len(ordered_sites)):
+                (c1, t1), (c2, t2) = ordered_sites[x], ordered_sites[y]
+                shift = (t2[0] - t1[0], t2[1] - t1[1], t2[2] - t1[2])
+                edges[c1].append((c2, shift))
+                edges[c2].append((c1, (-shift[0], -shift[1], -shift[2])))
+
+    # ------------------------------------------------------------------
+    # 4) 无连接节点（孔道里的孤立离子/孤立簇）排除出 net
+    # ------------------------------------------------------------------
+    connected = [cluster for cluster in nodes_by_id if edges.get(cluster)]
+    isolated = len(nodes_by_id) - len(connected)
+    if isolated:
+        warnings.append(f"{isolated} 个金属节点（簇）没有通过有机 linker 连接，已排除出 net")
+
+    nodes = [nodes_by_id[cluster] for cluster in sorted(connected)]
+    centers = {node["index"]: np.asarray(node["frac"], dtype=float) for node in nodes}
     edge_list: list[dict[str, Any]] = []
     lattice = structure.lattice
-    frac = np.asarray([site.frac_coords for site in structure], dtype=float)
-    for m in connected:
-        for nb, shift in edges.get(m, ()):
-            delta = frac[nb] + np.asarray(shift, dtype=float) - frac[m]
+    for cluster in sorted(connected):
+        for nb, shift in edges.get(cluster, ()):
+            if nb not in centers:
+                continue
+            delta = centers[nb] + np.asarray(shift, dtype=float) - centers[cluster]
             length = float(np.linalg.norm(lattice.get_cartesian_coords(delta)))
-            edge_list.append({"i": int(m), "j": int(nb), "shift": [int(s) for s in shift], "length": round(length, 3)})
+            edge_list.append(
+                {"i": int(cluster), "j": int(nb), "shift": [int(s) for s in shift], "length": round(length, 3)}
+            )
 
     net = {
         "nodes": nodes,
@@ -228,7 +390,23 @@ def _build_net(structure):
         "n_edges": len(edge_list) // 2,
         "n_linkers": n_linkers,
         "warnings": warnings,
+        "sbu_contraction": bool(sbu),
     }
+    return net, None
+
+
+def _build_net(structure):
+    """net 构建入口：优先 SBU 收缩表示；无机/离子体系退回逐金属节点表示。"""
+    net, reason = _build_net_impl(structure, sbu=True)
+    if net is None:
+        return None, reason
+    if net["n_edges"] == 0:
+        fallback, _fallback_reason = _build_net_impl(structure, sbu=False)
+        if fallback is not None and fallback["n_edges"] > 0:
+            fallback["warnings"].append(
+                "SBU 收缩后没有有机 linker 连接（离子/无机体系？），退回逐金属节点表示"
+            )
+            return fallback, None
     return net, None
 
 
@@ -438,6 +616,239 @@ def describe(structure) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 落盘参考签名（cifkit/data/nets/<net>.json + <net>-reference.cif）
+# ---------------------------------------------------------------------------
+#: 落盘参考的进程内缓存（key = 小写 net code）
+_BUNDLED_CACHE: dict[str, dict | None] = {}
+
+
+def _normalize_net(net: str) -> str:
+    return str(net or "").strip().lower()
+
+
+def _now() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def available_reference_nets() -> list[str]:
+    """已落盘的参考 net code 列表（如 ``["bcu","dia","fcu","pcu","sod","tbo"]``）。"""
+    if not NETS_DATA_DIR.is_dir():
+        return []
+    return sorted(path.stem for path in NETS_DATA_DIR.glob("*.json"))
+
+
+def load_reference(net: str) -> dict | None:
+    """加载落盘参考签名；未落盘/损坏返回 None。
+
+    返回 dict 与 ``verify`` 的 ``reference`` 字段同形状，并额外带
+    ``bundled=True`` / ``reference_json`` / ``cif_path``（便于溯源审计）。
+    """
+    key = _normalize_net(net)
+    if key in _BUNDLED_CACHE:
+        return _BUNDLED_CACHE[key]
+    path = NETS_DATA_DIR / f"{key}.json"
+    reference: dict | None = None
+    if path.is_file():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            signature_payload = payload.get("signature")
+            if payload.get("schema") == REFERENCE_SCHEMA and isinstance(signature_payload, dict):
+                source = payload.get("source") or {}
+                cif_name = payload.get("cif")
+                reference = {
+                    "source": source.get("record_id") or f"bundled:{key}",
+                    "record_id": source.get("record_id"),
+                    "topology": payload.get("net", key),
+                    "topology_evidence": "metadata",
+                    "doi": source.get("doi"),
+                    "refcode": source.get("refcode"),
+                    "coreid": source.get("coreid"),
+                    "bundled": True,
+                    "signature_version": payload.get("signature_version"),
+                    "reference_json": str(path),
+                    "cif_path": str(NETS_DATA_DIR / cif_name) if cif_name else None,
+                    "signature": signature_payload,
+                }
+        except Exception:  # noqa: BLE001 - 损坏的参考 JSON 当作缺失
+            reference = None
+    _BUNDLED_CACHE[key] = reference
+    return reference
+
+
+def write_net_reference(
+    net: str,
+    structure,
+    *,
+    record_id: str,
+    cif_bytes: bytes | None = None,
+    cif_filename: str | None = None,
+    refcode: str | None = None,
+    coreid: str | None = None,
+    doi: str | None = None,
+    natoms: int | None = None,
+    formula: str | None = None,
+    spacegroup: str | None = None,
+    selection_reason: str = "",
+    generator_command: str | None = None,
+    outdir: str | Path | None = None,
+) -> Path:
+    """把某一 net 的参考签名（可选连同参考 CIF）落盘到 ``cifkit/data/nets/``。
+
+    生成侧使用（需要 pymatgen 结构；运行时不依赖本函数）。记录来源 record_id /
+    refcode / DOI / 原子数 / 空间群、生成时间与生成命令，便于审计。
+    """
+    net_key = _normalize_net(net)
+    info = underlying_net(structure)
+    signature_payload = signature(info)
+    if signature_payload is None:
+        raise ValueError(f"结构 {record_id!r} 没有可用的金属节点网络，不能生成 {net_key} 参考签名")
+    out = Path(outdir) if outdir is not None else NETS_DATA_DIR
+    out.mkdir(parents=True, exist_ok=True)
+    cif_name = cif_filename or f"{net_key}-reference.cif"
+    cif_sha = None
+    if cif_bytes is not None:
+        target = out / cif_name
+        target.write_bytes(cif_bytes)
+        cif_sha = hashlib.sha256(cif_bytes).hexdigest()
+    payload = {
+        "schema": REFERENCE_SCHEMA,
+        "net": net_key,
+        "signature_version": _SIGNATURE_VERSION,
+        "source": {
+            "record_id": record_id,
+            "refcode": refcode,
+            "coreid": coreid,
+            "doi": doi,
+            "natoms": natoms if natoms is not None else len(structure),
+            "formula": formula if formula is not None else structure.composition.formula,
+            "spacegroup": spacegroup,
+        },
+        "cif": cif_name if cif_bytes is not None else None,
+        "cif_sha256": cif_sha,
+        "signature": signature_payload,
+        "net_summary": {
+            "n_nodes": info["n_nodes"],
+            "n_edges": info["n_edges"],
+            "n_linkers": info["n_linkers"],
+            "sbu_contraction": info.get("sbu_contraction", False),
+            "warnings": info["warnings"],
+        },
+        "generated_at": _now(),
+        "generated_by": {
+            "algorithm": _SIGNATURE_VERSION,
+            "command": generator_command or "<未记录>",
+        },
+        "selection_reason": selection_reason,
+    }
+    json_path = out / f"{net_key}.json"
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _BUNDLED_CACHE.pop(net_key, None)
+    return json_path
+
+
+#: 落盘参考的选取来源（生成侧元数据；运行时不读取 CoRE zip）。
+#: 每条记录都要求：CoRE 2024 ASR 的 topology(AllNodes)==net 且为 computation-ready。
+BUNDLED_REFERENCE_SOURCES: dict[str, dict[str, str]] = {
+    "sod": {
+        "zip_path": "SI/CR/ASR/2015[Zn][sod]3[ASR]1.cif",
+        "reason": (
+            "ZIF-8（Zn(2-甲基咪唑)2，RCSR sod，CoRE ASR 计算就绪、H 完整，138 原子）；"
+            "用于核实 NCR 原始缺氢 ZIF-8 的 sod 拓扑"
+        ),
+    },
+    "pcu": {
+        "zip_path": "SI/CR/ASR/2007[Zn][pcu]3[ASR]3.cif",
+        "reason": (
+            "Zn4O(BDC)3 = MOF-5（Zn8 H24 C48 O26 = 2×MOF-5，topology(AllNodes)=pcu）；"
+            "任务建议的 2015[Zn][pcu]3[ASR]2 经核查不是 MOF-5：它是多齿 PAH 配体 + Zn4 簇"
+            "（AllNodes 标注 scn），按 ditopic-linker 简化会得到 30 配位假 net，故不采用"
+        ),
+    },
+    "dia": {
+        "zip_path": "SI/CR/ASR/2017[Ni][dia]3[ASR]3.cif",
+        "reason": (
+            "Ni 基 dia 拓扑 MOF（54 原子，小体系）；contract 后 4 配位、配位序列与环分布完整，"
+            "适合作为 dia 参考指纹"
+        ),
+    },
+    "fcu": {
+        "zip_path": "SI/CR/ASR/2015[Zr][fcu]3[ASR]1.cif",
+        "reason": (
+            "UiO-66（Zr6O4(OH)4(BDC)6，Zr6 H28 C48 O32，114 原子，topology(AllNodes)=fcu）；"
+            "SBU 收缩后 12 配位 fcu 节点"
+        ),
+    },
+    "tbo": {
+        "zip_path": "SI/CR/ASR/2020[Cu][tbo]3[ASR]1.cif",
+        "reason": (
+            "HKUST-1（Cu3(BTC)2，Cu12 H24 C72 O48 = 4×HKUST-1，topology(AllNodes)=tbo）；"
+            "Cu2 paddlewheel 收缩后 8 配位金属 net"
+        ),
+    },
+    "bcu": {
+        "zip_path": "SI/CR/ASR/2018[Zr][bcu]3[ASR]1.cif",
+        "reason": (
+            "Zr6 基 bcu MOF（Zr6 H16 C24 O24，topology(AllNodes)=bcu）；SBU 收缩后 8 配位，"
+            "配位序列与 tbo/pcu 可区分"
+        ),
+    },
+}
+
+
+def _spacegroup_from_cif_bytes(data: bytes) -> str | None:
+    head = data[:4096].decode("utf-8", "replace")
+    match = re.search(r"_symmetry_space_group_name_H-M\s+['\"]?([^'\"\n]+)", head) or re.search(
+        r"_space_group_name_H-M_alt\s+['\"]?([^'\"\n]+)", head
+    )
+    return match.group(1).strip() if match else None
+
+
+def regenerate_bundled_references(
+    *, outdir: str | Path | None = None, nets: list[str] | None = None
+) -> list[str]:
+    """从 CoRE MOF 2024 本地缓存重建 ``cifkit/data/nets/*.json``（**生成侧工具**）。
+
+    运行时不依赖本函数；它需要 pymatgen + CoRE zip 缓存。生成命令（可复现）::
+
+        python -c "from cifkit.topology import regenerate_bundled_references as r; print(r())"
+
+    返回写出的 JSON 路径列表。
+    """
+    from cifkit.sources import core_mof
+
+    wanted = [_normalize_net(net) for net in nets] if nets else list(BUNDLED_REFERENCE_SOURCES)
+    index = core_mof.load_index()
+    outputs: list[str] = []
+    for net in wanted:
+        spec = BUNDLED_REFERENCE_SOURCES.get(net)
+        if spec is None:
+            raise KeyError(f"没有 {net!r} 的落盘参考来源配置（BUNDLED_REFERENCE_SOURCES）")
+        member = spec["zip_path"]
+        data = core_mof.read_cif_bytes(member)
+        structure = core_mof.structure_from_cif_bytes(data, label=member)
+        entry = index["entries"].get(member, {})
+        path = write_net_reference(
+            net,
+            structure,
+            record_id=f"core-mof:{member}",
+            cif_bytes=data,
+            refcode=entry.get("refcode"),
+            coreid=entry.get("coreid"),
+            doi=entry.get("doi"),
+            natoms=len(structure),
+            formula=structure.composition.formula,
+            spacegroup=_spacegroup_from_cif_bytes(data),
+            selection_reason=spec["reason"],
+            generator_command=(
+                "python -c \"from cifkit.topology import regenerate_bundled_references as r; print(r())\""
+            ),
+            outdir=outdir,
+        )
+        outputs.append(str(path))
+    return outputs
+
+
+# ---------------------------------------------------------------------------
 # 参考结构 + 元数据指纹（与 CoRE MOF 2024 缓存解耦：缺失时优雅降级）
 # ---------------------------------------------------------------------------
 _REFERENCE_CACHE: dict[str, dict | None] = {}
@@ -482,6 +893,11 @@ def _resolve_reference(expected: str, reference=None) -> dict | None:
         return provided
     if expected in _REFERENCE_CACHE:
         return _REFERENCE_CACHE[expected]
+    # 优先用随包落盘的参考签名（离线、无需 CoRE zip）
+    bundled = load_reference(expected)
+    if bundled is not None:
+        _REFERENCE_CACHE[expected] = bundled
+        return bundled
     resolved = None
     try:
         from cifkit.sources import core_mof
@@ -603,9 +1019,10 @@ _VERIFY_CACHE_MAX = 96
 
 
 def clear_cache() -> None:
-    """Drop the in-process verify/reference caches (tests, long-running workers)."""
+    """Drop the in-process verify/reference/落盘参考 caches (tests, long-running workers)."""
     _VERIFY_CACHE.clear()
     _REFERENCE_CACHE.clear()
+    _BUNDLED_CACHE.clear()
 
 
 def _structure_cache_key(structure, expected: str):
@@ -797,11 +1214,11 @@ def _verify_impl(structure, expected: str, *, record=None, reference=None) -> di
         )
     ref_sig = reference_info["signature"]
     ref_label = reference_info.get("record_id") or reference_info.get("source")
-    if ref_sig.get("coordination_sequence_truncated") or ref_sig.get("rings_truncated"):
+    if ref_sig.get("coordination_sequence_truncated"):
         return _result(
             False,
             "unknown",
-            f"参考结构 {ref_label} 自身的签名不完整（配位序列/环统计触及安全上限），不能作为 verified 依据",
+            f"参考结构 {ref_label} 的配位序列签名不完整（触及安全上限），不能作为 verified 依据",
             dict(base),
             reference_info,
         )
@@ -820,23 +1237,177 @@ def _verify_impl(structure, expected: str, *, record=None, reference=None) -> di
         detail += f"。目标签名：{_sig_summary(sig)}；参考签名：{_sig_summary(ref_sig)}"
         return _result(False, "mismatch", detail, sig, reference_info)
 
-    # 3b) 便宜的都对上了，再做环大小分布（预算受限，触顶则诚实降级）
+    # 3b) 便宜的都对上了，再做环大小分布（预算受限）
     sig = full_signature() or dict(base)
-    if sig.get("coordination_sequence_truncated") or sig.get("rings_truncated"):
+    if sig.get("coordination_sequence_truncated"):
         return _result(
             False,
             "unknown",
-            "配位序列/环统计触及安全上限（结构过于稠密），签名不完整，不能以 verified 结论返回",
+            "配位序列触及安全上限（结构过于稠密），签名不完整，不能以 verified 结论返回",
             sig,
             reference_info,
         )
+    rings_incomplete = bool(sig.get("rings_truncated") or ref_sig.get("rings_truncated"))
+    if rings_incomplete:
+        # 高配位 net（fcu/tbo/bcu/pcu 等）环枚举必然触顶；此时按"配位数+配位序列+
+        # linker/金属比"这三个数值不变量判定，并在 detail/verified_on 里诚实说明。
+        detail = (
+            f"与参考 {ref_label} 的 underlying net 一致：{_sig_summary(sig)}；"
+            "环统计在至少一侧触及安全上限（高配位 net），本次 verified 依据=配位数+配位序列+linker/金属比"
+        )
+        if notes:
+            detail += "；" + "；".join(notes)
+        result = _result(True, "verified", detail, sig, reference_info)
+        result["verified_on"] = ["coordination_numbers", "coordination_sequence", "linkers_per_metal"]
+        return result
+
     rings_ok, ring_issues = _compare_rings(sig, ref_sig)
     if rings_ok:
         detail = f"与参考 {ref_label} 的 underlying net 签名一致：{_sig_summary(sig)}"
         if notes:
             detail += "；" + "；".join(notes)
-        return _result(True, "verified", detail, sig, reference_info)
+        result = _result(True, "verified", detail, sig, reference_info)
+        result["verified_on"] = ["coordination_numbers", "coordination_sequence", "linkers_per_metal", "rings_per_node"]
+        return result
 
     detail = f"结构比对不匹配（参考 {ref_label}）：" + "；".join(ring_issues[:8])
     detail += f"。目标签名：{_sig_summary(sig)}；参考签名：{_sig_summary(ref_sig)}"
     return _result(False, "mismatch", detail, sig, reference_info)
+
+
+def identify(structure, nets=None) -> dict:
+    """在落盘参考签名里找出 ``structure`` 最匹配的拓扑 net。
+
+    返回 dict::
+
+        {"ok": bool, "net": str|None, "best_net": str|None,
+         "evidence": "verified"|"mismatch"|"unknown",
+         "detail": str, "signature": {...}|None,
+         "candidates": [{"net","base_ok","rings_ok","issues","record_id","doi"}...],
+         "reference": {...}|None}
+
+    判定顺序与 ``verify`` 一致：先比配位数分布 + 2–8 层配位序列 + linker/金属比；
+    环统计在参考/目标任一侧不完整（高配位 net 的正常情况）时跳过环比较并在 detail
+    说明；多个 net 同时匹配或都不匹配时返回 ``ok=False, evidence="unknown"``（诚实）。
+    """
+    names = available_reference_nets()
+    if nets:
+        wanted = {_normalize_net(n) for n in nets}
+        names = [name for name in names if name in wanted]
+    refs: dict[str, dict] = {}
+    for name in names:
+        reference = load_reference(name)
+        if reference and isinstance(reference.get("signature"), dict):
+            refs[name] = reference
+    result: dict[str, Any] = {
+        "ok": False,
+        "net": None,
+        "best_net": None,
+        "evidence": "unknown",
+        "detail": "",
+        "signature": None,
+        "candidates": [],
+        "reference": None,
+    }
+    if not refs:
+        result["detail"] = "没有可用的落盘参考签名（cifkit/data/nets/<net>.json 为空）"
+        return result
+    try:
+        netinfo = underlying_net(structure)
+        base = signature_base(netinfo)
+    except Exception as exc:  # noqa: BLE001 - never crash
+        result["detail"] = f"underlying net 构建失败：{type(exc).__name__}: {exc}"
+        return result
+    if base is None:
+        result["detail"] = "结构中没有可用的金属节点网络（主族/无金属/孤立离子），无法判定拓扑（unknown）"
+        return result
+
+    candidates: list[dict[str, Any]] = []
+    base_matches: list[tuple[str, dict, dict]] = []
+    for name in sorted(refs):
+        reference = refs[name]
+        ref_sig = reference["signature"]
+        ok, issues, notes = _compare_base(base, ref_sig)
+        item = {
+            "net": name,
+            "base_ok": bool(ok),
+            "rings_ok": None,
+            "issues": issues[:6],
+            "notes": notes[:3],
+            "record_id": reference.get("record_id"),
+            "doi": reference.get("doi"),
+        }
+        candidates.append(item)
+        if ok:
+            base_matches.append((name, reference, item))
+
+    if not base_matches:
+        closest = min(candidates, key=lambda item: (len(item["issues"]), item["net"]))
+        result["candidates"] = candidates
+        result["signature"] = base
+        result["detail"] = (
+            f"未匹配任何落盘 net 参考（已检查 {sorted(refs)}）；最接近 {closest['net']}"
+            f"（记录 {closest['record_id']}），差异："
+            + ("；".join(closest["issues"][:4]) or "配位数/配位序列差异")
+        )
+        return result
+
+    # 只有需要环比较时才计算完整签名（环统计对高配位 net 很贵）
+    need_full = any(
+        not (reference["signature"].get("rings_truncated") or reference["signature"].get("coordination_sequence_truncated"))
+        for _name, reference, _item in base_matches
+    )
+    full = None
+    if need_full:
+        try:
+            full = signature(netinfo)
+        except Exception:  # noqa: BLE001 - fall back to base comparison
+            full = None
+
+    verified: list[tuple[str, dict, dict]] = []
+    for name, reference, item in base_matches:
+        ref_sig = reference["signature"]
+        can_compare_rings = (
+            full is not None
+            and not full.get("rings_truncated")
+            and not full.get("coordination_sequence_truncated")
+            and not ref_sig.get("rings_truncated")
+            and not ref_sig.get("coordination_sequence_truncated")
+        )
+        if can_compare_rings:
+            rings_ok, ring_issues = _compare_rings(full, ref_sig)
+            item["rings_ok"] = bool(rings_ok)
+            if not rings_ok:
+                item["issues"] = item["issues"] + ring_issues
+                continue
+        verified.append((name, reference, item))
+
+    result["candidates"] = candidates
+    result["signature"] = full or base
+    if len(verified) == 1:
+        name, reference, item = verified[0]
+        basis = "配位数+配位序列+linker/金属比"
+        basis += "+环分布" if item.get("rings_ok") else "（环统计在参考/目标侧不完整，未参与判定）"
+        result.update(
+            {
+                "ok": True,
+                "net": name,
+                "best_net": name,
+                "evidence": "verified",
+                "detail": (
+                    f"最佳匹配 net={name}（参考记录 {reference.get('record_id')}，DOI {reference.get('doi')}）；"
+                    f"判定依据：{basis}"
+                ),
+                "reference": reference,
+            }
+        )
+        return result
+    if not verified:
+        result["detail"] = (
+            "配位数/配位序列匹配但环分布不一致，无法确认拓扑："
+            + "；".join(issue for _n, _r, item in base_matches for issue in item["issues"][:2])
+        )
+        return result
+    matched = [name for name, _reference, _item in verified]
+    result["detail"] = f"多个 net 的签名同时匹配（{matched}），无法唯一判定（unknown）"
+    return result

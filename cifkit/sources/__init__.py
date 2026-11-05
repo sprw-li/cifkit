@@ -3,7 +3,8 @@
 Available sources: ``core-mof`` (CoRE MOF 2024, 有 RCSR 拓扑列), ``cod``
 (Crystallography Open Database，公有领域、无拓扑列), ``materials-project``
 (Materials Project，需 ``MP_API_KEY``，DFT 结构、无拓扑列), ``aflow``
-(AFLOW，免 key、无机/合金、无拓扑列), ``local`` (本地 CIF)。
+(AFLOW，免 key、无机/合金、无拓扑列), ``qmof`` (QMOF，DFT 标注 MOF；读取本地镜像，
+官方 figshare/GitHub 在本环境不可达，未 live 实测), ``local`` (本地 CIF)。
 
 Every adapter returns ``StructureRecord`` hits from ``search`` and a
 ``FetchedStructure`` from ``fetch``. ``resolve(spec)`` picks adapters based on
@@ -42,6 +43,7 @@ from cifkit.sources.cod import CODSource
 from cifkit.sources.core_mof import CoreMOFSource
 from cifkit.sources.local import LocalSource
 from cifkit.sources.materials_project import MaterialsProjectSource, api_key as mp_api_key, key_source as mp_key_source
+from cifkit.sources.qmof import QMOFSource, qmof_available
 
 __all__ = [
     "SourceQuery",
@@ -60,6 +62,7 @@ _SOURCE_TYPES: dict[str, type] = {
     "local": LocalSource,
     "materials-project": MaterialsProjectSource,
     "aflow": AFLOWSource,
+    "qmof": QMOFSource,
 }
 
 _ALIASES = {
@@ -84,6 +87,10 @@ _ALIASES = {
     "aflowlib": "aflow",
     "aflow.org": "aflow",
     "aflowlib.duke.edu": "aflow",
+    "qmof": "qmof",
+    "qmof-database": "qmof",
+    "qmof_database": "qmof",
+    "quantum-mof-database": "qmof",
 }
 
 _MP_ID_RE = re.compile(r"^mp-\d+$")
@@ -124,6 +131,13 @@ def source_status() -> list[dict]:
         if name == "materials-project":
             row["available"] = bool(mp_api_key())
             row["status"] = f"key set via {mp_key_source()}" if row["available"] else "missing MP_API_KEY"
+        elif name == "qmof":
+            row["available"] = bool(qmof_available())
+            row["status"] = (
+                "local mirror ready"
+                if row["available"]
+                else "local mirror missing (set CIFKIT_QMOF_DIR; figshare/GitHub unreachable here)"
+            )
         elif name == "core-mof":
             try:
                 from cifkit.sources.core_mof import zip_path

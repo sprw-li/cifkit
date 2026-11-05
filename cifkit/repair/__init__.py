@@ -15,9 +15,12 @@ from __future__ import annotations
 from cifkit.types import RepairReport
 
 from cifkit.repair.bonds import (
+    METAL_COORDINATING_ELEMENTS,
     BondGraph,
     HydrogenDemand,
+    classify_cluster_oxygen,
     hydrogen_demand,
+    is_carboxylate_oxygen,
     perceive_bonds,
 )
 from cifkit.repair.contacts import (
@@ -44,6 +47,9 @@ __all__ = [
     "check_structure",
     "perceive_bonds",
     "hydrogen_demand",
+    "classify_cluster_oxygen",
+    "is_carboxylate_oxygen",
+    "METAL_COORDINATING_ELEMENTS",
     "parse_atom_site_loop",
     "read_cif_atom_sites",
     "BondGraph",
