@@ -180,6 +180,88 @@ def _aurl_slug(aurl: str) -> str:
     return text.replace(":", "-").replace("/", "_") or "unknown"
 
 
+def _element_from_type_symbol(token: str) -> str | None:
+    """Extract the element symbol from AFLOW's type-symbol column.
+
+    AFLOW writes PAW potential names there, e.g. ``potpaw_PBE.54/Fe_sv`` or
+    ``Fe_sv1``.  The last ``/``-separated segment is the actual element; if that
+    fails, fall back to the first valid element-looking token.
+    """
+    import re
+
+    from pymatgen.core import Element
+
+    text = str(token or "").strip().strip("'\"")
+    tail = text.split("/")[-1]
+    match = re.match(r"([A-Z][a-z]?)", tail)
+    candidates = [match.group(1)] if match else []
+    candidates.extend(m.group(1) for m in re.finditer(r"([A-Z][a-z]?)", text))
+    for candidate in candidates:
+        try:
+            Element(candidate)
+            return candidate
+        except Exception:  # noqa: BLE001 - try next
+            continue
+    return None
+
+
+def sanitize_aflow_cif(data: bytes) -> tuple[bytes, bool]:
+    """Rewrite AFLOW's ``_atom_site_type_symbol`` column to plain element symbols.
+
+    Without this, pymatgen sees ``potpaw_PBE.54/Fe_sv`` and mis-assigns species
+    (e.g. Fe parsed as P/Po).  Returns ``(sanitized_bytes, changed)``.
+    """
+    import re
+
+    text = data.decode("utf-8", "replace")
+    lines = text.splitlines()
+    changed = False
+    i = 0
+    while i < len(lines):
+        header: list[str] = []
+        start = i
+        while i < len(lines) and lines[i].strip().startswith("_"):
+            header.append(lines[i].strip())
+            i += 1
+        if not header:
+            i += 1
+            continue
+        lower = [h.lower() for h in header]
+        type_idx = None
+        for idx, name in enumerate(lower):
+            if name == "_atom_site_type_symbol":
+                type_idx = idx
+                break
+        label_idx = None
+        if type_idx is None:
+            for idx, name in enumerate(lower):
+                if name == "_atom_site_label":
+                    label_idx = idx
+                    break
+        target = type_idx if type_idx is not None else label_idx
+        if target is None:
+            continue
+        # consume data rows until the next header/loop/comment
+        row = i
+        while row < len(lines):
+            stripped = lines[row].strip()
+            if not stripped or stripped.startswith(("#", "_", "loop_")):
+                break
+            parts = stripped.split()
+            if len(parts) > target:
+                original = parts[target]
+                element = _element_from_type_symbol(original)
+                if element and original != element:
+                    parts[target] = element
+                    lines[row] = " ".join(parts)
+                    changed = True
+            row += 1
+        i = row
+    if not changed:
+        return data, False
+    return ("\n".join(lines) + "\n").encode("utf-8"), True
+
+
 def _pick_cif_name(files: list[str], aurl: str) -> str | None:
     """Choose the primary (non-symmetrized) CIF from an AFLOW entry file list."""
     cifs = [str(name) for name in files if str(name).lower().endswith(".cif")]
@@ -265,7 +347,10 @@ class AFLOWSource:
         data = _http_get(cif_url)
         if b"data_" not in data[:4096] and b"_cell_length_a" not in data[:8192]:
             raise ValueError(f"AFLOW 返回的内容不是 CIF：{cif_url}（{len(data)} bytes）")
-        structure = structure_from_bytes(data, label=f"AFLOW {cif_name}")
+        # AFLOW writes PAW potential names in the type-symbol column; normalise them
+        # (otherwise pymatgen mis-assigns elements, e.g. Fe -> P/Po)
+        parse_bytes, sanitized = sanitize_aflow_cif(data)
+        structure = structure_from_bytes(parse_bytes, label=f"AFLOW {cif_name}")
         out = aflow_cache_dir()
         out.mkdir(parents=True, exist_ok=True)
         slug = _aurl_slug(base)
@@ -290,6 +375,13 @@ class AFLOWSource:
             "sha256": digest,
             "cif_sha256": digest,
             "cif_path": str(cif_path),
+            "cif_sanitized_for_parsing": bool(sanitized),
+            "cif_note": (
+                "AFLOW CIF 的 _atom_site_type_symbol 列含 PAW 势名（如 potpaw_PBE.54/Fe_sv），"
+                "解析前已归一化为元素符号；缓存文件保留原始 CIF"
+                if sanitized
+                else "AFLOW CIF 解析前无需归一化"
+            ),
             "cache_reused": False,
             "fetched_at": now(),
             "topology_evidence": "unknown",

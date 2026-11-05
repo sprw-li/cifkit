@@ -242,6 +242,13 @@ pipeline `verify-topology` 步骤重复解析。
   （实测 `auid(...)` 查询返回空），会抛 `ValueError` 并提示改用 aurl 或 `--name <化学式>`。
 - `fetch`：`{aurl}/?files` 列文件 → 选主 CIF（排除 `_sprim/_sconv/_corner`）→
   下载。**坑**：CIF 文件名含 `:`，必须 URL-encode（`%3A`），否则服务器 404。
+- **坑（已修）**：AFLOW CIF 的 `_atom_site_type_symbol` 写的是 PAW 势名（如 `potpaw_PBE.54/Fe_sv`），
+  pymatgen 会误解析成 P/Po 等错误元素；`sanitize_aflow_cif()` 在解析前归一化为元素符号
+  （缓存文件保留原始 CIF，provenance 记 `cif_sanitized_for_parsing`）。
+- **坑（重要）**：AFLUX 的字段过滤（如 `spacegroup_relax(141*)`）并不可靠/会被忽略——
+  要按空间群/原型选结构，请查全量后**客户端过滤** `spacegroup_relax`/`Pearson_symbol_relax`；
+  LIB1 每个元素常有几十条多型，不能用 min(energy_atom) 直接当基态
+  （实测 Sn→diamond、Hg→bcc、Ga→bct、In→hcp、Mn→hcp 都是错的）。
 - 缓存 `_cache/aflow/<slug>.cif`；provenance 记录 aurl/auid/文件名的 sha256。
 - 经验：AFLOW 覆盖无机/金属/合金（ICSD_WEB + LIB1/2/3），MOF 极少；无 RCSR 拓扑列；
   结构是 DFT 弛豫结果，不含有机 H 补氢需求。

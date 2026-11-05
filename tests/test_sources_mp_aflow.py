@@ -197,3 +197,29 @@ def test_pick_source_formula_vs_mof_name():
     assert pick_source(TaskSpec(structure_id="7111973")) == "cod"
     assert pick_source(TaskSpec(structure_id="aflowlib.duke.edu:AFLOWDATA/LIB1_WEB/Zn:PAW_PBE:06Sep2000/A9")) == "aflow"
 
+
+def test_aflow_type_symbol_sanitizer():
+    """AFLOW writes PAW potential names in _atom_site_type_symbol (Fe -> P/Po bug)."""
+    from cifkit.sources.aflow import sanitize_aflow_cif
+
+    text = b"""data_test
+_cell_length_a 2.45
+loop_
+ _atom_site_label
+ _atom_site_occupancy
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_B_iso_or_equiv
+ _atom_site_type_symbol
+potpaw_PBE.54/Fe_sv1 1.0 0.0 0.0 0.0 1.0 potpaw_PBE.54/Fe_sv
+"""
+    out, changed = sanitize_aflow_cif(text)
+    assert changed is True
+    decoded = out.decode()
+    assert "potpaw_PBE.54/Fe_sv1 1.0 0.0 0.0 0.0 1.0 Fe" in decoded
+    # a normal CIF must be left byte-identical
+    plain = b"data_x\nloop_\n _atom_site_label\n _atom_site_type_symbol\nZn1 Zn\n"
+    out2, changed2 = sanitize_aflow_cif(plain)
+    assert changed2 is False and out2 == plain
+
