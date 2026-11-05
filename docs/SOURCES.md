@@ -12,6 +12,7 @@
 | `materials-project` | `sources/materials_project.py` | DFT 结构：按 `mp-<id>` / 化学式检索 | 无 RCSR 拓扑列；有 material_id/spacegroup | 网络 + **需要 `MP_API_KEY`** |
 | `aflow` | `sources/aflow.py` | 无机/合金计算结构：AFLUX 检索 + aflowlib CIF | **无拓扑列** | 网络，免 key |
 | `local` | `sources/local.py` | 用户本地 `.cif` / 测试 fixture | 无 | 无 |
+| `qmof` | `sources/qmof.py` | QMOF（DFT 标注 MOF；**本地镜像读取**） | 无 RCSR 拓扑列 | 读 `$CIFKIT_QMOF_DIR`；官方 figshare/GitHub 本环境不可达（未 live 实测） |
 
 `available_sources()` 返回 `{name: description}`；`source_status()` 返回结构化清单
 （含 `requires_auth` / `auth_hint` / 缓存状态），CLI：`python -m cifkit sources [--probe] [--json]`。
