@@ -115,7 +115,7 @@ def test_failed_run_writes_report_without_duplicate_steps(tmp_path):
 
 def test_unsupported_export_format_exits_2(tmp_path):
     """P1: unsupported formats must fail loudly (no silent wrong file)."""
-    proc = _run(["export", str(H_FREE), "--format", "gaussian", "-o", str(tmp_path / "x")])
+    proc = _run(["export", str(H_FREE), "--format", "bogus-format", "-o", str(tmp_path / "x")])
     assert proc.returncode == 2
     assert "unsupported" in (proc.stderr + proc.stdout).lower()
 

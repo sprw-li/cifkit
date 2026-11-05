@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from functools import partial
+
 import numpy as np
 from pymatgen.core import Structure
 
@@ -25,9 +27,32 @@ FORMAT_INFO: dict[str, str] = {
     "vasp": "VASP POSCAR/CONTCAR (VASP5, species line; pymatgen Poscar)",
     "cif": "Crystallographic Information File (pymatgen CifWriter, symprec=None, no symmetry folding)",
     "xyz": "XYZ cartesian coordinates (ASE writer, cell recorded in the comment line; non-periodic)",
+    "extxyz": "Extended XYZ with Lattice/Properties metadata (ASE, periodic, machine-learning friendly)",
+    "json": "pymatgen Structure JSON (full lattice + sites + oxidation states)",
+    "pdb": "Protein Data Bank (ASE proteindatabank writer; CRYST1 cell recorded)",
+    "sdf": "MDL SDF (ASE writer, bonds perceived; periodic cell not represented)",
+    "mol": "MDL MOL (ASE writer, bonds perceived; periodic cell not represented)",
+    "cfg": "AtomEye CFG (ASE writer, periodic)",
+    "gromacs": "GROMACS .gro coordinates (ASE writer; pair it with a .top from your force field)",
+    "gen": "DFTB+ / general .gen geometry (ASE writer, periodic cell + species)",
+    "aims": "FHI-aims geometry.in (ASE writer, fragment/cell sections)",
+    "castep": "CASTEP .cell (ASE castep-cell writer; needs .param/keywords for a real run)",
+    "abinit": "ABINIT input (ASE abinit-in writer; pseudos/variables must be completed)",
+    "crystal": "CRYSTAL input (ASE writer; basis sets/hamiltonian must be completed)",
+    "gaussian": "Gaussian .gjf (ASE gaussian-in writer; route/charge/multiplicity must be reviewed)",
+    "nwchem": "NWChem .nw (ASE nwchem-in writer; theory/basis block must be completed)",
+    "onetep": "ONETEP input (ASE writer; pseudo/params must be completed)",
+    "dmol": "DMol3 .arc (ASE writer; theory/params must be completed)",
+    "turbomole": "Turbomole coord (ASE writer; control file must be generated separately)",
+    "res": "SHELX .res (ASE writer; for crystallographic refinement, not DFT)",
+    "struct": "ASE .struct (ASE writer, periodic)",
     "lammps": "LAMMPS data file (atom style 'atomic'; ASE lammps-data writer)",
     "qe": "Quantum ESPRESSO pw.x input (ASE espresso-in writer, needs PAW pseudopotentials at run time)",
     "cp2k": "CP2K input skeleton (CELL + COORD; basis/potential must be supplied by the user)",
+    "siesta": "SIESTA .fdf input template (CELL + AtomicCoordinates; species/pseudos must be supplied)",
+    "abacus": "ABACUS STRU input template (ATOMIC_SPECIES + LATTICE_CONSTANT + ATOMS)",
+    "orca": "ORCA input template (.inp) + coordinates; basis/route must be reviewed",
+    "dftb": "DFTB+ dftb_in.hsd template (Geometry gen or HSD; Slater-Koster files needed)",
     "xsf": "XCrySDen .xsf (periodic crystal, ASE writer)",
 }
 
@@ -39,6 +64,35 @@ _ALIASES: dict[str, str] = {
     "cif2": "cif",
     "mcif": "cif",
     "xyz2": "xyz",
+    "extended-xyz": "extxyz",
+    "ext_xyz": "extxyz",
+    "pymatgen-json": "json",
+    "structure-json": "json",
+    "proteindatabank": "pdb",
+    "protein-databank": "pdb",
+    "mdl-sdf": "sdf",
+    "mdl-mol": "mol",
+    "atomeye": "cfg",
+    "gro": "gromacs",
+    "gromos": "gromacs",
+    "dftb-gen": "gen",
+    "dftb+": "dftb",
+    "dftb_in": "dftb",
+    "fhi-aims": "aims",
+    "fhi_aims": "aims",
+    "castep-cell": "castep",
+    "castep-geom": "castep",
+    "abinit-in": "abinit",
+    "crystal-in": "crystal",
+    "gaussian-in": "gaussian",
+    "gaussian-gjf": "gaussian",
+    "gjf": "gaussian",
+    "nwchem-in": "nwchem",
+    "onetep-in": "onetep",
+    "dmol-arc": "dmol",
+    "dmol3": "dmol",
+    "turbomole-coord": "turbomole",
+    "shelx": "res",
     "lammps-data": "lammps",
     "lammps_data": "lammps",
     "data": "lammps",
@@ -48,6 +102,11 @@ _ALIASES: dict[str, str] = {
     "quantum-espresso": "qe",
     "cp2k-in": "cp2k",
     "cp2k_input": "cp2k",
+    "siesta-fdf": "siesta",
+    "fdf": "siesta",
+    "abacus-stru": "abacus",
+    "stru": "abacus",
+    "orca-inp": "orca",
     "xcrysden": "xsf",
 }
 
@@ -215,15 +274,202 @@ def _write_cp2k(structure: Structure, path: Path, title: str | None) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+#: cifkit format -> ASE writer name (periodic crystal formats)
+def _write_castep(structure: Structure, path: Path, title: str | None) -> None:
+    """CASTEP .cell skeleton: LATTICE_CART + POSITIONS_FRAC + species."""
+    lat = structure.lattice
+    lines = [
+        "# CASTEP .cell skeleton written by cifkit; .param and pseudopotentials are not included.",
+        "%BLOCK LATTICE_CART",
+        "  Ang",
+    ]
+    for vec in lat.matrix:
+        lines.append("  " + " ".join(f"{float(v):.10f}" for v in vec))
+    lines.append("%ENDBLOCK LATTICE_CART")
+    lines.append("")
+    lines.append("%BLOCK POSITIONS_FRAC")
+    for site, frac in zip(structure, structure.frac_coords):
+        lines.append(f"  {element_symbol(site):2s} {frac[0]:18.10f} {frac[1]:18.10f} {frac[2]:18.10f}")
+    lines.append("%ENDBLOCK POSITIONS_FRAC")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+_ASE_WRITERS: dict[str, str] = {
+    "extxyz": "extxyz",
+    "sdf": "sdf",
+    "mol": "mol",
+    "cfg": "cfg",
+    "gromacs": "gromacs",
+    "gen": "gen",
+    "aims": "aims",
+    "abinit": "abinit-in",
+    "crystal": "crystal",
+    "gaussian": "gaussian-in",
+    "nwchem": "nwchem-in",
+    "onetep": "onetep-in",
+    "dmol": "dmol-arc",
+    "turbomole": "turbomole",
+    "res": "res",
+    "struct": "struct",
+    "pdb": "proteindatabank",
+}
+
+_ASE_READBACK: dict[str, str] = {
+    "extxyz": "extxyz",
+    "sdf": "sdf",
+    "mol": "mol",
+    "cfg": "cfg",
+    "gromacs": "gromacs",
+    "gen": "gen",
+    "aims": "aims",
+    "abinit": "abinit-in",
+    "crystal": "crystal",
+    "gaussian": "gaussian-in",
+    "nwchem": "nwchem-in",
+    "onetep": "onetep-in",
+    "dmol": "dmol-arc",
+    "turbomole": "turbomole",
+    "res": "res",
+    "struct": "struct",
+    "pdb": "proteindatabank",
+}
+
+_TEMPLATE_FORMATS = ("siesta", "abacus", "orca", "dftb")
+
+
+def _write_ase(structure: Structure, path: Path, title: str | None, *, ase_format: str) -> None:
+    import ase.io
+
+    atoms = _ase_atoms(structure)
+    if title:
+        atoms.info["comment"] = _comment(structure, title)
+    ase.io.write(str(path), atoms, format=ase_format)
+
+
+def _write_json(structure: Structure, path: Path, title: str | None) -> None:
+    import json
+
+    payload = structure.as_dict()
+    if title:
+        payload["cifkit_title"] = str(title)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _write_siesta(structure: Structure, path: Path, title: str | None) -> None:
+    """SIESTA .fdf skeleton: lattice + fractional coordinates + species block."""
+    lat = structure.lattice
+    lines = [
+        f"# SIESTA input skeleton written by cifkit: {_comment(structure, title)}",
+        "# Add SpeciesLabel/PAO.Basis or use the SIESTA pseudopotential database; lattice in Ang.",
+        "SystemName %s" % _formula(structure),
+        f"NumberOfAtoms {len(structure)}",
+        "NumberOfSpecies %d" % len({element_symbol(site) for site in structure}),
+        "LatticeConstant 1.0 Ang",
+        "%block LatticeVectors",
+    ]
+    for vec in lat.matrix:
+        lines.append("  " + " ".join(f"{float(v):.10f}" for v in vec))
+    lines += ["%endblock LatticeVectors", "AtomicCoordinatesFormat Fractional", "%block AtomicCoordinatesAndAtomicSpecies"]
+    species = sorted({element_symbol(site) for site in structure})
+    index = {el: i + 1 for i, el in enumerate(species)}
+    for site, frac in zip(structure, structure.frac_coords):
+        lines.append(f"  {frac[0]:18.10f} {frac[1]:18.10f} {frac[2]:18.10f} {index[element_symbol(site)]}")
+    lines += ["%endblock AtomicCoordinatesAndAtomicSpecies", "%block ChemicalSpeciesLabel"]
+    for el, idx in index.items():
+        lines.append(f"  {idx} {structure.composition.get(el, 1):.0f} {el}")
+    lines += ["%endblock ChemicalSpeciesLabel"]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_abacus(structure: Structure, path: Path, title: str | None) -> None:
+    """ABACUS STRU skeleton (Angstrom lattice, cartesian atoms, magmom=0)."""
+    lat = structure.lattice
+    species = sorted({element_symbol(site) for site in structure})
+    lines = [
+        "ATOMIC_SPECIES",
+    ]
+    for el in species:
+        mass = 1.0
+        try:
+            from pymatgen.core import Element
+
+            mass = float(Element(el).atomic_mass)
+        except Exception:  # noqa: BLE001
+            pass
+        lines.append(f"{el:2s} {mass:10.4f} {el}_ONCV_PBE-1.0.upf")
+    lines += ["", "NUMERICAL_ORBITAL"] + [f"{el}_gga_8au_100Ry_2s1p1d.orb" for el in species]
+    lines += ["", "LATTICE_CONSTANT", "1.0", "", "LATTICE_VECTORS"]
+    for vec in lat.matrix:
+        lines.append("  " + " ".join(f"{float(v):.10f}" for v in vec))
+    lines += ["", "ATOMIC_POSITIONS", "Cartesian", ""]
+    for el in species:
+        lines.append(el)
+        lines.append("0.0")
+        lines.append(str(sum(1 for site in structure if element_symbol(site) == el)))
+        for site, cart in zip(structure, structure.cart_coords):
+            lines.append(f"  {cart[0]:18.10f} {cart[1]:18.10f} {cart[2]:18.10f} 0 0 0")
+        lines.append("")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_orca(structure: Structure, path: Path, title: str | None) -> None:
+    lines = [
+        "# ORCA input template written by cifkit; review the route, charge and multiplicity.",
+        "! PBE def2-SVP Opt Freq",
+        f"# {_comment(structure, title)}",
+        "%pal nprocs 4 end",
+        f"* xyz {0} {1}",
+    ]
+    for site, cart in zip(structure, structure.cart_coords):
+        lines.append(f"  {element_symbol(site):2s} {cart[0]:16.8f} {cart[1]:16.8f} {cart[2]:16.8f}")
+    lines += ["*", ""]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_dftb(structure: Structure, path: Path, title: str | None) -> None:
+    lat = structure.lattice
+    lines = [
+        "Geometry = GenFormat {",
+        '  <<< "geo.gen"',
+        "}",
+        "# DFTB+ input skeleton written by cifkit. Provide the Slater-Koster files in the",
+        "# working directory and review the Hamiltonian/charges blocks.",
+        "Hamiltonian = DFTB {",
+        "  SCC = Yes",
+        "  SCCTolerance = 1.0E-005",
+        "  MaxSCCIterations = 100",
+        "  SlaterKosterFiles = Type2FileNames {",
+        '    Prefix = "./slakos/"',
+        '    Separator = "-"',
+        '    Suffix = ".skf"',
+        "  }",
+        "  MaxAngularMomentum = {",
+    ]
+    for el in sorted({element_symbol(site) for site in structure}):
+        shell = "p" if el in ("H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne") else "d"
+        lines.append(f'    {el} = "{shell}"')
+    lines += ["  }", "}", "Options { WriteResultsTag = Yes }", ""]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+
 _WRITERS: dict[str, Callable[..., None]] = {
     "vasp": _write_vasp,
     "cif": _write_cif,
     "xyz": _write_xyz,
+    "json": _write_json,
     "lammps": _write_lammps,
     "qe": _write_qe,
     "cp2k": _write_cp2k,
     "xsf": _write_xsf,
+    "siesta": _write_siesta,
+    "abacus": _write_abacus,
+    "orca": _write_orca,
+    "dftb": _write_dftb,
+    "castep": _write_castep,
 }
+for _fmt, _ase_name in _ASE_WRITERS.items():
+    _WRITERS[_fmt] = partial(_write_ase, ase_format=_ase_name)
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +498,14 @@ def _readback_natoms(path: Path, fmt: str) -> int | None:
         import ase.io
 
         return len(ase.io.read(str(path), format="espresso-in"))
+    if fmt == "json":
+        import json as _json
+
+        return len(Structure.from_dict(_json.loads(path.read_text(encoding="utf-8"))))
+    if fmt in _ASE_READBACK:
+        import ase.io
+
+        return len(ase.io.read(str(path), format=_ASE_READBACK[fmt]))
     return None
 
 
@@ -289,6 +543,27 @@ def _verify(path: Path, fmt: str, natoms: int) -> None:
                 coord_lines += 1
         if coord_lines != natoms:
             raise RuntimeError(f"CP2K file {path}: {coord_lines} coordinates for {natoms} atoms")
+        return
+    if fmt == "castep":
+        for keyword in ("LATTICE_CART", "POSITIONS_FRAC"):
+            if keyword not in text:
+                raise RuntimeError(f"CASTEP .cell {path} is missing %BLOCK {keyword}")
+        return
+    if fmt in _TEMPLATE_FORMATS:
+        required = {
+            "siesta": ("LatticeVectors", "AtomicCoordinates"),
+            "abacus": ("ATOMIC_SPECIES", "LATTICE_VECTORS", "ATOMIC_POSITIONS"),
+            "orca": ("* xyz", "!"),
+            "dftb": ("Geometry",),
+        }[fmt]
+        missing = [kw for kw in required if kw not in text]
+        if missing:
+            raise RuntimeError(f"{fmt} template {path} is missing required keyword(s): {missing}")
+        return
+    if fmt == "json":
+        import json as _json
+
+        Structure.from_dict(_json.loads(text))
         return
 
     readback = _readback_natoms(path, fmt)

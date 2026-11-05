@@ -4,9 +4,12 @@ Frozen command surface (skills/catalog wrappers and docs depend on it):
 
     python -m cifkit route "TEXT" [--json]
     python -m cifkit pipeline "TEXT" --outdir DIR [--format vasp,cif,xyz] [--source auto] [--ingest] [--json]
-    python -m cifkit pipeline --spec spec.json ... --outdir DIR
+    python -m cifkit pipeline --spec spec.json ... --outdir DIR [--bundle vasp,qe]
     python -m cifkit batch --spec "TEXT" [--spec "TEXT2"] [--jobs N] [--outdir runs/batch] [--json]
     python -m cifkit batch --specs-file runs/specs.jsonl [--jobs N] [--json]
+    python -m cifkit convert FILE --to vasp,cif,xyz --bundle vasp,qe --outdir DIR [--json]
+    python -m cifkit features FILE_OR_DIR ... --out features.csv [--json] [--jobs N] [--no-rdf] [--topology]
+    python -m cifkit dataset --from-runs runs/ --outdir dataset/ [--json] [--label-key topology]
     python -m cifkit fetch --topology sod [--name ZIF-8] [--raw|--ready] [--limit N] [--outdir DIR] [--json]
     python -m cifkit repair FILE -o OUT [--add-h] [--no-disorder] [--no-contacts] [--json]
     python -m cifkit geom FILE -o OUT [--standardize] [--supercell 2 2 1] [--surface 1 1 1]
@@ -114,21 +117,53 @@ def cmd_pipeline(args) -> int:
     from cifkit.pipeline import run
 
     spec = _load_spec(args)
+    bundle_info: dict = {}
     if args.json:
         # step logs must go to stderr so stdout stays a single valid JSON document
         import contextlib
 
         with contextlib.redirect_stdout(sys.stderr):
             result = run(spec, ingest_run=args.ingest)
-        _print_json(result.to_dict())
+        if getattr(args, "bundle", None):
+            bundle_info = _write_pipeline_bundles(result, args.bundle)
+        payload = result.to_dict()
+        payload["bundles"] = bundle_info
+        _print_json(payload)
     else:
         result = run(spec, ingest_run=args.ingest)
+        if getattr(args, "bundle", None):
+            bundle_info = _write_pipeline_bundles(result, args.bundle)
         print()
         print(f"ok={result.ok}  outdir={result.outdir}")
         print(f"manifest={result.manifest_path}")
         for key, path in result.artifacts.items():
             print(f"  {key}: {path}")
+        for code, info in bundle_info.items():
+            print(f"  bundle {code}: {info}")
     return 0 if result.ok else 1
+
+
+def _write_pipeline_bundles(result, bundle_text: str) -> dict:
+    """Write computation-software input bundles for a finished pipeline run."""
+    from pymatgen.core import Structure
+
+    from cifkit import export
+
+    codes = _bundle_codes(bundle_text)
+    if not codes:
+        return {}
+    artifact = result.artifacts.get("standardized.cif") or result.artifacts.get("raw.cif")
+    if not artifact:
+        return {"error": "pipeline 没有 standardized.cif/raw.cif，无法生成输入包"}
+    structure = Structure.from_file(artifact)
+    outdir = Path(result.outdir) / "bundles"
+    written: dict = {}
+    for code in codes:
+        try:
+            written[code] = export.write_bundle(structure, code, outdir / code, title=Path(artifact).stem)
+        except Exception as exc:  # noqa: BLE001 - bundle failure must not kill the run
+            written[code] = {"error": f"{type(exc).__name__}: {exc}"}
+    return written
 
 
 def cmd_batch(args) -> int:
@@ -233,6 +268,179 @@ def cmd_batch(args) -> int:
         print(f"\n{manifest['ok']}/{len(results)} ok in {manifest['seconds']}s "
               f"(jobs={jobs_n}, manifest={root / 'batch_manifest.json'})")
     return 0 if manifest["ok"] == len(results) else 1
+
+
+def _load_structure_any(path: str | Path):
+    """Load a structure from any format pymatgen or ASE can read."""
+    p = Path(path)
+    if not p.is_file():
+        raise ValueError(f"结构文件不存在：{p}")
+    from pymatgen.core import Structure
+
+    try:
+        return Structure.from_file(str(p))
+    except Exception:  # noqa: BLE001 - fall back to ASE
+        try:
+            import ase.io
+            from pymatgen.io.ase import AseAtomsAdaptor
+
+            atoms = ase.io.read(str(p))
+            if len(atoms) == 0:
+                raise ValueError("ASE 读到 0 个原子")
+            return AseAtomsAdaptor.get_structure(atoms)
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(
+                f"无法解析结构文件 {p}（pymatgen 和 ASE 都失败；支持 cif/poscar/xyz/json/xsf 等）：{exc}"
+            ) from exc
+
+
+def _bundle_codes(text: str | None) -> list[str]:
+    if not text:
+        return []
+    return [code.strip().lower() for code in text.split(",") if code.strip()]
+
+
+def cmd_convert(args) -> int:
+    """CIF/结构文件 → 任意格式 + 任意计算软件输入包。"""
+    from cifkit import export
+
+    structure = _load_structure_any(args.file)
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    formats = [f.strip().lower() for f in (args.to or "").split(",") if f.strip()]
+    bundles = _bundle_codes(args.bundle)
+    if not formats and not bundles:
+        print("error: 至少给 --to 或 --bundle 之一（如 --to vasp,xyz 或 --bundle vasp,qe）", file=sys.stderr)
+        return 2
+    supported = export.supported_formats()
+    unsupported = [fmt for fmt in formats if fmt not in supported]
+    if unsupported:
+        print(
+            f"error: unsupported format(s): {', '.join(unsupported)}; supported: {', '.join(sorted(supported))}",
+            file=sys.stderr,
+        )
+        return 2
+    stem = args.stem or Path(args.file).stem
+    written: dict[str, str] = {}
+    for fmt in formats:
+        written[fmt] = export.write_structure(structure, outdir / f"{stem}.{fmt}", fmt)
+    bundle_written: dict[str, object] = {}
+    if bundles:
+        bundle_fn = getattr(export, "write_bundle", None)
+        if bundle_fn is None:
+            print("error: 当前 cifkit 版本没有安装输入包写出（write_bundle 缺失）", file=sys.stderr)
+            return 2
+        for code in bundles:
+            bundle_written[code] = bundle_fn(structure, code, outdir / code, title=args.title or stem)
+    result = {
+        "ok": True,
+        "input": str(args.file),
+        "formats": written,
+        "bundles": bundle_written,
+        "outdir": str(outdir),
+        "natoms": len(structure),
+    }
+    if args.json:
+        _print_json(result)
+    else:
+        print(f"input: {args.file} ({len(structure)} atoms)")
+        for fmt, path in written.items():
+            print(f"  {fmt:10s} -> {path}")
+        for code, info in bundle_written.items():
+            print(f"  bundle {code} -> {info if not isinstance(info, dict) else info.get('files', info)}")
+        print(f"outdir: {outdir}")
+    return 0
+
+
+def _write_string_csv(rows: list[dict], path: Path) -> Path:
+    import csv
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    keys: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in keys:
+                keys.append(key)
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=keys, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: (json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value)
+                             for key, value in row.items()})
+    return path
+
+
+def _expand_structure_inputs(items: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for item in items:
+        p = Path(item)
+        if p.is_dir():
+            found = sorted(p.glob("*.cif")) + sorted(p.glob("*.CIF")) + sorted(p.glob("*.cif.gz"))
+            if not found:
+                raise ValueError(f"目录里没有 .cif：{p}")
+            paths.extend(found)
+        elif p.is_file():
+            paths.append(p)
+        else:
+            raise ValueError(f"输入不存在：{p}")
+    return paths
+
+
+def cmd_features(args) -> int:
+    """把 CIF/结构文件批量变成 ML-ready 特征表（CSV/JSONL）。"""
+    from cifkit.features import features_many
+
+    paths = _expand_structure_inputs(args.input)
+    rows = features_many(
+        [str(p) for p in paths],
+        jobs=args.jobs,
+        rdf=not args.no_rdf,
+        rdf_bins=args.rdf_bins,
+        rdf_max=args.rdf_max,
+        topology=args.topology,
+    )
+    if args.out:
+        out = _write_string_csv(rows, Path(args.out))
+    else:
+        out = None
+    ok = sum(1 for row in rows if not row.get("error"))
+    failed = len(rows) - ok
+    result = {"ok": failed == 0, "n_inputs": len(paths), "n_ok": ok, "n_failed": failed,
+              "out": str(out) if out else None, "rows": rows if args.json else None}
+    if args.json:
+        _print_json({k: v for k, v in result.items() if k != "rows"} | {"rows": rows})
+    else:
+        for row in rows:
+            if row.get("error"):
+                print(f"[fail] {row.get('path')}: {row['error']}", file=sys.stderr)
+        print(f"{ok}/{len(paths)} structures -> {out if out else '(stdout JSON)'}")
+    return 0 if failed == 0 else 1
+
+
+def cmd_dataset(args) -> int:
+    """从 runs/library 构建 dataset（结构 + 特征 + manifest）。"""
+    from cifkit.dataset import build_dataset
+
+    source = args.from_runs or args.from_library
+    if not source:
+        print("error: --from-runs DIR 或 --from-library DIR 至少给一个", file=sys.stderr)
+        return 2
+    outdir = Path(args.outdir)
+    result = build_dataset(
+        source,
+        outdir,
+        features=not args.no_features,
+        copy_structures=not args.no_structures,
+        label_key=args.label_key,
+    )
+    if args.json:
+        _print_json(result)
+    else:
+        print(f"dataset: {outdir}")
+        for key in ("n_runs", "n_ok", "n_failed", "csv", "jsonl", "structures"):
+            if key in result:
+                print(f"  {key}: {result[key]}")
+    return 0 if result.get("n_failed", 0) == 0 else 1
 
 
 def cmd_fetch(args) -> int:
@@ -526,6 +734,8 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--surface-frame", choices=["slab", "cell"], default=None,
                     help="slab=先从体相切面再面内重复（默认）；cell=先超胞再切面（字面语义）")
     pl.add_argument("--ingest", action="store_true", help="把产物登记进 library/")
+    pl.add_argument("--bundle", default=None,
+                    help="额外写出计算软件输入包（逗号分隔：vasp,qe,cp2k,lammps,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims）")
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_pipeline)
 
@@ -539,6 +749,37 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--ingest", action="store_true")
     b.add_argument("--json", action="store_true")
     b.set_defaults(func=cmd_batch)
+
+    cv = sub.add_parser("convert", help="CIF/结构文件 → 任意格式 + 计算软件输入包（cif to anything）")
+    cv.add_argument("file", help="输入结构文件（cif/poscar/xyz/json/xsf…，pymatgen/ASE 能读即可）")
+    cv.add_argument("--to", default="", help="逗号分隔的格式：vasp,cif,xyz,extxyz,json,pdb,sdf,...（见 cifkit formats）")
+    cv.add_argument("--bundle", default="", help="逗号分隔的软件输入包：vasp,qe,cp2k,lammps,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims")
+    cv.add_argument("--outdir", required=True)
+    cv.add_argument("--stem", default=None, help="输出文件主名（默认取输入文件名）")
+    cv.add_argument("--title", default=None)
+    cv.add_argument("--json", action="store_true")
+    cv.set_defaults(func=cmd_convert)
+
+    ft = sub.add_parser("features", help="批量提取结构特征（组成/晶格/对称性/配位/RDF/拓扑）→ CSV/JSONL")
+    ft.add_argument("input", nargs="+", help="结构文件或目录（目录里的 *.cif 全部处理）")
+    ft.add_argument("--out", default=None, help="输出 CSV；省略则只在 --json 时打印")
+    ft.add_argument("--jobs", type=int, default=4)
+    ft.add_argument("--no-rdf", action="store_true", help="不算 RDF（大结构快很多）")
+    ft.add_argument("--rdf-bins", type=int, default=50)
+    ft.add_argument("--rdf-max", type=float, default=8.0)
+    ft.add_argument("--topology", action="store_true", help="额外做拓扑识别（sod/pcu/fcu/...，较慢）")
+    ft.add_argument("--json", action="store_true")
+    ft.set_defaults(func=cmd_features)
+
+    ds = sub.add_parser("dataset", help="从 runs/ 或 library/ 汇总结构+特征+标签 → ML 数据集")
+    ds.add_argument("--from-runs", default=None, help="扫描 runs/**/manifest.json")
+    ds.add_argument("--from-library", default=None, help="扫描 library/index.jsonl")
+    ds.add_argument("--outdir", required=True)
+    ds.add_argument("--label-key", default=None, help="用 manifest/provenance 里的哪个字段作 label（如 topology/doi/source）")
+    ds.add_argument("--no-features", action="store_true")
+    ds.add_argument("--no-structures", action="store_true")
+    ds.add_argument("--json", action="store_true")
+    ds.set_defaults(func=cmd_dataset)
 
     f = sub.add_parser("fetch", help="按拓扑/名称/id 检索结构数据库并落盘")
     f.add_argument("--source", default="auto",

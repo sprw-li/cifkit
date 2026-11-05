@@ -150,7 +150,7 @@ def test_cp2k_skeleton_has_cell_and_coords(tmp_path, zif8: Structure) -> None:
 
 def test_unsupported_format_raises_value_error(tmp_path, zif8: Structure) -> None:
     with pytest.raises(ValueError, match="available"):
-        export.write_structure(zif8, tmp_path / "x.gjf", "gaussian")
+        export.write_structure(zif8, tmp_path / "x.gjf", "bogus-format")
     with pytest.raises(ValueError, match="cif"):
         export.normalize_format("nonsense")
     with pytest.raises(ValueError):

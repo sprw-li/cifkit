@@ -12,7 +12,8 @@
 | `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
 | `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件 | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件" |
-| `cif-export` | `catalog/cif-export/SKILL.md` | VASP POSCAR/CIF/XYZ/LAMMPS/QE/CP2K/XSF 导出 + 读回验证（格式以 `cifkit formats` 为准） | “导出成 POSCAR/VASP 格式” |
+| `cif-data` | `catalog/cif-data/SKILL.md` | ML-ready 数据管线：结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）CSV/JSONL；runs/library → dataset | "批量提取结构特征导出 CSV"、"构建 ML 数据集" |
+| `cif-export` | `catalog/cif-export/SKILL.md` | **cif → anything**：30 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
 
 五个技能共用同一个 intent：`cif-structure-pipeline`（`category = science`），
 在 `catalog/intents.json` 里用 patterns/keywords/examples 覆盖原句与中英文变体；
@@ -76,10 +77,10 @@ intent candidates: cif-structure-pipeline
 ## 4. 评测证据（`py -3 scripts\eval_router.py --all`）
 
 ```text
-cases=84
-intent top1: 84/84 = 100.0%
-skill top1:  84/84 = 100.0%
-skill top5:  84/84 = 100.0%
+cases=89
+intent top1: 89/89 = 100.0%
+skill top1:  89/89 = 100.0%
+skill top5:  89/89 = 100.0%
 negatives=25  false-positive=0 (0.0%)  budget=10.0%
 slot cases=11  pass=11/11
 ```

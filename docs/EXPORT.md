@@ -27,7 +27,7 @@ normalize_format(fmt_or_alias) -> str          # 辅助：格式名/别名归一
 | `cp2k` | `cp2k-in`, `cp2k_input` | 自写模板 | 关键字 + `&COORD` 行数 | 见 §4 骨架说明 |
 | `xsf` | `xcrysden` | `ase.io` `xsf` | `ase.io.read` 原子数 | 周期晶体（PRIMVEC/PRIMCOORD） |
 
-不支持：gaussian/orca/abacus（需要各自专门的输入语义，不在本任务范围）。
+（早期版本只支持 7 种格式；round 3 已扩展到 30 种格式 + 12 种输入包，见 §6。）
 
 ## 3. Quantum ESPRESSO 赝势（本次修复的缺陷）
 
@@ -117,3 +117,46 @@ QE 关键字与自定义赝势、别名、读回校验、非法格式报错。
 - `cp2k` 是输入骨架，不含基组/赝势；`qe` 的 UPF 名是占位，需替换成实际文件。
 - 写出的 VASP 文件仅 POSCAR 内容（不含 POTCAR/KPOINTS/INCAR）。
 - 大结构（> 20000 原子）导出前建议先在几何层裁剪；写出本身不做规模限制，但读回校验会花时间。
+
+## 6. CIF → anything 能力矩阵（round 3）
+
+`cifkit convert FILE --to <fmt1,fmt2> --bundle <code>`：输入可以是 cif/poscar/xyz/json/xsf 等
+pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校验。
+
+| 类别 | 格式（30） | 写出方式 | 回读校验 |
+|---|---|---|---|
+| 结构/通用 | `cif`、`vasp`、`xyz`、`extxyz`、`json` | pymatgen / 自写 / ASE | 是（原子数一致） |
+| 可视化/分析 | `xsf`、`cfg`、`pdb`、`sdf`、`mol`、`struct`、`res` | ASE | 是（PDB/SDF/MOL 不表达周期性） |
+| 分子动力学 | `lammps`、`gromacs`、`gen` | ASE | 是（骨架，无力场/质量） |
+| 电子结构（输入） | `qe`、`cp2k`、`gaussian`、`orca`、`abacus`、`dftb`、`siesta`、`nwchem`、`aims`、`castep`、`abinit`、`crystal`、`onetep`、`dmol`、`turbomole` | ASE writer / 自写模板 | 模板：检查关键段落；**不是收敛输入** |
+| 其它 | `cube`（需数据数组/依赖）、`png`（预览） | 视依赖 | 视情况 |
+
+- 模板类格式在 `FORMAT_INFO` 描述里明确写"needs ... / template"；`write_bundle` 返回
+  `template=True` + `missing` 列表（POTCAR/UPF/basis/skf/力场等）。
+- 未支持格式：`normalize_format` 抛 `ValueError` 并列出全部可用格式与别名。
+
+### 输入包（12）：`write_bundle(structure, code, outdir, *, title=None)`
+
+| code | 写出文件 | 用户必须补 |
+|---|---|---|
+| vasp | POSCAR + INCAR + INCAR.static + KPOINTS + POTCAR.readme | POTCAR |
+| qe | pw.in + README.KPOINTS + PSEUDO.readme | UPF 赝势、收敛参数 |
+| cp2k | cp2k.inp + README | BASIS_SET/POTENTIAL |
+| lammps | data.lammps + in.min + README | 力场（pair_style/coeff） |
+| gromacs | conf.gro + md.mdp + TOP.readme | 力场 .top/.itp |
+| gaussian | mol.gjf + README | 方法/基组、电荷/多重度 |
+| orca | orca.inp + coords.xyz + README | 方法/基组、电荷/多重度 |
+| abacus | STRU + INPUT.readme + README | upf 赝势、orb 轨道、INPUT |
+| dftb | geo.gen + dftb_in.hsd + SLKO.readme | slakos/ 下 .skf 文件 |
+| siesta | structure.fdf + README | psf 赝势、PAO 基组、k 点 |
+| nwchem | mol.nw + README | theory/basis、电荷/多重度 |
+| aims | geometry.in + control.readme + README | control.in（species defaults） |
+
+### 如何新增格式
+
+1. 在 `cifkit/export/writers.py` 的 `FORMAT_INFO` 加名称与说明；别名加 `_ALIASES`。
+2. 写出：优先 `_ASE_WRITERS[fmt] = "<ase-format>"`（大多数格式 ASE 原生支持）；
+   否则写 `_write_<fmt>` 模板并注册进 `_WRITERS`。
+3. 回读：在 `_readback_natoms` 加回读（ASE/pymatgen）；模板类在 `_verify` 里检查关键段落。
+4. 测试：`tests/test_export_ext.py` 会自动遍历 `supported_formats()`，无需逐格式加用例（模板类要可回读或关键字齐全）。
+5. 文档：更新本文件的能力矩阵。
