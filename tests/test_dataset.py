@@ -69,3 +69,21 @@ def test_dataset_without_features(tmp_path):
     assert summary["n_ok"] == 1
     rows = list(csv.DictReader((out / "dataset.csv").open(encoding="utf-8-sig")))
     assert rows and rows[0]["run_id"] == "run_a"
+
+
+def test_dataset_from_library_dir(tmp_path):
+    lib = tmp_path / "library"
+    run = lib / "run_lib"
+    run.mkdir(parents=True)
+    shutil.copyfile(ZIF8, run / "standardized.cif")
+    (run / "manifest.json").write_text(json.dumps({
+        "ok": True,
+        "artifacts": {"standardized.cif": str(run / "standardized.cif")},
+        "source": {"source": "local", "record": {"record_id": "local:test"}},
+    }), encoding="utf-8")
+    (lib / "index.jsonl").write_text(json.dumps({"run_id": "run_lib"}) + "\n", encoding="utf-8")
+    out = tmp_path / "ds_lib"
+    summary = build_dataset(lib, out, label_key="source", rdf=False)
+    assert summary["n_ok"] == 1
+    rows = list(csv.DictReader((out / "dataset.csv").open(encoding="utf-8-sig")))
+    assert rows and rows[0]["source"] == "local"

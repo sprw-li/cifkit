@@ -134,6 +134,7 @@ def extract_features(
     rdf_bins: int = 50,
     rdf_max: float = 8.0,
     topology: bool = False,
+    rings: bool = False,
     symprec: float = 0.1,
 ) -> dict[str, Any]:
     """Return a flat, JSON-serialisable feature dict for one structure."""
@@ -171,6 +172,20 @@ def extract_features(
     features.update(_coordination(structure))
     if topology:
         features.update(_topology(structure))
+    if rings:
+        try:
+            from cifkit.topology import describe
+
+            desc = describe(structure)
+            sig = desc.get("signature") or {}
+            features["ring_sizes"] = json.dumps(sig.get("ring_sizes") or [])
+            features["rings_per_node"] = json.dumps(
+                sig.get("rings_per_node") or {}, ensure_ascii=False, sort_keys=True
+            )
+            features["n_metal_nodes"] = sig.get("n_metal_nodes")
+            features["n_linkers"] = sig.get("n_linkers")
+        except Exception:  # noqa: BLE001 - rings are optional
+            features["rings_error"] = "failed"
     if rdf:
         try:
             features.update(_rdf(structure, bins=int(rdf_bins), max_r=float(rdf_max)))
@@ -197,6 +212,7 @@ def features_many(
     rdf_bins: int = 50,
     rdf_max: float = 8.0,
     topology: bool = False,
+    rings: bool = False,
     symprec: float = 0.1,
 ) -> list[dict[str, Any]]:
     """Feature rows for many files; a bad file becomes ``{"path", "error"}`` (no exception)."""
@@ -205,7 +221,7 @@ def features_many(
     def _one(p: Path) -> dict[str, Any]:
         try:
             return features_from_cif(p, rdf=rdf, rdf_bins=rdf_bins, rdf_max=rdf_max,
-                                     topology=topology, symprec=symprec)
+                                     topology=topology, rings=rings, symprec=symprec)
         except Exception as exc:  # noqa: BLE001
             return {"path": str(p), "filename": p.name, "error": f"{type(exc).__name__}: {exc}"}
 

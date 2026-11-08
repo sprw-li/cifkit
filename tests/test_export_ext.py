@@ -21,7 +21,7 @@ def structure():
 def test_all_formats_write_and_readback(tmp_path, structure):
     """Every supported format must write a non-empty file; writers self-verify read-back."""
     formats = sorted(export.supported_formats())
-    assert len(formats) >= 30, f"expected >=30 formats, got {len(formats)}: {formats}"
+    assert len(formats) >= 31, f"expected >=31 formats, got {len(formats)}: {formats}"
     for fmt in formats:
         path = tmp_path / f"structure.{fmt}"
         try:
@@ -71,3 +71,10 @@ def test_vasp_bundle_has_expected_files(tmp_path, structure):
     for name in ("POSCAR", "INCAR", "INCAR.static", "KPOINTS", "POTCAR.readme"):
         assert (tmp_path / "vasp" / name).is_file(), name
     assert "POTCAR" in (tmp_path / "vasp" / "POTCAR.readme").read_text(encoding="utf-8")
+
+
+def test_png_format_is_a_real_png(tmp_path, structure):
+    out = export.write_structure(structure, tmp_path / "preview.png", "png", title="test")
+    data = Path(out).read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert len(data) > 5000

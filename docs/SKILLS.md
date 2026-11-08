@@ -13,7 +13,7 @@
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
 | `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件 | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件" |
 | `cif-data` | `catalog/cif-data/SKILL.md` | ML-ready 数据管线：结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）CSV/JSONL；runs/library → dataset | "批量提取结构特征导出 CSV"、"构建 ML 数据集" |
-| `cif-export` | `catalog/cif-export/SKILL.md` | **cif → anything**：30 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
+| `cif-export` | `catalog/cif-export/SKILL.md` | **cif → anything**：31 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
 
 五个技能共用同一个 intent：`cif-structure-pipeline`（`category = science`），
 在 `catalog/intents.json` 里用 patterns/keywords/examples 覆盖原句与中英文变体；

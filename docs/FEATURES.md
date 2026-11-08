@@ -10,6 +10,7 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 & $PY -m cifkit features runs\demo_sod_zif8\standardized.cif --out runs\features.csv --json
 & $PY -m cifkit features runs\export_demo --out runs\features_all.csv --no-rdf --jobs 4 --json
 & $PY -m cifkit features runs\export_demo --out runs\features_topo.csv --topology --no-rdf
+& $PY -m cifkit features runs\export_demo --out runs\features_rings.csv --rings --no-rdf
 ```
 
 特征字典（v1；标量列扁平，字典/列表列为 JSON 字符串）：
@@ -28,6 +29,7 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 | `cn_mean`, `cn_by_element`(JSON), `cn_histogram`(JSON) | mixed | 几何配位数统计 |
 | `rdf_<ElA>_<ElB>` | JSON list | 元素对 g(r)，长度 = `rdf_bins`；`rdf_r` 是 r 网格 |
 | `topology_net`, `topology_evidence` | str | `--topology` 时调用 `cifkit.topology.identify`（6 个落盘 net；未知→unknown） |
+| `ring_sizes`, `rings_per_node`, `n_metal_nodes`, `n_linkers` | JSON/list | `--rings` 时从金属节点 underlying net 统计 4–8 元环（无金属框架不适用） |
 | `error` | str | 失败行标记（其它行仍输出，命令 exit 1） |
 
 耗时：138 原子 ZIF-8 无 RDF ~0.1 s；RDF(50×8 Å) ~1–2 s；`--topology` +2–5 s；大结构建议 `--no-rdf`。

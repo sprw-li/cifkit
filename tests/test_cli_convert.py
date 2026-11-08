@@ -126,3 +126,28 @@ def test_features_dir_dedupes_case_insensitive_glob(tmp_path):
     assert data["n_inputs"] == 3 and data["n_ok"] == 3, data
     rows = list(csv.DictReader(out.open(encoding="utf-8-sig")))
     assert len(rows) == 3
+
+
+def test_pipeline_bundle_writes_deck(tmp_path):
+    pytest.importorskip("cifkit.export")
+    out = tmp_path / "pipe"
+    proc = _run(["pipeline", "把 tests/data/zif8_cr_sod.cif 导出为 vasp", "--outdir", str(out),
+                 "--bundle", "vasp", "--json"])
+    assert proc.returncode == 0, proc.stderr
+    # stdout may contain step logs from the pipeline in this process; just check artifacts
+    bundle_dir = out / "bundles" / "vasp"
+    assert (bundle_dir / "POSCAR").is_file()
+    assert (bundle_dir / "INCAR").is_file()
+    assert (bundle_dir / "POTCAR.readme").is_file()
+    assert not (bundle_dir / "POTCAR").exists()
+
+
+def test_features_rings_cli(tmp_path):
+    pytest.importorskip("cifkit.features")
+    out = tmp_path / "f.csv"
+    proc = _run(["features", str(ZIF8), "--out", str(out), "--no-rdf", "--rings", "--json", "--jobs", "1"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_ok"] == 1
+    rows = list(csv.DictReader(out.open(encoding="utf-8-sig")))
+    assert rows and rows[0]["ring_sizes"]

@@ -95,11 +95,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 
 ---
 
+> 完整**局限清单**（按类别、状态、影响、规避）见 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)。
+
 ## CIF → anything（任意格式 / 输入包 / 数据管线）
 
 | 能力 | 命令 | 覆盖 |
 |---|---|---|
-| 任意格式导出 | `cifkit convert FILE --to vasp,cif,xyz,extxyz,json,pdb,sdf,mol,cfg,lammps,qe,cp2k,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims,castep,abinit,crystal,xsf,...` | **30 种格式**，全部回读校验；模板类标 `template` |
+| 任意格式导出 | `cifkit convert FILE --to vasp,cif,xyz,extxyz,json,pdb,sdf,mol,cfg,lammps,qe,cp2k,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims,castep,abinit,crystal,xsf,...` | **31 种格式**，全部回读校验；模板类标 `template` |
 | 计算软件输入包 | `cifkit convert FILE --bundle vasp,qe,cp2k,lammps,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims` | **12 种**：结构 + 输入模板 + README + `missing`（POTCAR/UPF/basis/skf/力场） |
 | 结构特征表（ML） | `cifkit features FILE_OR_DIR --out features.csv [--jobs] [--no-rdf] [--topology]` | 组成/晶格/对称性/配位数/RDF/拓扑/H/金属分数 |
 | 数据集构建 | `cifkit dataset --from-runs runs/ --outdir dataset/ [--label-key topology]` | `dataset.csv/jsonl` + structures + manifest（errors/label/sha256） |
@@ -151,7 +153,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 252 条（默认 248 passed + 4 条 opt-in/skipped：`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像；含 demo 端到端，需 _cache）
+& $PY -m pytest tests -q            # 257 条（默认 253 passed + 4 条 opt-in/skipped：`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像；含 demo 端到端，需 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
@@ -187,7 +189,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
 - **Round 6（数据源扩展）**：补齐 **Materials Project**（需 `MP_API_KEY`）与 **AFLOW**（免 key）适配器，
   COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
-  路由 intent 增数据源关键词/examples（评测 89/89、负例 0/25），测试总数 **252 条（默认 248 passed + 4 条 opt-in/skipped：`test_metals_zip_full` 需 `CIFKIT_USECASE_FULL=1`、MP live 2 条需 `MP_API_KEY`、QMOF live 1 条需本地镜像）**。
+  路由 intent 增数据源关键词/examples（评测 89/89、负例 0/25），测试总数 **257 条（默认 253 passed + 4 条 opt-in/skipped：`test_metals_zip_full` 需 `CIFKIT_USECASE_FULL=1`、MP live 2 条需 `MP_API_KEY`、QMOF live 1 条需本地镜像）**。
   - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
 
 ---

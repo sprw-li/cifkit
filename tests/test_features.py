@@ -66,3 +66,10 @@ def test_features_from_cif_path_keys(zif8):
     row = features_from_cif(ZIF8, rdf=False)
     assert row["filename"] == ZIF8.name
     assert row["path"].endswith(ZIF8.name)
+
+
+def test_features_rings(zif8):
+    row = extract_features(zif8, rdf=False, rings=True)
+    assert "ring_sizes" in row and json.loads(row["ring_sizes"])
+    assert row["n_metal_nodes"] and row["n_metal_nodes"] > 0
+    assert json.loads(row["rings_per_node"])

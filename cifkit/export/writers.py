@@ -54,6 +54,7 @@ FORMAT_INFO: dict[str, str] = {
     "orca": "ORCA input template (.inp) + coordinates; basis/route must be reviewed",
     "dftb": "DFTB+ dftb_in.hsd template (Geometry gen or HSD; Slater-Koster files needed)",
     "xsf": "XCrySDen .xsf (periodic crystal, ASE writer)",
+    "png": "结构预览 PNG（cifkit.render；用于快速看图/报告，不是计算输入）",
 }
 
 _ALIASES: dict[str, str] = {
@@ -108,6 +109,8 @@ _ALIASES: dict[str, str] = {
     "stru": "abacus",
     "orca-inp": "orca",
     "xcrysden": "xsf",
+    "image": "png",
+    "preview": "png",
 }
 
 
@@ -275,6 +278,13 @@ def _write_cp2k(structure: Structure, path: Path, title: str | None) -> None:
 
 
 #: cifkit format -> ASE writer name (periodic crystal formats)
+def _write_png(structure: Structure, path: Path, title: str | None) -> None:
+    """Structure preview PNG via cifkit.render (matplotlib)."""
+    from cifkit.render import render_structure
+
+    render_structure(structure, path, view="auto", title=title)
+
+
 def _write_castep(structure: Structure, path: Path, title: str | None) -> None:
     """CASTEP .cell skeleton: LATTICE_CART + POSITIONS_FRAC + species."""
     lat = structure.lattice
@@ -467,6 +477,7 @@ _WRITERS: dict[str, Callable[..., None]] = {
     "orca": _write_orca,
     "dftb": _write_dftb,
     "castep": _write_castep,
+    "png": _write_png,
 }
 for _fmt, _ase_name in _ASE_WRITERS.items():
     _WRITERS[_fmt] = partial(_write_ase, ase_format=_ase_name)
@@ -516,6 +527,10 @@ def _verify(path: Path, fmt: str, natoms: int) -> None:
     if size <= 0:
         raise RuntimeError(f"writer for {fmt!r} produced an empty file: {path}")
 
+    if fmt == "png":
+        if path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+            raise RuntimeError(f"{path} is not a PNG file")
+        return
     text = path.read_text(encoding="utf-8", errors="replace")
     if fmt == "vasp":
         lines = [ln for ln in text.splitlines() if ln.strip()]

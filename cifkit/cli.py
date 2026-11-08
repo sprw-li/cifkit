@@ -408,6 +408,7 @@ def cmd_features(args) -> int:
         rdf_bins=args.rdf_bins,
         rdf_max=args.rdf_max,
         topology=args.topology,
+        rings=args.rings,
     )
     if args.out:
         out = _write_string_csv(rows, Path(args.out))
@@ -778,6 +779,7 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--rdf-bins", type=int, default=50)
     ft.add_argument("--rdf-max", type=float, default=8.0)
     ft.add_argument("--topology", action="store_true", help="额外做拓扑识别（sod/pcu/fcu/...，较慢）")
+    ft.add_argument("--rings", action="store_true", help="额外统计 4–8 元环（金属节点 net，较慢）")
     ft.add_argument("--json", action="store_true")
     ft.set_defaults(func=cmd_features)
 

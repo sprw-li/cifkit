@@ -27,7 +27,7 @@ normalize_format(fmt_or_alias) -> str          # 辅助：格式名/别名归一
 | `cp2k` | `cp2k-in`, `cp2k_input` | 自写模板 | 关键字 + `&COORD` 行数 | 见 §4 骨架说明 |
 | `xsf` | `xcrysden` | `ase.io` `xsf` | `ase.io.read` 原子数 | 周期晶体（PRIMVEC/PRIMCOORD） |
 
-（早期版本只支持 7 种格式；round 3 已扩展到 30 种格式 + 12 种输入包，见 §6。）
+（早期版本只支持 7 种格式；round 3 已扩展到 31 种格式 + 12 种输入包，见 §6。）
 
 ## 3. Quantum ESPRESSO 赝势（本次修复的缺陷）
 
@@ -126,7 +126,7 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 | 类别 | 格式（30） | 写出方式 | 回读校验 |
 |---|---|---|---|
 | 结构/通用 | `cif`、`vasp`、`xyz`、`extxyz`、`json` | pymatgen / 自写 / ASE | 是（原子数一致） |
-| 可视化/分析 | `xsf`、`cfg`、`pdb`、`sdf`、`mol`、`struct`、`res` | ASE | 是（PDB/SDF/MOL 不表达周期性） |
+| 可视化/分析 | `xsf`、`cfg`、`pdb`、`sdf`、`mol`、`struct`、`res`、`png`（预览图） | ASE / cifkit.render | 是（PDB/SDF/MOL 不表达周期性；png 只验证 PNG 魔数） |
 | 分子动力学 | `lammps`、`gromacs`、`gen` | ASE | 是（骨架，无力场/质量） |
 | 电子结构（输入） | `qe`、`cp2k`、`gaussian`、`orca`、`abacus`、`dftb`、`siesta`、`nwchem`、`aims`、`castep`、`abinit`、`crystal`、`onetep`、`dmol`、`turbomole` | ASE writer / 自写模板 | 模板：检查关键段落；**不是收敛输入** |
 | （未实现） | `cube`、`png` | 需要 3D 数据数组/额外依赖，**不在当前 30 种内** | — |
