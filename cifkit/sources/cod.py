@@ -16,6 +16,8 @@ COD 的 REST 检索接口::
 from __future__ import annotations
 
 import json
+import os
+from dataclasses import replace
 import socket
 import time
 import urllib.error
@@ -33,6 +35,7 @@ from cifkit.sources._cifutil import (
     sha256_bytes,
     structure_from_bytes,
 )
+from cifkit.sources.http import HttpClient, HttpError
 from cifkit.sources.base import count_hydrogen, expected_hydrogen
 from cifkit.types import FetchedStructure, SourceQuery, StructureRecord
 
@@ -57,22 +60,20 @@ def cod_available(timeout: float = 5.0) -> bool:
         return False
 
 
+#: shared client: exponential backoff + Retry-After + pacing (see cifkit.sources.http).
+#: min_interval defaults to 0.25 s between requests to the same host so a batch
+#: fetch does not hammer a public database; override with the env var (0 disables).
+_HTTP = HttpClient(user_agent=_USER_AGENT, retries=3, base_backoff=1.5, max_backoff=30.0,
+                   min_interval=float(os.environ.get("CIFKIT_COD_MIN_INTERVAL", "0.25")))
+
+
 def _http_get(url: str, *, timeout: float = 30.0, retries: int = 3) -> bytes:
-    last_error: Exception | None = None
-    for attempt in range(max(1, retries)):
-        try:
-            request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT, "Accept": "*/*"})
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed COD host
-                return response.read()
-        except urllib.error.HTTPError as exc:
-            last_error = exc
-            if exc.code in (400, 403, 404):
-                raise
-            time.sleep(1.5 * (attempt + 1))
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            last_error = exc
-            time.sleep(1.5 * (attempt + 1))
-    raise RuntimeError(f"COD 请求失败：{url}（{type(last_error).__name__}: {last_error}）") from last_error
+    """GET with retries; pacing/backoff/Retry-After live in :class:`HttpClient`."""
+    client = _HTTP if retries == _HTTP.retries else replace(_HTTP, retries=retries)
+    try:
+        return client.get(url, timeout=timeout)
+    except HttpError as exc:
+        raise RuntimeError(f"COD 请求失败：{url}（HTTP {exc.status}）") from exc
 
 
 def cod_cache_dir() -> Path:

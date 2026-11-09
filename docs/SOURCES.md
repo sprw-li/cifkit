@@ -399,3 +399,21 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
   AFLOW 下载的是 aflowlib 仓库里的 CIF 文件；两者的 sha256 都单独记录，可复核。
 - 许可：CoRE MOF 2024 为 CC-BY-4.0（DataCite 核实）；COD 公有领域；MP/AFLOW 只记录
   官方 usage terms 提示，**不替用户断言可再分发**。
+
+## 网络策略与限流（round 16）
+
+所有数据源共用 `cifkit/sources/http.py::HttpClient`（`tests/test_http_client.py`、
+`tests/test_sources_http.py` 用**本地 mock 服务器**验证，不碰外网）：
+
+| 行为 | 规则 |
+|---|---|
+| 可重试状态 | 408 / 425 / 429 / 500 / 502 / 503 / 504 |
+| 直接失败（不重试） | 400 / 401 / 403 / 404 / 422 |
+| 退避 | 指数退避（COD 1.5s 起、AFLOW 2.0s 起、MP 1.5s 起），上限 30 s，带 25% 抖动 |
+| `Retry-After` | 优先采用（支持秒数与 HTTP-date），并受 `max_backoff` 上限约束 |
+| 限速（pacing） | 同一 host 两次请求间隔默认 **0.25 s**；`CIFKIT_COD_MIN_INTERVAL` / `CIFKIT_AFLOW_MIN_INTERVAL` / `CIFKIT_MP_MIN_INTERVAL` 可覆盖（设 0 关闭） |
+| 网络错误 | `URLError`/超时/`OSError` 同样重试并计入 `client.stats` |
+
+验证过的场景：服务器允许 5 req/s 时，**30 次批量抓取的违规次数 = 0**；
+被限流后靠退避重试最终全部成功。**未验证**：公网真实端点的实际限额
+（我们不知道 COD/AFLOW/MP 的真实配额），以及长时间高并发抓取。

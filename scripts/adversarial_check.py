@@ -297,6 +297,58 @@ def main() -> int:
           and pages[2]["has_more"] is False,
           f"ids={ids} total={pages[0]['total']} has_more_last={pages[2]['has_more']}")
 
+    # ------------------------------------------- 3e) rate limiting (A6)
+    import http.server as _http_server
+    import threading as _threading
+
+    from cifkit.sources.http import HttpClient, HttpError
+
+    _state = {"statuses": [429, 503], "retry_after": "0", "hits": 0}
+
+    class _Handler(_http_server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            _state["hits"] += 1
+            status = _state["statuses"].pop(0) if _state["statuses"] else 200
+            self.send_response(status)
+            if status in (429, 503):
+                self.send_header("Retry-After", _state["retry_after"])
+            body = b"ok" if status == 200 else b"throttled"
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):  # noqa: D102
+            return
+
+    _server = _http_server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    _thread = _threading.Thread(target=_server.serve_forever, daemon=True)
+    _thread.start()
+    _base = f"http://127.0.0.1:{_server.server_address[1]}"
+    try:
+        sleeps: list[float] = []
+        client = HttpClient(retries=4, jitter=0.0, base_backoff=9.0,
+                            sleeper=lambda s: sleeps.append(s))
+        body = client.get(f"{_base}/x")
+        check("rate-limit: 429+503 are retried and Retry-After wins over backoff",
+              body == b"ok" and _state["hits"] == 3 and sleeps == [0.0, 0.0],
+              f"hits={_state['hits']} sleeps={sleeps}")
+
+        _state["statuses"] = [404, 200]
+        _state["hits"] = 0
+        fails_fast = HttpClient(retries=4, sleeper=lambda s: None)
+        try:
+            fails_fast.get(f"{_base}/missing")
+            status_404 = False
+        except HttpError as exc:
+            status_404 = exc.status == 404 and exc.retryable is False
+        check("rate-limit: 404 is not retried (exactly one request, no sleep)",
+              status_404 and _state["hits"] == 1,
+              f"hits={_state['hits']} status_404={status_404}")
+    finally:
+        _server.shutdown()
+        _server.server_close()
+        _thread.join(timeout=5)
+
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",

@@ -20,6 +20,8 @@ REST 端点（2024+ 版本）::
 from __future__ import annotations
 
 import json
+import os
+from dataclasses import replace
 import re
 import socket
 import time
@@ -32,6 +34,7 @@ from typing import Any
 
 from cifkit.cache import cache_dir
 from cifkit.sources._cifutil import file_sha256, sha256_bytes
+from cifkit.sources.http import HttpClient, HttpError
 from cifkit.sources.base import count_hydrogen, expected_hydrogen
 from cifkit.types import FetchedStructure, SourceQuery, StructureRecord
 
@@ -92,6 +95,13 @@ def _require_key() -> str:
     )
 
 
+#: shared client: exponential backoff + Retry-After + pacing (see cifkit.sources.http).
+#: min_interval defaults to 0.25 s between requests to the same host so a batch
+#: fetch does not hammer a public database; override with the env var (0 disables).
+_HTTP = HttpClient(user_agent=_USER_AGENT, retries=2, base_backoff=1.5, max_backoff=30.0,
+                   min_interval=float(os.environ.get("CIFKIT_MP_MIN_INTERVAL", "0.25")))
+
+
 def _http_json(path: str, params: dict[str, Any] | None = None, *, timeout: float = 40.0,
                retries: int = 2, host: str = DEFAULT_HOST) -> dict:
     key = _require_key()
@@ -99,33 +109,22 @@ def _http_json(path: str, params: dict[str, Any] | None = None, *, timeout: floa
         return _REQUEST_JSON(path, params or {}, key)
     query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v is not None})
     url = f"{host.rstrip('/')}{path}" + (f"?{query}" if query else "")
-    last: Exception | None = None
-    for attempt in range(max(1, retries)):
-        try:
-            request = urllib.request.Request(
-                url, headers={"X-API-KEY": key, "User-Agent": _USER_AGENT, "Accept": "application/json"}
-            )
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed MP host
-                return json.loads(response.read().decode("utf-8", "replace"))
-        except urllib.error.HTTPError as exc:
-            body = ""
-            try:
-                body = exc.read().decode("utf-8", "replace")[:300]
-            except Exception:  # noqa: BLE001
-                pass
-            if exc.code in (401, 403):
-                raise ValueError(
-                    f"Materials Project 拒绝了请求（HTTP {exc.code}）：API key 无效或没有权限。"
-                    f"请在 https://materialsproject.org/api 检查 key。{(' body=' + body) if body else ''}"
-                ) from exc
-            last = exc
-            if exc.code == 400:
-                raise
-            time.sleep(1.5 * (attempt + 1))
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            last = exc
-            time.sleep(1.5 * (attempt + 1))
-    raise RuntimeError(f"Materials Project 请求失败：{url}（{type(last).__name__}: {last}）") from last
+    client = _HTTP if retries == _HTTP.retries else replace(_HTTP, retries=retries)
+    try:
+        return client.get_json(url, headers={"X-API-KEY": key, "Accept": "application/json"},
+                               timeout=timeout)
+    except HttpError as exc:
+        body = exc.body or ""
+        if exc.status in (401, 403):
+            raise ValueError(
+                f"Materials Project 拒绝了请求（HTTP {exc.status}）：API key 无效或没有权限。"
+                f"请在 https://materialsproject.org/api 检查 key。{(' body=' + body) if body else ''}"
+            ) from exc
+        if exc.status == 400:
+            raise
+        raise RuntimeError(
+            f"Materials Project 请求失败：{url}（HTTP {exc.status}, {exc.attempts} 次尝试）"
+        ) from exc
 
 
 def mp_cache_dir() -> Path:

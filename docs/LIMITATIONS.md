@@ -6,25 +6,24 @@
 
 ## 摘要
 
-**共 67 条局限 = 6 ✅（已修/已覆盖） / 56 🟡（可绕过/已知边界） / 5 🔴（未解决/未验证）**
+**共 69 条局限 = 7 ✅（已修/已覆盖） / 58 🟡（可绕过/已知边界） / 4 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
-| A | 数据源 | 6 | 0 | 5 | 1 |
-| B | 拓扑判定 | 4 | 0 | 4 | 0 |
+| A | 数据源 | 6 | 0 | 6 | 0 |
+| B | 拓扑判定 | 5 | 0 | 5 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 4 | 2 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 1 | 5 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 5 | 1 | 2 | 2 |
+| H | 技能 / 路由 / 测试覆盖 | 6 | 2 | 2 | 2 |
 | I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
 | L | 许可 / 商用合规 | 11 | 2 | 9 | 0 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
-- **A6** 未验证 AFLOW/COD 大规模限流与重试（只有单次重试逻辑） → 大批量抓取可能被限流
 - **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
 - **C3** 有机金属 M–C σ 键（Cp/烷基/CO）不当配位键 → 有机金属体系不适用
 - **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
@@ -42,13 +41,14 @@
 | A3 | CoRE MOF 2024 只有 ASR 子集带 RCSR 拓扑列；NCR 无拓扑元数据 | 🟡 | NCR 结构拓扑需 `topology.verify`，可能 `unknown` | 报告里区分 `metadata/verified/unknown` | docs/SOURCES §2/§5 |
 | A4 | AFLOW 无 RCSR 拓扑；`aflow:<auid>` 不能反查 | 🟡 | AFLOW 结果只能按 aurl/化学式；拓扑 unknown | 用 aurl 或化学式；拓扑靠结构比对 | docs/SOURCES §7c |
 | A5 | COD 无拓扑列、实验结构质量参差、检索按文本 | 🟡 | COD 结构需复核；拓扑 unknown | 用 spglib/validate 复核 | docs/SOURCES §6 |
-| A6 | 未验证 AFLOW/COD 大规模限流与重试（只有单次重试逻辑） | 🔴 | 大批量抓取可能被限流 | 控制并发/加 sleep；未做压力测试 | Round4/7 报告"未验证" |
+| A6 | 限流/退避行为已在**本地 mock 服务器**上验证（429/503/Retry-After/退避/限速），但**公网真实端点配额未知** | 🟡 | 真实限额、长时间高并发抓取仍未测 | 统一 `HttpClient`（指数退避+抖动+Retry-After+默认 0.25s/请求限速）；实测服务器 5 req/s 时 30 次批量抓取违规 0 次 | tests/test_http_client.py、tests/test_sources_http.py、docs/SOURCES.md |
 
 ## B. 拓扑判定
 
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
+| A7 | 数据源适配器**未做失败注入**（磁盘满、代理中断、缓存写坏） | 🟡 | 极端环境下行为未知 | 缓存写用原子替换（locks.atomic_write_*）；网络错误统一重试 | tests/test_robustness.py、cifkit/locks.py |
 | B1 | 落盘参考只有 **6 个 net**（sod/pcu/dia/fcu/tbo/bcu） | 🟡 | hms/qtz/cag 等 net 判 `unknown` | 可扩展 `cifkit/data/nets/`；未知不硬猜 | docs/SOURCES §5 |
 | B2 | SBU 收缩是启发式；多齿配体结构会返回 `unknown` | 🟡 | 部分真实 MOF 无法识别 | 诚实返回 unknown；参考结构避开多齿 | docs/SOURCES §5.1 |
 | B3 | 高配位 net（pcu/fcu/tbo/bcu）环统计有上限（`rings_truncated`） | 🟡 | 这些 net 靠 CN+配位序列+linker 比判定，不靠环 | `verified_on` 字段明确写出依据 | docs/SOURCES §5 |
@@ -123,6 +123,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
+| G7 | 锁等待在**高负载**下过紧（8 并发构建索引时 waiter 曾 120s 超时）——现已改为「超时后先复查缓存 + 有界重试」 | ✅ | 极端负载下仍可能整体超时（此时会明确报错） | `CIFKIT_LOCK_TIMEOUT`(120s)/`CIFKIT_LOCK_TOTAL_TIMEOUT`(900s) 可调；对等进程完成后 waiter 直接复用其索引 | tests/test_lock_contention.py；cifkit/sources/core_mof.py |
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3 | 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |

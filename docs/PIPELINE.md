@@ -360,3 +360,13 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   默认线程，`--jobs` 不作为提速承诺。
 - 基准：`scripts/bench_api.py`（吞吐/并行/内存/并发曲线 + 纯 Python 对照实验）→
   `runs/bench_api.json`；解读见 `docs/PERFORMANCE.md` §10。
+
+### 8.10 统一 HTTP 客户端与限流（round 16）
+
+- `cifkit/sources/http.py::HttpClient`：可重试状态（408/425/429/5xx）、不可重试（4xx）、
+  指数退避+25% 抖动、`Retry-After`（秒/HTTP-date，受 `max_backoff` 限制）、
+  同 host 最小间隔 pacing（默认 0.25s，env 可覆盖）、可注入 `sleeper`/`opener`。
+- COD / AFLOW / MP 三个适配器改用该客户端（行为兼容：错误类型、401/403→ValueError 映射不变）。
+- 验证方式：**本地 mock 服务器**（`tests/test_http_client.py` 10 条、`tests/test_sources_http.py` 6 条），
+  包括"服务器允许 5 req/s 时 30 次批量抓取违规 0 次"与"被限流后退避重试最终成功"。
+- 诚实边界：公网真实配额未知；长时间高并发抓取未测（`docs/LIMITATIONS.md` A6）。

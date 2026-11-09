@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 import time
 import warnings
@@ -409,7 +410,30 @@ def build_index(*, rebuild: bool = False) -> dict[str, Any]:
             _META_CACHE = None
             return cached
 
-    with file_lock(idx_file.with_name(idx_file.name + ".lock"), timeout=120.0):
+    # Lock wait budget: building the 8300-entry index under heavy load can take
+    # minutes, so a waiter must not fail just because a *peer* is slow.  The build
+    # is idempotent and the index is replaced atomically, so after a lock timeout we
+    # re-check the cache and retry the lock with backoff for a bounded total time.
+    lock_timeout = float(os.environ.get("CIFKIT_LOCK_TIMEOUT", "120"))
+    deadline = time.monotonic() + float(os.environ.get("CIFKIT_LOCK_TOTAL_TIMEOUT", "900"))
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            context = file_lock(idx_file.with_name(idx_file.name + ".lock"), timeout=lock_timeout)
+            context.__enter__()
+            break
+        except Exception:  # noqa: BLE001 - lock timeout (or a broken lock file)
+            if not rebuild:
+                cached = _load_cached_index(idx_file, archive, csv_file)
+                if cached is not None:
+                    _INDEX_CACHE = cached
+                    _META_CACHE = None
+                    return cached
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(min(2.0 * attempt, 10.0))
+    try:
         # double-checked locking: another process may have finished while we waited
         if not rebuild:
             cached = _load_cached_index(idx_file, archive, csv_file)
@@ -459,6 +483,8 @@ def build_index(*, rebuild: bool = False) -> dict[str, Any]:
         _INDEX_CACHE = index
         _META_CACHE = None
         return index
+    finally:
+        context.__exit__(None, None, None)
 
 
 def _index_fresh(index: dict[str, Any], archive: Path, csv_file: Path) -> bool:
