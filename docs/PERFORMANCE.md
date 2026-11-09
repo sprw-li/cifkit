@@ -119,3 +119,25 @@ RDF 是主要成本（约 5–10×）；`convert` 落盘与内存返回几乎同
 **该服务适合"多小请求"而不是"并行大计算"**；重计算请放进程池或工作队列。
 
 复现：`.venv\Scripts\python.exe scripts\bench_api.py [--quick]`（写 `runs/bench_api.json`）。
+
+### 10.5 流式数据集：千级语料实测（round 19，局限 F6/F7）
+
+前面的 8–12 run 测量看不出内存差异（峰值被 pymatgen 工作内存主导）。用合成微型结构
+把语料放大到 **2000**（以及 RDF 变体 **1000**）后，差异变成硬数字：
+
+| 语料 | 模式 | `max_rows_held` | 峰值内存 | 墙钟 |
+|---|---|---|---|---|
+| 2000 runs，无 RDF | stream | 1 | **3.4 MiB** | 21.229 s |
+| 2000 runs，无 RDF | materialised | 2000 | 12.08 MiB | 18.048 s |
+| 1000 runs，含 RDF | stream | 1 | **2.29 MiB** | 12.436 s |
+| 1000 runs，含 RDF | materialised | 1000 | 9.95 MiB | 14.177 s |
+
+- **峰值内存比（传统/流式）：3.55×（无 RDF）、4.34×（含 RDF）** —— 行越大、行数越多，收益越大；
+- **墙钟代价**：0.85×（无 RDF）/ 1.14×（含 RDF），即流式多读一遍 JSONL 的固定开销（±20% 量级），**不随语料增长**；
+- 两种模式的 **CSV sha256 完全相同**（`same_csv=True`），输出无差异。
+
+复现：`.venv\Scripts\python.exe scripts\bench_stream_scale.py --runs 2000 [--rdf] [--refresh]`
+（写 `runs/bench_stream_scale.json` / `_rdf.json`；语料落在 `runs/bench_scale/`，可删）。
+
+> 口径声明：tracemalloc 峰值（含预热）；单机 Windows、机器有其它负载；这是**量级证据**，
+> 不是承诺。旧文件旧结论保留在 §10.3 作为对照。

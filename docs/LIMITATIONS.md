@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 70 条局限 = 8 ✅（已修/已覆盖） / 60 🟡（可绕过/已知边界） / 2 🔴（未解决/未验证）**
+**共 70 条局限 = 9 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 2 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -15,7 +15,7 @@
 | C | 补氢 / 修复 | 6 | 0 | 5 | 1 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
-| F | 特征 / 数据集 | 6 | 1 | 5 | 0 |
+| F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 6 | 2 | 3 | 1 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
@@ -25,7 +25,7 @@
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
 - **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
-- **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
+- **H3** 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → → 输入模板的真实可运行性仍未被任何软件确认
 
 ---
 
@@ -101,14 +101,14 @@
 | F3 | 配位数按距离判据，不读化学价/自旋 | 🟡 | 氧化态/磁性不在特征里 | 结合外部数据 | docs/FEATURES |
 | F4 | `rings` 已覆盖无金属框架（完整键图回退） | ✅ | 节点数上限 >600 原子跳过并标 `truncated` | 金属框架仍走 underlying net（`ring_basis=metal-net`） | `cifkit.topology.ring_statistics`；diamond 6 元环=16/胞实测 |
 | F5 | dataset 只汇总已有 manifest，无去重/清洗/标签计算 | 🟡 | 数据集质量取决于 runs | 上游用 pipeline/batch 控制质量 | docs/FEATURES |
-| F6 | 数据集**已流式**（manifest 惰性遍历 + 行不驻留 + 分页读取），但内存收益未在大语料量化 | 🟡 | 本机 8–12 runs 的峰值差异在噪声内（1.17×/0.94×），千级语料未测 | `build_dataset(stream=True)`（默认）、`iter_manifests`、`api.dataset_rows` 分页；结构性证据是 `max_rows_held=1` | docs/PERFORMANCE.md §10.3；tests/test_dataset.py |
+| F6 | 数据集**已流式**（manifest 惰性遍历 + 行不驻留 + 分页读取），并在 2000 run 语料上量化：峰值内存 **3.55× 更低**（RDF 变体 4.34×），代价是墙钟 0.85×（多读一遍 JSONL） | ✅ | 极端语料（百万 run、超大行）仍未测 | `build_dataset(stream=True)`（默认）、`iter_manifests`、`api.dataset_rows` 分页；CSV 哈希与流式/传统一致 | docs/PERFORMANCE.md §10.5；tests/test_dataset.py |
 
 ## G. 性能 / 并发 / 稳定性
 
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| F7 | 流式/并行的**收益未在大规模语料或空闲机器上验证**（本机饱和：纯 Python 对照 4 线程仅 0.78x） | 🟡 | 不要把 `--jobs`/流式当性能承诺 | `scripts/bench_api.py` 记录 `cpu_load_percent`+对照实验，随时可复测 | docs/PERFORMANCE.md §10 |
+| F7 | 流式收益已在 2000 run 语料量化（内存 3.55×/4.34×，墙钟 0.85×/1.14×）；**并行 (`--jobs`) 仍无加速** | 🟡 | 不要把 `--jobs` 当提速手段；并行加速受 GIL 限制（4 worker ≈1.2×，见 §10.4） | `scripts/bench_stream_scale.py`、`scripts/bench_api.py` 可复测 | docs/PERFORMANCE.md §10.5 |
 | G1 | batch 并发只在 3 并发测过（demo 2.8×，轻量 spec 1.91×），未测 8/16 扩展性 | 🟡 | 更大规模收益未知 | 起步 4；按机器/网络调 | docs/PERFORMANCE |
 | G2 | slab 缓存是**进程内** LRU（24 条），跨进程不共享 | 🟡 | 多进程重复计算 | 单进程内批量复用 | docs/PERFORMANCE |
 | G3 | `library/index.jsonl` 并发追加无跨进程行锁（只保证不产生半行） | 🟡 | 极端并发顺序不定 | 避免多进程同时 --ingest | docs/ROBUSTNESS |
@@ -124,7 +124,7 @@
 | G7 | 锁等待在**高负载**下过紧（8 并发构建索引时 waiter 曾 120s 超时）——现已改为「超时后先复查缓存 + 有界重试」 | ✅ | 极端负载下仍可能整体超时（此时会明确报错） | `CIFKIT_LOCK_TIMEOUT`(120s)/`CIFKIT_LOCK_TOTAL_TIMEOUT`(900s) 可调；对等进程完成后 waiter 直接复用其索引 | tests/test_lock_contention.py；cifkit/sources/core_mof.py |
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
-| H3 | 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |
+| H3 | 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → 检查外部数据（POTCAR/UPF/basis/.skf/力场）→ 生成最小自洽算例 → 跑并核对成功标记；框架本身用 stub 可执行文件自测通过，但**本机未安装任何计算软件**（verified=0/12） | 🔴 | 输入模板的真实可运行性仍未被任何软件确认 | 有软件/数据时：`python scripts\check_software.py --run` （环境变量 `CIFKIT_*_PP/_PSEUDO_DIR/_SK/_DATA` 指向用户自备数据） | runs/check_software.json；tests/test_check_software.py |
 | H4 | 已提供**跨平台 CI workflow**（ubuntu/macos/windows × py3.11/3.13 + wheel 构建），但**从未在 Linux/macOS 上真正执行过**（本机只有 Windows） | 🟡 | 首次 CI 运行前不能宣称跨平台可用 | 每个 CI 步骤都是本机可复跑的同一命令（check_eol / sca_scan / verify_formats / adversarial / pytest / check_all）；CI 里强制 `core.autocrlf=false` 以验证 eol=lf 契约 | .github/workflows/ci.yml；docs/LIMITATIONS.md G6 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 

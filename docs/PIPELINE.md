@@ -383,3 +383,14 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   `core.autocrlf=false`，依次跑 check_eol → sca_scan --strict → verify_formats →
   adversarial → pytest → check_all --skip-agentlib，另加 wheel 构建 job。
   **诚实标注**：本机只有 Windows，该 workflow **尚未真正执行过**（局限 H4）。
+
+### 8.12 流式千级实测 + 软件验收框架（round 19）
+
+- `scripts/bench_stream_scale.py`：合成微型语料（默认 2000 run，`--rdf` 变体），
+  含预热地对比流式/传统构建的 tracemalloc 峰值、墙钟、`max_rows_held` 与 CSV 哈希；
+  实测峰值内存 **3.55×（无 RDF）/ 4.34×（含 RDF）更低**，墙钟代价 0.85–1.14×（固定开销）。
+- `scripts/check_software.py`：12 种计算软件的探测 → 外部数据就绪检查 → 最小自洽算例 →
+  成功标记核对；`--run` 才真正执行。本机无任何软件（`verified=0/12`），
+  因此 H3 保持 🔴，但"缺少的证据"现在是可机械补齐的（H3 的处置方式已写进 docs/LIMITATIONS.md）。
+- `tests/test_check_software.py`：用 stub 可执行文件验证框架自身（verified / ran-no-marker /
+  failed / timeout / 数据缺失跳过 / 报告诚实性）。
