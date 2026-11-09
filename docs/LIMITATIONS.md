@@ -86,7 +86,7 @@
 |---|---|---|---|---|---|
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
-| H3 | 252 条测试中，未在 CI 里跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |
+| H3 | 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |
 | H4 | 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI | 🔴 | 跨平台差异未验证 | 文档说明 | README |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
