@@ -446,3 +446,35 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 `stale-eval?`（期望的 id 仍存在但被更专门的新 id 取代）/ `missing-skill?`（期望的 id 已被删除）/
 `router-regression?` 三分类，并指出该改哪一侧——因为技能目录在**另一个仓库**里，
 经常被并发修改（2026-11 的 `document-pptx → office-pptx` 改名就是这么发现的）。
+
+### 8.16 覆盖矩阵（round 23，`docs/COVERAGE.md`）
+
+`scripts/coverage_matrix.py` 把"本地到底有什么"变成一张可复现的表：
+
+- 统计每个拓扑在索引里的条目数（allnodes/singlenodes）；
+- 标记哪些拓扑**本地有参考网络**（只有 `cifkit/data/nets` 里那 6 个可离线验证）；
+- 对每个捆绑 net **从 CoRE 压缩包取一条真实条目跑 `topology.verify`** 并记录结果。
+
+实测：sod/pcu/dia/fcu/tbo/bcu **6/6 全部 verified**；`mtn` 条目数 **0**（再次证实 MIL-101
+不在数据集内，与 C2 互证）；`sql` 176 条、`hcb` 43 条等**存在但本地无法离线验证**。
+发布门禁新增一条：**捆绑参考网络必须在真实数据上验证通过**。
+
+### 8.17 云端验收作业（H3 的补证路径，round 24）
+
+H3（"输入模板从未在真实计算软件里跑过"）本机无法验证；已按 skill
+`catalog/cloud-gpu-bohrium` 的**省钱顺序**（probe → dry-run → 极小探测作业 → 目标作业）
+把证据链准备好：
+
+| 产物 | 作用 |
+|---|---|
+| `cloud_h3/run_acceptance.py` | 容器内运行：探测 9 种计算软件 → 跑最小自洽算例 → 核对成功标记 → 写 `acceptance_result.json`（纯标准库） |
+| `cloud_h3/cases/*` | CP2K H2O 单点（用 CP2K 自带 data）、QE pw.x scf、ORCA/NWChem H2（STO-3G 内置，无外部数据） |
+| `scripts/cloud_h3_submit.py` | 门禁包装：**无凭据 = 不提交**（exit 1，不发请求）；**无 `--go` = 只 dry-run**；`--go` 才 probe→submit；支持 `--image`（自带 CP2K/QE 的镜像，省掉每次 apt 装包）、`--job-id` 轮询/取回 |
+| `runs/cloud_h3/RUNBOOK.md` | 运行手册：成本敞口、命令序列、诚实边界 |
+
+实测（本机）：`--check` exit 1（三个变量全未设置）；`--dry-run` exit 0、`network_requests = 0`、
+payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/submit 日志**（真的没发请求）。
+默认 4090 目录价 5.5 RMB/h：5 分钟探测作业 **run-only ≤ 0.4583 RMB**、含排队暴露 ≤ 3.2083 RMB；
+装 CP2K 路线（60 min）≤ 5.5 / 11.0 RMB。
+
+**H3 在此期间仍是 🔴**：没有真实运行就没有证据，dry-run 的 payload 不得当作 GPU 结果。

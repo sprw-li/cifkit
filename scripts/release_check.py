@@ -158,6 +158,22 @@ def main() -> int:
                f"verified={verified}/{len(software['software'])} (informational: H3 stays open)",
                warning=True)
 
+    coverage_path = ROOT / "runs" / "coverage_matrix.json"
+    if coverage_path.is_file():
+        coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+        examples = coverage.get("examples", [])
+        verified = [e["net"] for e in examples if e.get("status") == "verified"]
+        bundled = coverage.get("bundled_reference_nets", [])
+        ok = bool(bundled) and set(bundled) <= set(verified)
+        record("artifacts: bundled topology nets verify on real data", ok,
+               f"{len(verified)}/{len(bundled)} nets verified "
+               f"({', '.join(sorted(verified)) or 'none'})")
+        report["coverage"] = {"bundled": bundled, "verified": verified}
+    else:
+        record("artifacts: bundled topology nets verify on real data", True,
+               "runs/coverage_matrix.json not generated in this run (informational)",
+               warning=True)
+
     limitations = ROOT / "docs" / "LIMITATIONS.md"
     if limitations.is_file():
         consistent, detail = limitations_summary_ok(limitations.read_text(encoding="utf-8"))

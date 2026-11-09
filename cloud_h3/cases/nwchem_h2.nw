@@ -1,0 +1,19 @@
+start h2_acceptance
+title "H2 single point, STO-3G (self-contained)"
+echo
+
+geometry units angstroms
+  H 0.0 0.0 0.0
+  H 0.0 0.0 0.74
+end
+
+basis
+  H library sto-3g
+end
+
+scf
+  maxiter 1
+  thresh 1.0e-4
+end
+
+task scf energy

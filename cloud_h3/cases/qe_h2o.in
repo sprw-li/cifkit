@@ -1,0 +1,29 @@
+&CONTROL
+  calculation = 'scf'
+  prefix = 'h2o'
+  outdir = './tmp'
+  pseudo_dir = './pseudo'
+  tprnfor = .false.
+  disk_io = 'none'
+/
+&SYSTEM
+  ibrav = 0
+  nat = 2
+  ntyp = 2
+  ecutwfc = 20.0
+/
+&ELECTRONS
+  electron_maxstep = 1
+  conv_thr = 1.0d-2
+/
+ATOMIC_SPECIES
+  H  1.008  H.pbe-rrkjus.UPF
+  O  15.999 O.pbe-rrkjus.UPF
+CELL_PARAMETERS angstrom
+  8.0 0.0 0.0
+  0.0 8.0 0.0
+  0.0 0.0 8.0
+ATOMIC_POSITIONS angstrom
+  O  0.000  0.000  0.000
+  H  0.757  0.586  0.000
+K_POINTS gamma

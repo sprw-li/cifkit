@@ -124,7 +124,7 @@
 | G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
-| H3 | 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → 检查外部数据（POTCAR/UPF/basis/.skf/力场）→ 生成最小自洽算例 → 跑并核对成功标记；框架本身用 stub 可执行文件自测通过，但**本机未安装任何计算软件**（verified=0/12） | 🔴 | 输入模板的真实可运行性仍未被任何软件确认 | 有软件/数据时：`python scripts\check_software.py --run` （环境变量 `CIFKIT_*_PP/_PSEUDO_DIR/_SK/_DATA` 指向用户自备数据） | runs/check_software.json；tests/test_check_software.py |
+| H3 | 本机与云端**都没有跑过真实计算软件**：本机 0/12 安装；云端路径已备好（输入包 + 门禁包装 + RUNBOOK），但**缺 Bohrium 凭据/基址/镜像名**，连 5 分钟探测作业都还没提交 | 🔴 | 输入模板的真实可运行性仍未确认；dry-run 的 payload 不是 GPU 结果 | 凭据就绪后一条命令：`scripts\cloud_h3_submit.py --go`（先 probe，默认只跑 5 分钟探测作业 ≤0.46 RMB）；有自带 CP2K/QE 的镜像时加 `--image` | runs/cloud_h3/RUNBOOK.md；scripts/cloud_h3_submit.py；tests/test_cloud_h3_submit.py |
 | H4 | 已提供**跨平台 CI workflow**（ubuntu/macos/windows × py3.11/3.13 + wheel 构建），但**从未在 Linux/macOS 上真正执行过**（本机只有 Windows） | 🟡 | 首次 CI 运行前不能宣称跨平台可用 | 每个 CI 步骤都是本机可复跑的同一命令（check_eol / sca_scan / verify_formats / adversarial / pytest / check_all）；CI 里强制 `core.autocrlf=false` 以验证 eol=lf 契约 | .github/workflows/ci.yml；docs/LIMITATIONS.md G6 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
