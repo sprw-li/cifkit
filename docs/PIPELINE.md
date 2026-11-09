@@ -227,7 +227,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 附加：`tests/test_cli.py` 增加 UTF-16 spec 用例（8 条），应用层支持 UTF-16BE。
 
 附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
-测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；cif→anything 扩展后全量为 **267**（默认 263 passed + 4 条 opt-in/skipped））。
+测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；cif→anything 扩展后全量为 **270**（默认 266 passed + 4 条 opt-in/skipped））。
 
 ### 8.2 数据源扩展（CoRE MOF / COD / Materials Project / AFLOW）
 
@@ -249,7 +249,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 - 路由：intent `cif-structure-pipeline` 增加数据源关键词与 examples；评测 79 条全过、
   负例 0/25；`ci.py --fast` exit 0。
 - 测试：新增 `tests/test_sources_mp_aflow.py`（11 条，MP mock + AFLOW mock/live + auto 选源）、
-  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **267** 条（默认 263 passed + 4 条 opt-in/skipped）。
+  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **270** 条（默认 266 passed + 4 条 opt-in/skipped）。
 
 ### 8.3 进阶应用套件（第 5 轮 4 个测试实例）
 
@@ -322,4 +322,4 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 | `scripts/check_all.py` | 一键健康检查（7 组：selftest / pytest / verify_demo / router / eval / ci / **check_skill cif-***） | `python scripts\check_all.py --fast` |
 | `scripts/check_all.py --adversarial` | 追加对抗性自检（convert 边界 / 格式验证器可被欺骗 / 环计数语义 / check_skill 真跑） | `python scripts\check_all.py --adversarial` |
 | `scripts/verify_formats.py` | 31 格式 + 12 输入包的独立回读验证（第三方库） | `python scripts\verify_formats.py [--only vasp,cif]` |
-| `scripts/adversarial_check.py` | 上面那张表的实现（16 项破坏性检查，写 `runs/lead_verify_r11/adversarial_check.json`） | `python scripts\adversarial_check.py` |
+| `scripts/adversarial_check.py` | 上面那张表的实现（18 项破坏性检查，写 `runs/lead_verify_r11/adversarial_check.json`） | `python scripts\adversarial_check.py` |

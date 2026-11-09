@@ -230,7 +230,7 @@ manifest 两条 `outdir` 不同（修复提交 `bbc5adf`，含回归测试 `test
 > 执行中失败（无任何产出），随后的两个 `subagent` 也都在启动后立即失败。因此本报告是
 > **Lead 自己写的对抗性验证**，不是独立评审。方法上尽量替代独立性：
 > 用与实现**不同的代码路径**验证（第三方库回读、独立公式核对环数、故意破坏输入），
-> 并把检查固化成可复跑脚本 `scripts/adversarial_check.py`（16 项），而不是只复述实现。
+> 并把检查固化成可复跑脚本 `scripts/adversarial_check.py`（18 项），而不是只复述实现。
 > **独立性弱于前几轮**，用户若要严格独立的结论，需要换一个可用的评审 agent 重跑本清单。
 
 - 基线：项目仓 `f5f36d5` + 本轮修复（见下）；agent-library `e29ab3b`
@@ -288,3 +288,23 @@ manifest 两条 `outdir` 不同（修复提交 `bbc5adf`，含回归测试 `test
 - `ring_statistics` 的节点上限（600）是保守估计，未在 500–600 区间做性能曲线；大体系只验证了"会 truncated"。
 - `check_all --adversarial` 新增开关只在本机跑通，未在 CI 中启用。
 - 未做 `SIGKILL` 中断批量转换的恢复测试（只覆盖输入错误路径）。
+
+---
+
+## Lead 后续处理（round 12，2026-11-09）
+
+本节由 Lead 添加，记录对上面评审结论的处置；**评审正文与附录 A 保持原样，未改动**。
+
+| 评审发现 | 处置 | 验证 |
+|---|---|---|
+| **P1-b**（无 `.gitattributes`，`core.autocrlf=true` 下干净 clone 全红） | 新增 `.gitattributes`：`* text=auto eol=lf`、`cifkit/data/nets/*` + `tests/data/*.cif` 显式 `eol=lf`、`runs/** -text`、二进制 `binary`；并用 `git add --renormalize` 把 12 个 CRLF 存储的 run 产物改成 LF | **实测干净 clone**（`git clone` 到 `D:\Dev\_clone_check`）：nets 参考 CIF `sha256=cbeebc95…`（LF）、demo `raw.cif` `sha256=c6939cf7…`（LF）与 manifest 一致；`pytest tests/test_topology_nets.py` 35 passed；`verify_demo` **8/8**；`check_all --fast` **7/7** |
+| **P1-a**（批量 convert 同名覆盖，仅 f5f36d5） | 已在 `bbc5adf` 修（`same_001`/`same_002` + 回归测试） | 评审已在 HEAD 复验通过；`scripts/adversarial_check.py` 常驻该检查 |
+| P2：`docs/EXPORT.md` 30/31 自相矛盾 | 表头改 **31**；png 从"未实现"行拆出为"视觉预览"行，`cube` 单独标未实现 | `Select-String` 复核无 30 残留 |
+| P2：单输入 + `--stem` 行为变化且无测试 | 恢复 round-9 语义（`outdir/X.vasp`，扁平）；新增 `_convert_one(..., in_subdir=)` 区分"输出名"与"是否进子目录" | `test_convert_single_with_stem_stays_flat`；adversarial 检查 |
+| P2：只有 1 个 CIF 的目录被当单输入、不写 manifest | **给目录就一定走批量**（`batch_mode = len(inputs) > 1 or any(Path(i).is_dir())`） | `test_convert_single_cif_directory_is_batch`；adversarial 检查 |
+| P2：`features` 金属分支不暴露 `rings_truncated` | 金属分支也写 `rings_truncated`（由 per-node 的 truncated 汇总） | `test_features_rings_reports_truncation` |
+| P2：LIMITATIONS 有重复的 convert 引用块 | 去重；并把 convert 语义（目录=批量、单文件扁平、不递归）写进 E 组开头 | 文档复核 |
+
+round 12 复跑（Lead）：`pytest` **270 条 = 266 passed + 4 skipped**（0 fail）；`check_all --adversarial` **8/8**（含 adversarial 18/18）；干净 clone `check_all --fast` **7/7**。提交 `6bd641d` + 本次文档提交。
+
+**仍未处理**：本轮只修了评审列出的问题，没有改变"模板未在真实计算软件运行"（H3）与"无 Linux/macOS CI"（H4）这两个 🔴 项。
