@@ -73,3 +73,15 @@ def test_features_rings(zif8):
     assert "ring_sizes" in row and json.loads(row["ring_sizes"])
     assert row["n_metal_nodes"] and row["n_metal_nodes"] > 0
     assert json.loads(row["rings_per_node"])
+
+
+def test_features_rings_nonmetal_framework():
+    """Covalent frameworks have no metal nodes: rings must come from the full bond graph."""
+    diamond = Structure(Lattice.cubic(3.567), ["C"] * 8,
+                        [[0, 0, 0], [0, .5, .5], [.5, 0, .5], [.5, .5, 0],
+                         [.25, .25, .25], [.25, .75, .75], [.75, .25, .75], [.75, .75, .25]])
+    row = extract_features(diamond, rdf=False, rings=True)
+    assert row["ring_basis"] == "full-bond-graph"
+    per_cell = json.loads(row["rings_per_cell"])
+    assert per_cell["6"] == 16.0  # diamond cubic: 16 six-membered rings per conventional cell
+    assert row["ring_sizes"]

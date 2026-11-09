@@ -300,13 +300,54 @@ def _bundle_codes(text: str | None) -> list[str]:
     return [code.strip().lower() for code in text.split(",") if code.strip()]
 
 
-def cmd_convert(args) -> int:
-    """CIF/结构文件 → 任意格式 + 任意计算软件输入包。"""
+def _convert_one(
+    src: Path,
+    outdir: Path,
+    formats: list[str],
+    bundles: list[str],
+    *,
+    stem: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Convert one structure file into formats/bundles under ``outdir``."""
     from cifkit import export
 
-    structure = _load_structure_any(args.file)
-    outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    entry: dict = {"input": str(src), "ok": False, "formats": {}, "bundles": {}}
+    try:
+        structure = _load_structure_any(src)
+    except Exception as exc:  # noqa: BLE001 - one bad input must not stop the batch
+        entry["error"] = f"{type(exc).__name__}: {exc}"
+        return entry
+    entry["natoms"] = len(structure)
+    name = stem or src.stem
+    target = outdir / name if stem else outdir
+    target.mkdir(parents=True, exist_ok=True)
+    for fmt in formats:
+        try:
+            entry["formats"][fmt] = export.write_structure(structure, target / f"{name}.{fmt}", fmt)
+        except Exception as exc:  # noqa: BLE001
+            entry.setdefault("errors", []).append(f"{fmt}: {type(exc).__name__}: {exc}")
+    for code in bundles:
+        try:
+            entry["bundles"][code] = export.write_bundle(structure, code, target / code,
+                                                         title=title or name)
+        except Exception as exc:  # noqa: BLE001
+            entry.setdefault("errors", []).append(f"bundle {code}: {type(exc).__name__}: {exc}")
+    entry["ok"] = not entry.get("errors")
+    written = list(entry["formats"].values())
+    if isinstance(entry.get("bundles"), dict):
+        for info in entry["bundles"].values():
+            if isinstance(info, dict):
+                written.extend(info.get("files", []))
+    entry["n_files"] = len(written)
+    entry["outdir"] = str(target)
+    return entry
+
+
+def cmd_convert(args) -> int:
+    """CIF/结构文件 → 任意格式 + 任意计算软件输入包（支持目录/多输入批量 + manifest）。"""
+    from cifkit import export
+
     formats = [f.strip().lower() for f in (args.to or "").split(",") if f.strip()]
     bundles = _bundle_codes(args.bundle)
     if not formats and not bundles:
@@ -320,36 +361,65 @@ def cmd_convert(args) -> int:
             file=sys.stderr,
         )
         return 2
-    stem = args.stem or Path(args.file).stem
-    written: dict[str, str] = {}
-    for fmt in formats:
-        written[fmt] = export.write_structure(structure, outdir / f"{stem}.{fmt}", fmt)
-    bundle_written: dict[str, object] = {}
     if bundles:
-        bundle_fn = getattr(export, "write_bundle", None)
-        if bundle_fn is None:
-            print("error: 当前 cifkit 版本没有安装输入包写出（write_bundle 缺失）", file=sys.stderr)
+        available = export.supported_bundles()
+        bad_bundles = [code for code in bundles if code not in available]
+        if bad_bundles:
+            print(
+                f"error: unsupported bundle(s): {', '.join(bad_bundles)}; available: {', '.join(sorted(available))}",
+                file=sys.stderr,
+            )
             return 2
-        for code in bundles:
-            bundle_written[code] = bundle_fn(structure, code, outdir / code, title=args.title or stem)
-    result = {
-        "ok": True,
-        "input": str(args.file),
-        "formats": written,
-        "bundles": bundle_written,
-        "outdir": str(outdir),
-        "natoms": len(structure),
-    }
+
+    # --- resolve inputs: files and/or directories (deduped) -----------------
+    inputs = _expand_structure_inputs(args.file)
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    if len(inputs) == 1:
+        # single input: files land directly in --outdir (backwards compatible)
+        result = _convert_one(inputs[0], outdir, formats, bundles, stem=args.stem,
+                              title=args.title)
+        result.update({"outdir": str(outdir), "n_inputs": 1})
+    else:
+        # batch: one sub-directory per input + a manifest of everything written
+        runs = []
+        for index, src in enumerate(inputs):
+            stem = args.stem and f"{args.stem}_{index:03d}" if args.stem else src.stem
+            runs.append(_convert_one(src, outdir, formats, bundles, stem=stem,
+                                     title=args.title))
+        manifest = {
+            "ok": all(run["ok"] for run in runs),
+            "outdir": str(outdir),
+            "n_inputs": len(inputs),
+            "n_ok": sum(1 for run in runs if run["ok"]),
+            "n_failed": sum(1 for run in runs if not run["ok"]),
+            "formats": formats,
+            "bundles": bundles,
+            "runs": runs,
+        }
+        (outdir / "convert_manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        result = manifest
+
     if args.json:
         _print_json(result)
     else:
-        print(f"input: {args.file} ({len(structure)} atoms)")
-        for fmt, path in written.items():
-            print(f"  {fmt:10s} -> {path}")
-        for code, info in bundle_written.items():
-            print(f"  bundle {code} -> {info if not isinstance(info, dict) else info.get('files', info)}")
-        print(f"outdir: {outdir}")
-    return 0
+        if "runs" in result:
+            for run in result["runs"]:
+                flag = "ok  " if run["ok"] else "fail"
+                print(f"[{flag}] {run['input']} -> {run['n_files']} files"
+                      + (f"  ({run['error']})" if run.get("error") else ""))
+            print(f"\n{result['n_ok']}/{result['n_inputs']} ok; manifest={outdir / 'convert_manifest.json'}")
+        else:
+            print(f"input: {result['input']} ({result.get('natoms')} atoms)")
+            for fmt, path in result["formats"].items():
+                print(f"  {fmt:10s} -> {path}")
+            for code, info in result["bundles"].items():
+                print(f"  bundle {code} -> {info if not isinstance(info, dict) else info.get('files', info)}")
+            print(f"outdir: {outdir}")
+    return 0 if result["ok"] else 1
 
 
 def _write_string_csv(rows: list[dict], path: Path) -> Path:
@@ -761,8 +831,9 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--json", action="store_true")
     b.set_defaults(func=cmd_batch)
 
-    cv = sub.add_parser("convert", help="CIF/结构文件 → 任意格式 + 计算软件输入包（cif to anything）")
-    cv.add_argument("file", help="输入结构文件（cif/poscar/xyz/json/xsf…，pymatgen/ASE 能读即可）")
+    cv = sub.add_parser("convert", help="CIF/结构文件 → 任意格式 + 计算软件输入包（支持目录批量）")
+    cv.add_argument("file", nargs="+",
+                    help="输入结构文件或目录（目录里的 *.cif 全部转换；多输入时写 convert_manifest.json）")
     cv.add_argument("--to", default="", help="逗号分隔的格式：vasp,cif,xyz,extxyz,json,pdb,sdf,...（见 cifkit formats）")
     cv.add_argument("--bundle", default="", help="逗号分隔的软件输入包：vasp,qe,cp2k,lammps,gromacs,gaussian,orca,abacus,dftb,siesta,nwchem,aims")
     cv.add_argument("--outdir", required=True)

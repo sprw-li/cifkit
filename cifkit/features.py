@@ -174,18 +174,32 @@ def extract_features(
         features.update(_topology(structure))
     if rings:
         try:
-            from cifkit.topology import describe
+            from cifkit.topology import describe, ring_statistics
 
             desc = describe(structure)
             sig = desc.get("signature") or {}
-            features["ring_sizes"] = json.dumps(sig.get("ring_sizes") or [])
-            features["rings_per_node"] = json.dumps(
-                sig.get("rings_per_node") or {}, ensure_ascii=False, sort_keys=True
-            )
-            features["n_metal_nodes"] = sig.get("n_metal_nodes")
-            features["n_linkers"] = sig.get("n_linkers")
-        except Exception:  # noqa: BLE001 - rings are optional
-            features["rings_error"] = "failed"
+            per_node = sig.get("rings_per_node")
+            if per_node:
+                # metal-node underlying net (SBU-shrunk): rings per metal node
+                features["ring_basis"] = "metal-net"
+                features["ring_sizes"] = json.dumps(sig.get("ring_sizes") or [])
+                features["rings_per_node"] = json.dumps(per_node, ensure_ascii=False, sort_keys=True)
+                features["n_metal_nodes"] = sig.get("n_metal_nodes")
+                features["n_linkers"] = sig.get("n_linkers")
+            else:
+                # covalent / organic framework: ring statistics of the full bond graph
+                stats = ring_statistics(structure)
+                features["ring_basis"] = "full-bond-graph"
+                features["ring_sizes"] = json.dumps(stats.get("ring_sizes") or [])
+                features["rings_per_cell"] = json.dumps(
+                    stats.get("rings_per_cell") or {}, ensure_ascii=False, sort_keys=True
+                )
+                features["rings_per_node"] = json.dumps(
+                    stats.get("per_node") or {}, ensure_ascii=False, sort_keys=True
+                )
+                features["rings_truncated"] = bool(stats.get("truncated"))
+        except Exception as exc:  # noqa: BLE001 - rings are optional
+            features["rings_error"] = f"{type(exc).__name__}: {exc}"
     if rdf:
         try:
             features.update(_rdf(structure, bins=int(rdf_bins), max_r=float(rdf_max)))

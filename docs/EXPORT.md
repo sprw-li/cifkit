@@ -152,6 +152,30 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 | nwchem | mol.nw + README | theory/basis、电荷/多重度 |
 | aims | geometry.in + control.readme + README | control.in（species defaults） |
 
+### 独立回读验证（`scripts/verify_formats.py`）
+
+```powershell
+& $PY scripts\verify_formats.py                                  # 31 格式 + 12 bundle，写 runs/verify_formats/verify_formats.json
+& $PY scripts\verify_formats.py --only vasp,cif,extxyz,png        # 快速子集
+```
+
+用**与写出器不同的库**读回并比对原子数（pymatgen / ASE）；模板类与 png 走关键字/魔数检查，
+结果单独标注，不冒充第三方回读。最近一次实测（ZIF-8，138 原子）：
+
+| 回读方式 | 格式数 | 说明 |
+|---|---|---|
+| ASE 第三方回读 | 22 | abinit/aims/cfg/crystal/dmol/extxyz/gaussian/gen/gromacs/lammps/mol/nwchem/onetep/pdb/qe/res/sdf/struct/turbomole/xsf/xyz/castep |
+| pymatgen 第三方回读 | 3 | cif / json / vasp |
+| 结构关键字检查 | 5 | cp2k / siesta / abacus / orca / dftb（输入模板，无可回读解析器） |
+| 魔数检查 | 1 | png |
+| **合计** | **31/31 写出成功，25/25 第三方回读原子数一致** | bundle 12/12 文件+README 齐全 |
+
+结果 JSON：`runs/verify_formats/verify_formats.json`（含每个格式的字节数、耗时、回读库、错误）。
+`tests/test_verify_formats.py` 断言"每个受支持格式都有验证路径"且第三方读者 ≥20，防止以后新增格式时漏掉验证。
+
+**注意**：回读一致只证明"文件能被另一个库解析出同样多的原子"，不证明目标计算软件会接受它；
+模板类仍未在真实软件中运行（见 `docs/LIMITATIONS.md` E1/E3/H3）。
+
 ### 如何新增格式
 
 1. 在 `cifkit/export/writers.py` 的 `FORMAT_INFO` 加名称与说明；别名加 `_ALIASES`。

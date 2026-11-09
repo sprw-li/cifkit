@@ -551,6 +551,104 @@ def _ring_stats(
     return out
 
 
+def ring_statistics(
+    structure,
+    *,
+    sizes=_RING_SIZES,
+    max_paths: int = _RING_PATH_CAP,
+    budget: int = _RING_BUDGET,
+    max_nodes: int = 600,
+) -> dict[str, Any]:
+    """Ring statistics of the *full* periodic bond graph (works without metals).
+
+    ``_ring_stats`` walks the metal-node underlying net, so purely covalent /
+    organic frameworks (diamond, SiO2, COFs) previously got nothing.  This
+    function runs the same periodic cycle enumeration on every atom of the bond
+    graph, which makes 4–8-membered ring distributions available for those
+    systems too.
+
+    Returns a JSON-serialisable dict::
+
+        {"ring_sizes": [...], "rings_per_cell": {"6": 1.0, ...},
+         "per_node": {...}, "truncated": bool, "n_nodes": N, "n_bonds": M,
+         "warnings": [...]}
+
+    Ring counts are per *cell* (translation vectors of the cycle sum to zero),
+    not per atom: a ring of size ``k`` is counted once (canonicalised), so
+    ``rings_per_cell`` is the number of distinct such cycles per unit cell.
+    """
+    warnings: list[str] = []
+    if len(structure) == 0:
+        return {"ring_sizes": [], "rings_per_cell": {}, "per_node": {}, "truncated": False,
+                "n_nodes": 0, "n_bonds": 0, "warnings": ["空结构"]}
+    if len(structure) > int(max_nodes):
+        return {"ring_sizes": [], "rings_per_cell": {}, "per_node": {}, "truncated": True,
+                "n_nodes": len(structure), "n_bonds": 0,
+                "warnings": [f"原子数 {len(structure)} > {max_nodes}，跳过环统计（过大）"]}
+    adjacency, _elements, build_warnings = _bond_graph(structure)
+    warnings.extend(build_warnings)
+    n_bonds = sum(len(v) for v in adjacency.values()) // 2
+    nodes = sorted(adjacency)
+
+    out: dict[str, dict[str, Any]] = {}
+    total_visits = 0
+    truncated_any = False
+    for size in sizes:
+        found: set = set()
+        truncated = False
+        for start_node in nodes:
+            if total_visits >= budget:
+                truncated = True
+                break
+            start = (start_node, (0, 0, 0))
+            path = [start]
+            path_set = {start}
+            visits = 0
+
+            def dfs(state) -> None:  # noqa: ANN001 - nested recursion
+                nonlocal visits, total_visits, truncated
+                visits += 1
+                total_visits += 1
+                if visits > max_paths or total_visits > budget:
+                    truncated = True
+                    return
+                if len(path) == size:
+                    for nb, off in adjacency.get(state[0], ()):
+                        nxt = (nb, (state[1][0] + off[0], state[1][1] + off[1], state[1][2] + off[2]))
+                        if nxt == start:
+                            found.add(_canonical_cycle(path))
+                    return
+                for nb, off in adjacency.get(state[0], ()):
+                    nxt = (nb, (state[1][0] + off[0], state[1][1] + off[1], state[1][2] + off[2]))
+                    if nxt in path_set:
+                        continue
+                    path.append(nxt)
+                    path_set.add(nxt)
+                    dfs(nxt)
+                    path.pop()
+                    path_set.remove(nxt)
+
+            dfs(start)
+        per_cell = float(len(found))
+        out[str(int(size))] = {
+            "per_cell": round(per_cell, 4),
+            "per_node": round(per_cell / len(nodes), 6) if nodes else 0.0,
+            "truncated": bool(truncated),
+        }
+        truncated_any = truncated_any or truncated
+        if truncated:
+            break
+    return {
+        "ring_sizes": sorted(int(k) for k in out),
+        "rings_per_cell": {k: v["per_cell"] for k, v in out.items()},
+        "per_node": {k: v["per_node"] for k, v in out.items()},
+        "truncated": bool(truncated_any),
+        "n_nodes": len(nodes),
+        "n_bonds": int(n_bonds),
+        "warnings": warnings,
+    }
+
+
 def signature_base(net: dict) -> dict | None:
     """便宜的签名部分：配位数分布 + 配位序列 + linker 比例（不做环枚举）。"""
     metals = [node["index"] for node in net["nodes"]]

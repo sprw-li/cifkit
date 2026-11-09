@@ -46,10 +46,14 @@
 
 ## E. 导出 / 计算软件输入包（cif → anything）
 
+> 已支持 `cifkit convert <文件或目录...> --to ... --bundle ...`：多输入时每输入一个子目录 + `convert_manifest.json`（n_ok/n_failed/每条错误），坏输入不中断批量。
+
+> 已支持：`cifkit convert <文件或目录...> --to ... --bundle ...`（多输入 → 每输入一个子目录 + `convert_manifest.json`，坏输入单独记录不中断）。
+
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供 | 🟡 | 不能"直接算" | bundle 带 `missing` 清单 + README；不谎称可运行 | docs/EXPORT §6 |
-| E2 | 只有 8 种格式做过**第三方独立回读**（评审）；其余靠写出时自校验/关键字 | 🟡 | 极小概率格式兼容问题 | 用 `tests/test_export_ext.py` 逐个写出；可自行回读 | REVIEW-ROUND8 |
+| E2 | 第三方独立回读覆盖 **25/31**（ASE 22 + pymatgen 3）；5 个模板 + png 走关键字/魔数检查 | 🟡 | 模板未在真实软件中执行；回读一致 ≠ 软件接受 | `scripts/verify_formats.py` 全量报告；`tests/test_verify_formats.py` 防止新增格式漏验证 | runs/verify_formats/verify_formats.json |
 | E3 | 模板参数是默认值（ENCUT=520、2×2×2 k 点等），未做收敛测试 | 🟡 | 计算前必须自己收敛 | INCAR/KPOINTS/README 标注 | docs/EXPORT |
 | E4 | PDB/SDF/MOL 不表达周期性；GRO 只有 3 位小数；LAMMPS data 为 atom_style atomic | 🟡 | 不能直接用于周期体系/带电体系 | 用 extxyz/vasp/cif；LAMMPS 需补力场/电荷 | docs/EXPORT |
 | E5 | Gaussian/ORCA 模板默认电荷 0、多重度 1 | 🟡 | 开壳层/离子体系需改 | 模板注释提示 | docs/EXPORT |
@@ -62,9 +66,9 @@
 | F1 | RDF 是有限网格近似（默认 50 bins × 8 Å），O(N²) | 🟡 | 大结构慢/列多 | `--no-rdf`；调 bins/max | docs/FEATURES |
 | F2 | 特征全为几何/组成/对称性描述符，无 DFT 能量/带隙/电荷 | 🟡 | 不能直接当标签 | 用 `--label-key` 从 manifest 取，或自行 join | docs/FEATURES |
 | F3 | 配位数按距离判据，不读化学价/自旋 | 🟡 | 氧化态/磁性不在特征里 | 结合外部数据 | docs/FEATURES |
-| F4 | `rings` 只对金属节点 net 统计（无金属框架不适用） | 🟡 | 纯有机/共价框架环统计缺失 | 默认关闭；需要时用拓扑工具 | docs/FEATURES |
+| F4 | `rings` 已覆盖无金属框架（完整键图回退） | ✅ | 节点数上限 >600 原子跳过并标 `truncated` | 金属框架仍走 underlying net（`ring_basis=metal-net`） | `cifkit.topology.ring_statistics`；diamond 6 元环=16/胞实测 |
 | F5 | dataset 只汇总已有 manifest，无去重/清洗/标签计算 | 🟡 | 数据集质量取决于 runs | 上游用 pipeline/batch 控制质量 | docs/FEATURES |
-| F6 | from-library 只做基础测试（库索引/目录扫描），未做超大数据集流式处理 | 🔴 | 超大库可能内存吃紧 | 分批/分目录构建 | tests/test_dataset.py |
+| F6 | 未做超大数据集流式处理（manifest 列表一次性载入） | 🔴 | 超大库可能内存吃紧 | 分批/分目录构建；from-library 已有测试 | tests/test_dataset.py |
 
 ## G. 性能 / 并发 / 稳定性
 
@@ -84,7 +88,7 @@
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3 | 252 条测试中，未在 CI 里跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |
 | H4 | 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI | 🔴 | 跨平台差异未验证 | 文档说明 | README |
-| H5 | 未把 `check_skill`/catalog 一致性接入项目 CI | 🟡 | 技能文档可能漂移 | 手动跑 agent-library `check_skill`/`ci --fast` | agent-library scripts |
+| H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
 ## I. 许可 / 环境 / 网络
 

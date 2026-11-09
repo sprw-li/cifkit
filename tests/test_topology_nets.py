@@ -242,3 +242,22 @@ def test_offline_without_core_mof_cache(tmp_path, monkeypatch, ref_structures):
 
     # 未知拓扑 / 无金属仍然诚实 unknown（不会因为离线就乱猜）
     assert topology.verify(ref_structures["pcu"], "zzz")["evidence"] == "unknown"
+
+
+def test_ring_statistics_nonmetal():
+    """ring_statistics works on the full bond graph (no metals required)."""
+    from pymatgen.core import Lattice, Structure
+
+    from cifkit.topology import ring_statistics
+
+    diamond = Structure(Lattice.cubic(3.567), ["C"] * 8,
+                        [[0, 0, 0], [0, .5, .5], [.5, 0, .5], [.5, .5, 0],
+                         [.25, .25, .25], [.25, .75, .75], [.75, .25, .75], [.75, .75, .25]])
+    stats = ring_statistics(diamond)
+    assert stats["n_nodes"] == 8 and stats["n_bonds"] == 16
+    assert stats["rings_per_cell"]["6"] == 16.0
+    assert stats["truncated"] is False
+
+    tiny = Structure(Lattice.cubic(3.0), [], [])
+    empty = ring_statistics(tiny)
+    assert empty["ring_sizes"] == [] and empty["n_nodes"] == 0

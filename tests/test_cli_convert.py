@@ -151,3 +151,43 @@ def test_features_rings_cli(tmp_path):
     assert data["n_ok"] == 1
     rows = list(csv.DictReader(out.open(encoding="utf-8-sig")))
     assert rows and rows[0]["ring_sizes"]
+
+
+def test_convert_directory_batch_manifest(tmp_path):
+    """Directory input → one manifest + flat outputs; case-insensitive dupes deduped."""
+    src = tmp_path / "cifs"
+    src.mkdir()
+    for name in ("a.cif", "b.CIF", "c.cif"):
+        shutil.copyfile(ZIF8, src / name)
+    out = tmp_path / "out"
+    proc = _run(["convert", str(src), "--to", "vasp,xyz", "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_inputs"] == 3 and data["n_ok"] == 3 and data["n_failed"] == 0
+    assert (out / "convert_manifest.json").is_file()
+    for stem in ("a", "b", "c"):
+        assert (out / stem / f"{stem}.vasp").is_file()
+        assert (out / stem / f"{stem}.xyz").is_file()
+    assert all(run["outdir"].endswith(run["input"].split("\\")[-1].rsplit(".", 1)[0])
+               for run in data["runs"])
+
+
+def test_convert_batch_records_bad_input(tmp_path):
+    src = tmp_path / "mixed"
+    src.mkdir()
+    shutil.copyfile(ZIF8, src / "good.cif")
+    (src / "bad.cif").write_text("this is not a CIF at all\n", encoding="utf-8")
+    out = tmp_path / "out2"
+    proc = _run(["convert", str(src), "--to", "vasp", "--outdir", str(out), "--json"])
+    assert proc.returncode == 1  # one bad input → exit 1, but the good one still converted
+    data = json.loads(proc.stdout)
+    assert data["n_ok"] == 1 and data["n_failed"] == 1
+    assert (out / "good" / "good.vasp").is_file()
+    bad = [run for run in data["runs"] if not run["ok"]]
+    assert bad and "error" in bad[0]
+
+
+def test_convert_rejects_unknown_bundle(tmp_path):
+    proc = _run(["convert", str(ZIF8), "--bundle", "nope", "--outdir", str(tmp_path / "z"), "--json"])
+    assert proc.returncode == 2
+    assert "bundle" in (proc.stderr or "").lower()
