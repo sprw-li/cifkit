@@ -6,12 +6,12 @@
 
 ## 摘要
 
-**共 71 条局限 = 9 ✅（已修/已覆盖） / 61 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
+**共 72 条局限 = 9 ✅（已修/已覆盖） / 62 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
 | A | 数据源 | 6 | 0 | 6 | 0 |
-| B | 拓扑判定 | 5 | 1 | 4 | 0 |
+| B | 拓扑判定 | 6 | 1 | 5 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
@@ -24,7 +24,7 @@
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
-- **H3** 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → → 输入模板的真实可运行性仍未被任何软件确认
+- **H3** 本机与云端**都没有跑过真实计算软件**：本机 0/12 安装；云端路径已备好（输入包 + 门禁包装 + RUNBOOK → 输入模板的真实可运行性仍未确认；dry-run 的 payload 不是 GPU 结果
 
 ---
 
@@ -46,6 +46,7 @@
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | A7 | 已做**故障注入**（磁盘满/只读/权限拒绝/坏 JSON/锁崩溃），验证「旧文件不被破坏 + 无残留临时文件 + 明确报错」 | ✅ | 故障类型仍有边界（代理级中断、NFS 语义、杀进程时序未单独注入） | `tests/test_failure_injection.py`（11 条，全部用 monkeypatch 注入，无需真满盘） | tests/test_failure_injection.py |
+| A8 | 数据源可用性是**一次性快照**、不是监控：COD/AFLOW/MP 的实时状态每次都得手动跑；没有任何告警或历史曲线 | 🟡 | 平台若依赖外部源，需要自己的探测/告警 | `scripts/sources_live_check.py`（各源 TCP + 真实小查询 + 时间戳，写 runs/sources_live.json），已作为信息项进入 release_check | 2026-11-09 快照：core-mof/cod/aflow/local = ok，MP = needs-key，QMOF = not-configured |
 | B1 | 落盘参考只有 **6 个 net**（sod/pcu/dia/fcu/tbo/bcu） | 🟡 | hms/qtz/cag 等 net 判 `unknown` | 可扩展 `cifkit/data/nets/`；未知不硬猜 | docs/SOURCES §5 |
 | B2 | SBU 收缩是启发式；多齿配体结构会返回 `unknown` | 🟡 | 部分真实 MOF 无法识别 | 诚实返回 unknown；参考结构避开多齿 | docs/SOURCES §5.1 |
 | B3 | 高配位 net（pcu/fcu/tbo/bcu）环统计有上限（`rings_truncated`） | 🟡 | 这些 net 靠 CN+配位序列+linker 比判定，不靠环 | `verified_on` 字段明确写出依据 | docs/SOURCES §5 |

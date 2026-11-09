@@ -478,3 +478,13 @@ payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/su
 装 CP2K 路线（60 min）≤ 5.5 / 11.0 RMB。
 
 **H3 在此期间仍是 🔴**：没有真实运行就没有证据，dry-run 的 payload 不得当作 GPU 结果。
+
+### 8.18 数据源实时可用性检查（round 25）
+
+`scripts/sources_live_check.py`：对每个数据源做 **TCP 可达性 + 一次真实小查询**，记录
+状态/耗时/首个结果，并生成 `runs/sources_live.json` 与 `runs/sources_live.md`。
+`release_check` 把它当**信息项**（数据库抖动不阻塞发布），`docs/SOURCES.md` 嵌入表格。
+
+2026-11-09 快照：`core-mof` ok（8300 条）、`cod` ok（by_id + 文本查询都有结果）、
+`aflow` ok（ZnO 3 条）、`local` ok（16 CIF）、`materials-project` **needs-key**、
+`qmof` **not-configured**（无本地镜像）。

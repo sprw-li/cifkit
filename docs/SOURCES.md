@@ -423,3 +423,34 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 `search(structure_id=...)` 现在同时接受 `7111973` 和 `cod:7111973`（也支持逗号分隔多 id）。
 原因：`search()` 返回的记录 `record_id` 形如 `cod:<id>`，此前用它回查会被拒绝——
 即 **search → 按 record_id 回查**这条正常用法会报错（已修并有回归测试）。
+
+## 实时可用性（round 25，`scripts/sources_live_check.py`）
+
+文档里的"支持某数据源"是能力描述，不等于"此刻能用"。下面的表由脚本实测生成
+（2026-11-09T22:50:31+0800；证据 `runs/sources_live.json`，可随时重跑）：
+
+| 数据源 | 状态 | 实测 | 证据 |
+|---|---|---|---|
+| `core-mof` | ok | 0.04 s | 8300 条索引 |
+| `cod` | ok | 3.37 s | by_id: n_hits=1, first=cod:7111973; by_text: n_hits=3, first=cod:2300691 |
+| `aflow` | ok | 6.31 s | n_hits=3, first=aflow:0265806d7329d48e |
+| `materials-project` | needs-key | 0.31 s | set MP_API_KEY (never echoed, never written to artifacts) |
+| `qmof` | not-configured | - s | 官方 figshare 下载在本环境不可达；仅有本地镜像时才算可用 |
+| `local` | ok | 0.001 s | 16 个 CIF |
+
+口径与边界：
+
+- **`needs-key` 不是失败**：Materials Project 的 TCP 可达，但没有 `MP_API_KEY` 就不发请求
+  （key 从不回显、从不写进产物）；
+- **`qmof` 是 `not-configured`**：官方 figshare 下载在本环境不可达，只有本地镜像时才算可用——
+  因此文档中 QMOF 一律标注"未实时验证"；
+- **`cod` / `aflow` 的耗时包含限速**（同 host 默认 0.25 s/请求，见上文网络策略）；
+- 该检查**不作为发布门禁**（数据库抖动不该阻塞发布），只作为信息项进入 `runs/release_check.json`；
+- 结果有时效性：**表格是某一刻的快照**，不是 SLA。
+
+重跑：
+
+```powershell
+.venv\Scripts\python.exe scripts\sources_live_check.py
+.venv\Scripts\python.exe scripts\release_check.py --quick   # 信息项里会带上这次的 summary
+```

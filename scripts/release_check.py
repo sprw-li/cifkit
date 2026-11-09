@@ -174,6 +174,17 @@ def main() -> int:
                "runs/coverage_matrix.json not generated in this run (informational)",
                warning=True)
 
+    live_path = ROOT / "runs" / "sources_live.json"
+    if live_path.is_file():
+        live = json.loads(live_path.read_text(encoding="utf-8"))
+        summary = live.get("summary", {})
+        # network flakiness must not block a release: warn, never fail
+        record("artifacts: data-source live check", True,
+               f"ok={summary.get('ok')}, needs-key={summary.get('needs_key')}, "
+               f"failed={summary.get('failed')} (as of {live.get('checked_at')})",
+               warning=bool(summary.get("failed")))
+        report["sources_live"] = summary
+
     limitations = ROOT / "docs" / "LIMITATIONS.md"
     if limitations.is_file():
         consistent, detail = limitations_summary_ok(limitations.read_text(encoding="utf-8"))
