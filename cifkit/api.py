@@ -151,6 +151,82 @@ def capabilities() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# fetch (network)
+# ---------------------------------------------------------------------------
+#: provenance keys that contain local filesystem paths (hidden from hosts by default)
+_LOCAL_PATH_KEYS = ("cif_path", "json_path", "path", "mirror_dir", "archive")
+
+
+def _sanitize_provenance(prov: dict[str, Any], *, include_paths: bool) -> dict[str, Any]:
+    out = dict(prov or {})
+    if not include_paths:
+        for key in _LOCAL_PATH_KEYS:
+            out.pop(key, None)
+        out["paths_hidden"] = True
+    return out
+
+
+def fetch(*, source: str = "auto", topology: str | None = None, name: str | None = None,
+          structure_id: str | None = None, raw: bool = True, limit: int = 5,
+          include_structure: bool = True, include_paths: bool = False) -> dict[str, Any]:
+    """Resolve one structure from a data source and return it **inline**.
+
+    Platforms should prefer this over shelling out to ``cifkit fetch``: the result
+    is a plain dict (record + provenance + CIF text), local paths are hidden by
+    default, and no API key ever appears in the payload (keys are read from the
+    environment by the source adapters and never copied into provenance).
+    """
+    from cifkit.sources import pick_source, resolve
+    from cifkit.types import TaskSpec
+
+    spec = TaskSpec(source=source or "auto", topology=topology, structure_name=name,
+                    structure_id=structure_id)
+    if str(source or "auto").lower() in ("", "auto"):
+        try:
+            spec.source = pick_source(spec)
+        except Exception:  # noqa: BLE001 - keep 'auto' and let resolve decide
+            spec.source = "auto"
+    if limit is not None and int(limit) <= 0:
+        raise InvalidRequest("limit must be positive")
+    try:
+        fetched = resolve(spec)
+    except FileNotFoundError as exc:
+        raise NotFound(str(exc)) from exc
+    except ValueError as exc:
+        message = str(exc)
+        lowered = message.lower()
+        if any(token in lowered for token in ("不存在", "not found", "no such file", "no hits")):
+            raise NotFound(message) from exc
+        raise InvalidRequest(message) from exc
+    except Exception as exc:  # noqa: BLE001 - network/upstream problems
+        message = str(exc)
+        code_hint = message.lower()
+        if any(word in code_hint for word in ("http", "url", "timeout", "network", "connection",
+                                              "502", "503", "resolve", "temporar")):
+            raise UpstreamUnavailable(f"{type(exc).__name__}: {message}") from exc
+        raise UpstreamUnavailable(f"{type(exc).__name__}: {message}") from exc
+
+    record = fetched.record
+    result: dict[str, Any] = {
+        "source": record.source,
+        "record": record.to_dict(),
+        "provenance": _sanitize_provenance(fetched.provenance or {}, include_paths=include_paths),
+        "natoms": len(fetched.structure),
+        "formula": fetched.structure.composition.formula.replace(" ", ""),
+        "topology_evidence": record.topology_evidence,
+        "api_version": API_VERSION,
+    }
+    if include_structure:
+        try:
+            from pymatgen.io.cif import CifWriter
+
+            result["cif_text"] = str(CifWriter(fetched.structure, symprec=None))
+        except Exception as exc:  # noqa: BLE001 - inline text is best-effort
+            result["cif_text_error"] = f"{type(exc).__name__}: {exc}"
+    return result
+
+
+# ---------------------------------------------------------------------------
 # features
 # ---------------------------------------------------------------------------
 def features(*, path: str | Path | None = None, structure: Any = None, cif_text: str | None = None,
@@ -302,6 +378,7 @@ def validate(*, path: str | Path | None = None, structure: Any = None, cif_text:
 #: operations exposed through :mod:`cifkit.service` (name -> callable)
 OPS: dict[str, Any] = {
     "capabilities": capabilities,
+    "fetch": fetch,
     "features": features,
     "features_many": features_many,
     "convert": convert,
@@ -319,6 +396,7 @@ __all__ = [
     "NotFound",
     "UpstreamUnavailable",
     "capabilities",
+    "fetch",
     "features",
     "features_many",
     "convert",

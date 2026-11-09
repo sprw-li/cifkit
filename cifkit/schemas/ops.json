@@ -8,6 +8,47 @@
       "additionalProperties": false,
       "properties": {}
     },
+    "fetch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "core-mof",
+            "cod",
+            "materials-project",
+            "aflow",
+            "qmof",
+            "local"
+          ]
+        },
+        "topology": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "structure_id": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "include_structure": {
+          "type": "boolean"
+        },
+        "include_paths": {
+          "type": "boolean"
+        }
+      }
+    },
     "features": {
       "type": "object",
       "additionalProperties": false,

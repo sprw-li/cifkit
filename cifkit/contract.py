@@ -21,6 +21,21 @@ _PASSTHROUGH = {"type": "object", "additionalProperties": True}
 #: per-operation parameter schema (validated before dispatch)
 OP_SCHEMAS: dict[str, dict[str, Any]] = {
     "capabilities": {"type": "object", "additionalProperties": False, "properties": {}},
+    "fetch": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "source": {"type": "string",
+                       "enum": ["auto", "core-mof", "cod", "materials-project", "aflow", "qmof", "local"]},
+            "topology": {"type": "string"},
+            "name": {"type": "string"},
+            "structure_id": {"type": "string"},
+            "raw": {"type": "boolean"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+            "include_structure": {"type": "boolean"},
+            "include_paths": {"type": "boolean"},
+        },
+    },
     "features": {
         "type": "object",
         "additionalProperties": False,
@@ -107,6 +122,8 @@ REQUEST_SCHEMA: dict[str, Any] = {
     "properties": {
         "op": {"type": "string", "enum": sorted(OP_SCHEMAS)},
         "params": {"type": "object"},
+        # envelope-level context for the host's authorizer; never dispatched to ops
+        "auth": {"type": "object"},
     },
 }
 

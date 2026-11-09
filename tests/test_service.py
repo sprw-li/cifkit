@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cifkit import api
+from cifkit import api, contract
 from cifkit.service import OPS, handle, health, serve
 
 DATA = Path(__file__).resolve().parent / "data"
@@ -115,3 +115,16 @@ def test_http_server_smoke(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_fetch_op_offline_source():
+    response = handle({"op": "fetch", "params": {"source": "local", "structure_id": str(ZIF8)}})
+    assert response["ok"] is True
+    assert response["data"]["natoms"] == 138
+    assert response["data"]["provenance"]["paths_hidden"] is True
+    assert contract.validate_against(response["data"], {"type": "object"}) == []
+
+
+def test_fetch_op_unknown_source_is_rejected_by_contract():
+    response = handle({"op": "fetch", "params": {"source": "not-a-source"}})
+    assert response["ok"] is False and response["error"]["code"] == "invalid-request"

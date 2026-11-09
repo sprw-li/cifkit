@@ -337,3 +337,14 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   `scripts/verify_formats_no_gpl.py` 证明**核心不需要 GPL 的 Open Babel**。
 - 测试：`tests/test_api.py`(11) + `tests/test_service.py`(8) + `tests/test_contract.py`(8)。
 - 局限：见 `docs/LIMITATIONS.md` §J（接口/平台）与 §L（许可/商用）。
+
+### 8.8 托管策略与许可扫描（round 14）
+
+- `cifkit/platform.py`：`Policy`（read/write roots、allow_network、max_bytes/atoms/inputs、
+  timeout_s、max_concurrency/queue_size）+ `GuardedService`（沙箱 → 403、体积 → 413、背压 → 503、
+  超时 → 504、`authorizer=` 租户钩子、`stats_snapshot()`）。
+- `api.fetch`：联网 op 的**内联**版本（记录 + provenance + CIF 文本，默认隐藏本机路径、绝不带 key）；
+  受 `allow_network` 策略控制。
+- `scripts/sca_scan.py`：SCA-lite，按"代码 / 注释 / docstring"分类标记；`--strict` 作为 check_all 第 8 组
+  （当前源码级 copyleft = 0，mention-only = 2）。
+- 局限表：J1/J2/J5/J8 与 L7 由 🔴 降为 🟡/✅（剩余 🔴 为 A6/C2/C3/F6/H3/H4，均需外部条件）。

@@ -48,6 +48,7 @@ server, thread = serve("127.0.0.1", 8765, background=True)
 | op | 必填参数 | 可选参数 | 返回 |
 |---|---|---|---|
 | `capabilities` | — | — | 格式/输入包/数据源/版本/limits |
+| `fetch` | (`source`+`structure_id`/`name`/`topology`) | `include_structure`(true)、`include_paths`(false)、`limit`(5) | 记录 + provenance + **内联 CIF 文本**（默认隐藏本机路径） |
 | `features` | `path` \| `cif_text` \| `structure` | `rdf`(true)、`rdf_bins`(50)、`rdf_max`(8.0)、`topology`(false)、`rings`(false)、`symprec`(0.1) | 特征行（`cifkit-features/v1`） |
 | `features_many` | `paths[]` | `jobs`(4)、`rdf`、`rings`、`topology` | `{n_inputs,n_ok,n_failed,rows[]}` |
 | `convert` | 结构 + (`formats[]` 或 `bundles[]`) | `outdir`（省略=内存返回）、`title` | `{formats,bundles,natoms}` |
@@ -66,6 +67,11 @@ server, thread = serve("127.0.0.1", 8765, background=True)
 | `not-found` | 404 | `path`/`runs_dir` 不存在 |
 | `upstream-unavailable` | 502 | 数据源网络/上游失败（`cifkit.sources` 抛出时映射） |
 | `internal-error` | 500 | 其它异常（**不返回 traceback**） |
+| `forbidden-path` | 403 | 路径沙箱拒绝：`path`/`runs_dir` 不在 read roots，或 `outdir` 不在 write roots；写入被 `allow_writes=False` 关闭（`cifkit.platform`） |
+| `network-disabled` | 403 | `Policy(allow_network=False)` 下调用 `fetch` 等联网 op |
+| `too-large` | 413 | 超出 `max_bytes` / `max_atoms` / `max_inputs` |
+| `busy` | 503 | 背压：在飞请求超过 `max_concurrency + queue_size`，或等不到 worker 槽位 |
+| `timeout` | 504 | 超过 `Policy.timeout_s`（**尽力而为**，见 §4.3） |
 
 契约校验在派发前执行：`{"op":"features","params":{"rdf_bins":0}}` →
 `400 invalid-request` + `detail.violations = ["$.params.rdf_bins: 0 < minimum 1"]`。
@@ -81,6 +87,45 @@ cifkit 侧只做两件事：**不泄漏 secret**、**不越权读文件**。
 
 平台仍需自备：鉴权、配额/限流、租户隔离、审计日志、并发上限、超时与取消、磁盘配额。
 这些**不在本接口范围内**（见 [docs/LIMITATIONS.md](LIMITATIONS.md) §J）。
+
+## 4bis. 托管策略层（cifkit.platform）
+
+单租户开发者可以直接用 `handle()`；**多租户/对外服务**请包一层 `GuardedService`：
+
+```python
+from cifkit.platform import Policy, GuardedService
+
+policy = Policy(
+    read_roots=["/srv/uploads"],      # None = 不限制（开发模式）
+    write_roots=["/srv/work"],
+    allow_network=False,               # 禁止 fetch 等联网 op
+    allow_writes=True,
+    max_atoms=20_000, max_inputs=500, max_bytes=64 * 1024 * 1024,
+    timeout_s=30,                      # 504（尽力而为）
+    max_concurrency=4, queue_size=8,   # 超出 → 503 busy
+)
+service = GuardedService(policy, authorizer=lambda req: (req.get("auth") or {}).get("tenant"))
+service.handle({"op": "features", "params": {"path": "/srv/uploads/a.cif"}, "auth": {"tenant": "acme"}})
+service.stats_snapshot()               # requests/ok/errors/rejected/timeouts
+```
+
+| 能力 | 实现方式 | 语义 |
+|---|---|---|
+| 路径沙箱 | `Path.resolve()` 后做包含性检查（`is_relative_to`） | 挡 `..` 与逃逸符号链接；跨盘符一律拒绝；通过后参数被**重写为 canonical 路径** |
+| 写入控制 | `write_roots` + `allow_writes` | `outdir` 越界 → 403 `forbidden-path` |
+| 体积限制 | `max_bytes`（单文件与 `features_many` 总量）、`max_inputs`、`max_atoms` | 超限 → 413 `too-large` |
+| 网络开关 | `allow_network=False` | `fetch` → 403 `network-disabled`（不依赖 OS 防火墙） |
+| 超时 | worker 线程 + `future.result(timeout)` | 超时 → 504 `timeout`；**CPython 无法安全中断 C 扩展**，worker 可能仍在后台跑完 |
+| 背压 | 条件变量计数：在飞 > `max_concurrency + queue_size` → 503 | 有界准入，不做无限制排队 |
+| 租户 | `authorizer(request)` 钩子（信封层 `auth` 字段） | 只返回 tenant/拒绝，**鉴权实现仍属平台**（无 JWT/OAuth/密钥库） |
+| 可观测 | `stats_snapshot()` | 计数即可；指标导出（Prometheus 等）由平台做 |
+
+**明确不做**：认证与令牌校验、配额计费、跨请求缓存、进程隔离、硬杀超时（除非 `executor="process"`）、
+限流算法（令牌桶等）。这些都是平台职责——我们只提供**可被策略化的边界**。
+
+**超时的诚实说明**：`timeout_s` 到点后调用方立刻拿到 504，但运行中的计算（pymatgen/C 扩展）
+无法从 Python 侧安全终止，它可能继续占用一个 worker 直到完成。需要"真杀"时：
+`Policy(executor="process")`（以进程池运行 op，代价是每次调用的启动开销与不可传递 pymatgen 对象）。
 
 ## 5. 版本与兼容策略
 
@@ -99,7 +144,10 @@ cifkit 侧只做两件事：**不泄漏 secret**、**不越权读文件**。
 3. 数据落库时透传 `manifest`/`provenance` 里的 `record_id`、`doi`、`license`、`sha256`；
 4. 记住输入包是**模板**：不要对用户承诺"可直接计算"（见 `docs/EXPORT.md` §6、`docs/LIMITATIONS.md` E1/E3）；
 5. 许可：代码 MIT（[LICENSE](LICENSE)）；数据源逐源条款（[LICENSING.md](LICENSING.md)）；
-   依赖里**不要**引入 GPL 的 openbabel（核心不需要，实测见 `scripts/verify_formats_no_gpl.py`）。
+   依赖里**不要**引入 GPL 的 openbabel（核心不需要，实测见 `scripts/verify_formats_no_gpl.py`）；
+   源码级 copyleft 由 `scripts/sca_scan.py --strict` 守（check_all 第 8 组，当前 0 命中）；
+6. 对外服务用 `GuardedService` 设 `read_roots`/`write_roots`/`timeout_s`/`max_concurrency`，
+   并自备鉴权（`authorizer=`）与指标导出。
 
 ## 7. 已知限制（接口层）
 

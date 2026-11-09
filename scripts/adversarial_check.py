@@ -220,6 +220,40 @@ def main() -> int:
           and validate_request({"op": "features", "params": {"path": str(ZIF8)}}) == [],
           f"natoms={ok_response['data']['natoms']}")
 
+    # ------------------------------------------- 3c) hosting guard
+    import tempfile as _tempfile
+
+    from cifkit.platform import GuardedService, Policy
+
+    box = Path(_tempfile.mkdtemp(prefix="cifkit-adv-"))
+    (box / "uploads").mkdir()
+    (box / "work").mkdir()
+    shutil.copyfile(ZIF8, box / "uploads" / "a.cif")
+    (box / "secret.cif").write_bytes(ZIF8.read_bytes())
+    guarded = GuardedService(Policy(read_roots=[str(box / "uploads")],
+                                    write_roots=[str(box / "work")],
+                                    allow_network=False, timeout_s=120))
+    inside = guarded.handle({"op": "features", "params": {"path": str(box / "uploads" / "a.cif"),
+                                                          "rdf": False}})
+    outside = guarded.handle({"op": "features", "params": {"path": str(box / "secret.cif")}})
+    traversal = guarded.handle({"op": "features",
+                                "params": {"path": str(box / "uploads" / ".." / "secret.cif")}})
+    check("platform: sandbox blocks outside + traversal, allows inside",
+          inside["ok"] is True and outside["error"]["code"] == "forbidden-path"
+          and traversal["error"]["code"] == "forbidden-path"
+          and outside["http_status"] == 403,
+          f"inside={inside['ok']} outside={outside['error']['code']} traversal={traversal['error']['code']}")
+    offline = guarded.handle({"op": "fetch", "params": {"source": "cod", "structure_id": "7111973"}})
+    check("platform: network disabled by policy -> 403 network-disabled",
+          offline["error"]["code"] == "network-disabled" and offline["http_status"] == 403,
+          f"code={offline['error']['code']}")
+    write_out = guarded.handle({"op": "convert", "params": {"path": str(box / "uploads" / "a.cif"),
+                                                            "formats": ["vasp"], "outdir": str(box / "elsewhere")}})
+    check("platform: writes outside the write root are refused",
+          write_out["error"]["code"] == "forbidden-path",
+          f"code={write_out['error']['code']}")
+    guarded.shutdown()
+
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",

@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 65 条局限 = 5 ✅（已修/已覆盖） / 49 🟡（可绕过/已知边界） / 11 🔴（未解决/未验证）**
+**共 65 条局限 = 6 ✅（已修/已覆盖） / 53 🟡（可绕过/已知边界） / 6 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -19,8 +19,8 @@
 | G | 性能 / 并发 / 稳定性 | 6 | 1 | 5 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 5 | 1 | 2 | 2 |
 | I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
-| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 0 | 4 | 4 |
-| L | 许可 / 商用合规 | 10 | 2 | 7 | 1 |
+| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
+| L | 许可 / 商用合规 | 10 | 2 | 8 | 0 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
@@ -30,11 +30,6 @@
 - **F6** 未做超大数据集流式处理（manifest 列表一次性载入） → 超大库可能内存吃紧
 - **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
 - **H4** 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI → 跨平台差异未验证（行尾问题已由 G6 兜住）
-- **J1** 无鉴权/多租户/配额/限流 → 平台必须自己包一层；裸暴露 RPC 会被滥用
-- **J2** 无请求级超时与取消 → 大结构（RDF/环统计）会长时间占住调用线程
-- **J5** 未做并发/压力测试（无线程池上限、无背压） → 并发上限未知
-- **J8** 路径参数无沙箱（`path`/`runs_dir`/`outdir`） → 越权读写的风险在平台侧
-- **L7** 未做逐文件版权审计（历史提交的第三方片段未逐一核验） → MIT 声明可能有遗漏
 
 ---
 
@@ -152,14 +147,14 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| J1 | 无鉴权/多租户/配额/限流 | 🔴 | 平台必须自己包一层；裸暴露 RPC 会被滥用 | 服务层只做 secret 打码 + 契约校验；鉴权/限流由平台网关负责 | docs/API.md §4 |
-| J2 | 无请求级超时与取消 | 🔴 | 大结构（RDF/环统计）会长时间占住调用线程 | 平台放工作队列 + 进程级超时；`features(rdf=False)` 降开销 | docs/API.md §7 |
+| J1 | **提供** `authorizer=` 钩子与 per-tenant `Policy`，但**不含**鉴权实现（无 JWT/OAuth/密钥库） | 🟡 | 平台仍需自己做认证与授权决策 | `GuardedService(policy, authorizer=...)`；`request["auth"]` 走信封层，不进入 op 契约 | cifkit/platform.py；tests/test_platform.py |
+| J2 | 超时是**尽力而为**（线程超时返回 504，但无法安全终止已在跑的计算） | 🟡 | 超时后 worker 可能仍在后台跑完 | `Policy(timeout_s=...)` → 504 `timeout`；需要硬杀用 `executor="process"` | cifkit/platform.py；tests/test_platform.py |
 | J3 | `handle()` 吞掉异常（防 traceback 外泄） | 🟡 | 线上排障只能看日志 | 复现时直接调 `api.*` 拿真实异常 | `cifkit/service.py` |
 | J4 | 无流式/分页；大结果一次性 JSON | 🟡 | 超大 dataset/features_many 响应会很大 | 平台侧分片调用；`features_many` 控制 `paths` 数量 | docs/API.md §7 |
-| J5 | 未做并发/压力测试（无线程池上限、无背压） | 🔴 | 并发上限未知 | 平台自设 worker 数；本仓只验证线程安全 | tests/test_api.py::test_api_is_thread_safe |
+| J5 | 有**背压与并发上限**（`max_concurrency` + `queue_size` → 503 `busy`），但仍无压力曲线 | 🟡 | 真实吞吐/延迟未测 | `GuardedService` 有界准入 + 统计计数；压测仍需平台侧做 | tests/test_platform.py::test_backpressure_rejects_when_saturated |
 | J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
 | J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |
-| J8 | 路径参数无沙箱（`path`/`runs_dir`/`outdir`） | 🔴 | 越权读写的风险在平台侧 | 平台必须做路径白名单/挂载隔离 | docs/API.md §4 |
+| J8 | 已有**路径沙箱**（read_roots/write_roots，resolve 后包含性检查，挡 `..` 与逃逸符号链接） | ✅ | 进程内检查（TOCTOU 非绝对；跨盘符按拒绝处理） | `Policy(read_roots=..., write_roots=...)` → 403 `forbidden-path`；另限 `max_bytes`/`max_atoms`/`max_inputs` | cifkit/platform.py；tests/test_platform.py |
 
 ## L. 许可 / 商用合规
 
@@ -172,7 +167,7 @@
 | L4 | 数据源许可各不相同（CoRE CC-BY-4.0 / COD 公有领域 / MP+条款 / AFLOW 条款 / QMOF 派生 CSD） | 🟡 | 再分发数据可能违约 | `manifest` 记录 `license`；逐源表见 LICENSING.md §3；平台需透传署名 | LICENSING.md |
 | L5 | 下载的 `core-mof` 缓存**不建议再分发**（CSD 派生） | 🟡 | 打包镜像可能侵权 | 只分发代码/脚本，让用户自行 `bootstrap_data.py` 取数 | LICENSING.md §3 |
 | L6 | 不提供 POTCAR/UPF/skf/力场/basis | 🟡 | 输入包不能直接算 | `missing` 列表 + README 明确；平台需引导用户自备 | docs/EXPORT.md §6 |
-| L7 | 未做逐文件版权审计（历史提交的第三方片段未逐一核验） | 🔴 | MIT 声明可能有遗漏 | 商用前做一次第三方代码扫描（SCA） | LICENSING.md §6 |
+| L7 | 已有 **SCA-lite**（区分代码/注释；源码级 copyleft = 0，`--strict` 进 CI）；**仍非**代码溯源/相似度审计 | 🟡 | 不能证明与外部 GPL 代码无实质性相似 | `scripts/sca_scan.py --strict`（check_all 第 8 组）；完整 SCA 用 ScanCode/FOSSology | runs/sca_scan.json |
 | L8 | 依赖许可审计基于安装元数据 + 人工覆盖，非法律意见；条款会变 | 🟡 | 审计可能过期 | 定期重跑 `license_audit.py --all`，核对官方页面 | scripts/license_audit.py |
 | L9 | Python 依赖的**间接依赖**未展开（只审运行时直接依赖） | 🟡 | 传递依赖里可能藏 copyleft | `license_audit.py --all` 全量扫描（本机 100+ 包）后人工复核 | scripts/license_audit.py --all |
 | L10 | 平台若把生成的结构/输入包再分发，需自行确认基础数据许可 | 🟡 | 连带责任 | 平台侧做数据血缘与许可标记 | LICENSING.md §4 |

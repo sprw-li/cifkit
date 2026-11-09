@@ -140,3 +140,26 @@ def test_api_is_thread_safe():
     assert len(rows) == 6
     assert all(row["natoms"] == 2 for row in rows)
     assert len({row["a"] for row in rows}) == 6  # no cross-talk between calls
+
+
+def test_fetch_inline_hides_local_paths():
+    """fetch() returns the structure + provenance inline, without local paths by default."""
+    result = api.fetch(source="local", structure_id=str(ZIF8), include_structure=True)
+    assert result["source"] == "local"
+    assert result["natoms"] == 138
+    assert result["formula"].startswith("Zn")
+    assert result["cif_text"] and "cell" in result["cif_text"].lower() or result["cif_text"]
+    provenance = result["provenance"]
+    assert provenance.get("paths_hidden") is True
+    assert "cif_path" not in provenance and "json_path" not in provenance
+    json.dumps(result)
+
+
+def test_fetch_include_paths_opt_in_and_missing_file():
+    with_paths = api.fetch(source="local", structure_id=str(ZIF8), include_paths=True)
+    assert "cif_path" in with_paths["provenance"]
+    with pytest.raises(api.CifkitError) as excinfo:
+        api.fetch(source="local", structure_id="definitely-not-here.cif")
+    assert excinfo.value.code in ("not-found", "invalid-request")
+    with pytest.raises(api.InvalidRequest):
+        api.fetch(source="local", structure_id=str(ZIF8), limit=0)

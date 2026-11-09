@@ -15,11 +15,15 @@
         "dataset",
         "features",
         "features_many",
+        "fetch",
         "topology",
         "validate"
       ]
     },
     "params": {
+      "type": "object"
+    },
+    "auth": {
       "type": "object"
     }
   }
