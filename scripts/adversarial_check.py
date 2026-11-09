@@ -349,6 +349,22 @@ def main() -> int:
         _server.server_close()
         _thread.join(timeout=5)
 
+    # ------------------------------------------- 3f) organometallic M–C (C3)
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "tests" / "fixtures"))
+    from cifkit.repair.bonds import hydrogen_demand as _demand, perceive_bonds as _perceive
+    from organometallic import carboxylate_like as _acetate, ferrocene as _ferrocene
+
+    fe_graph = _perceive(_ferrocene())
+    fe_h = sum(max(0, d.missing) for d in _demand(fe_graph))
+    acetate_graph = _perceive(_acetate(zr_c=2.50))
+    check("organometallic: ferrocene gets 10 Fe–C bonds and 0 bogus H",
+          fe_graph.organometallic_bonds == 10 and fe_h == 0,
+          f"M–C={fe_graph.organometallic_bonds} bogus_H={fe_h}")
+    check("organometallic: saturated carboxylate carbon rejects a 2.5 Å Zr···C contact",
+          acetate_graph.organometallic_bonds == 0,
+          f"kept M–C bonds={acetate_graph.organometallic_bonds}")
+
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",

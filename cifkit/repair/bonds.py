@@ -73,9 +73,27 @@ AROMATIC_ELEMENTS = {"B", "C", "N", "O", "P", "S", "Se"}
 # donor elements.  Metal–carbon contacts in carboxylate MOFs (Zr...C ~ 3.2 A,
 # Cu...C ~ 2.8 A) are *through-space* contacts, not bonds; without this filter
 # they would inflate the carbon bond-order sum to 5-6 and suppress ring C–H.
-# Consequence (documented): genuine organometallic metal–C sigma bonds are not
-# modelled by the repair layer.
 METAL_COORDINATING_ELEMENTS = {"N", "O", "S", "Se", "P", "F", "Cl", "Br", "I", "Te"}
+
+# Organometallic M–C sigma bonds (Cp, alkyl, carbonyl) are *shorter* than the
+# through-space contacts above: ferrocene Fe–C = 2.04 A, ZnMe2 Zn–C = 1.95 A,
+# Cr(CO)6 Cr–C = 1.92 A, while carboxylate M...C is >= 2.8 A.  So carbon is a
+# donor **only** inside a tight distance window:
+#     d <= min(organometallic_factor * (r_M + r_C), 2.45 A)
+# Real sigma bonds measured: Fe–C 2.04 (Cp), Zn–C 1.95 (ZnMe2), Cr–C 1.92
+# (Cr(CO)6), Mg–C ~2.15 (Grignard), Li–C ~2.2; through-space carboxylate M...C is
+# >= 2.8.  The 2.45 A cap therefore sits in the ~0.6 A gap between the two
+# regimes instead of guessing from radii alone.  Without this rule a
+# methyl/Cp carbon looks under-coordinated and the repair layer adds bogus
+# hydrogens (measured: 8 H onto ferrocene, 2 H onto each ZnMe2 methyl).
+ORGANOMETALLIC_DONORS = {"C"}
+ORGANOMETALLIC_FACTOR = 1.02
+#: the window has a floor and a cap: heavy-metal sigma bonds (Cp2ZrCl2 Zr–C ~2.5 A,
+#: eta6-arene Cr–C ~2.22 A) must fit, while carboxylate through-space contacts
+#: (>= 2.8 A) must not.  The *real* discriminator is the valence guard below:
+#: an M–C contact only becomes a bond when the carbon still has an open valence.
+ORGANOMETALLIC_MIN_DISTANCE = 2.30
+ORGANOMETALLIC_MAX_DISTANCE = 2.65
 
 _METAL_CACHE: dict[str, bool] = {}
 _FALLBACK_METALS = {
@@ -91,6 +109,18 @@ _FALLBACK_METALS = {
 def covalent_radius(symbol: str) -> float:
     """Covalent radius of an element in Angstrom."""
     return _RADII.get(symbol, _DEFAULT_RADIUS)
+
+
+def organometallic_limit(symbol_metal: str, symbol_other: str = "C") -> float:
+    """Distance cut-off for a metal–carbon sigma bond (see module constants).
+
+    ``min(max(factor * (r_M + r_C), floor), cap)``: the radii estimate is used when
+    it is already generous, otherwise the floor keeps heavy/eta6 contacts inside the
+    window, and the cap keeps carboxylate through-space contacts outside it.
+    """
+    radii_limit = ORGANOMETALLIC_FACTOR * (covalent_radius(symbol_metal)
+                                           + covalent_radius(symbol_other))
+    return min(max(radii_limit, ORGANOMETALLIC_MIN_DISTANCE), ORGANOMETALLIC_MAX_DISTANCE)
 
 
 def is_metal(symbol: str) -> bool:
@@ -134,6 +164,10 @@ class Bond:
     order: float = 1.0
     metal: bool = False
     aromatic: bool = False
+    #: True for a metal–carbon sigma/dative bond (Cp, alkyl, carbonyl, ...).
+    #: Such bonds count toward the carbon valence (that is the point: it stops
+    #: the repair layer from capping a Cp or methyl carbon with hydrogen).
+    organometallic: bool = False
 
     @property
     def is_hydrogen_bond(self) -> bool:  # pragma: no cover - tiny helper
@@ -186,6 +220,7 @@ class BondGraph:
     aromatic_bonds: set[tuple] = field(default_factory=set)
     warnings: list[str] = field(default_factory=list)
     metal_coordination: bool = False  # True if any metal-donor bond was found
+    organometallic_bonds: int = 0     # number of metal–carbon sigma bonds perceived
 
     # -- basic helpers ------------------------------------------------------
     @property
@@ -298,7 +333,7 @@ def perceive_bonds(
         # ``get_neighbor_list`` yields both directions of every pair; collect a
         # directed map (a, b, image) -> (distance, metal) and make sure the
         # reverse direction exists as well.
-        directed: dict[tuple[int, int, int, int, int], tuple[float, bool]] = {}
+        directed: dict[tuple[int, int, int, int, int], tuple[float, bool, bool]] = {}
         for ci, pi, off, dist in zip(center, point, offsets, distances):
             a, b = int(ci), int(pi)
             if a == b:
@@ -307,24 +342,33 @@ def perceive_bonds(
                 continue  # metal–metal contacts are not coordination bonds
             if symbols[a] == "H" and symbols[b] == "H":
                 continue
+            organometallic = False
             if metals[a] or metals[b]:
-                # Only donor atoms count as coordination bonds (see
-                # METAL_COORDINATING_ELEMENTS); metal...C/M...H contacts are
-                # through-space and would corrupt the organic valence.
                 donor = b if metals[a] else a
-                if symbols[donor] not in METAL_COORDINATING_ELEMENTS:
+                if symbols[donor] in ORGANOMETALLIC_DONORS:
+                    # carbon is a donor only inside the tight organometallic window
+                    limit = min(max(ORGANOMETALLIC_FACTOR * (radii[a] + radii[b]),
+                                    ORGANOMETALLIC_MIN_DISTANCE),
+                                ORGANOMETALLIC_MAX_DISTANCE)
+                    if float(dist) >= limit:
+                        continue
+                    organometallic = True
+                elif symbols[donor] not in METAL_COORDINATING_ELEMENTS:
+                    # metal...H (and other through-space) contacts are not bonds
                     continue
             img = tuple(int(x) for x in off)
             factor = metal_factor if (metals[a] or metals[b]) else covalent_factor
-            if float(dist) >= factor * (radii[a] + radii[b]):
+            if not organometallic and float(dist) >= factor * (radii[a] + radii[b]):
                 continue
-            directed[(a, b, img[0], img[1], img[2])] = (float(dist), bool(metals[a] or metals[b]))
-        for (a, b, ix, iy, iz), (dist, metal_bond) in list(directed.items()):
+            directed[(a, b, img[0], img[1], img[2])] = (
+                float(dist), bool(metals[a] or metals[b]), organometallic)
+        for (a, b, ix, iy, iz), (dist, metal_bond, metal_c) in list(directed.items()):
             reverse = (b, a, -ix, -iy, -iz)
             if reverse not in directed:
-                directed[reverse] = (dist, metal_bond)
-        for (a, b, ix, iy, iz), (dist, metal_bond) in directed.items():
-            adj[a].append(Bond(a, b, (ix, iy, iz), dist, order=1.0, metal=metal_bond))
+                directed[reverse] = (dist, metal_bond, metal_c)
+        for (a, b, ix, iy, iz), (dist, metal_bond, metal_c) in directed.items():
+            adj[a].append(Bond(a, b, (ix, iy, iz), dist, order=1.0, metal=metal_bond,
+                               organometallic=metal_c))
 
     by_key: dict[tuple, list[Bond]] = {}
     for atom in range(n):
@@ -340,6 +384,14 @@ def perceive_bonds(
         metals=metals,
         by_key=by_key,
     )
+    graph.organometallic_bonds = sum(
+        1 for bond in graph.unique_bonds() if bond.organometallic
+    )
+    if graph.organometallic_bonds:
+        graph.warnings.append(
+            f"检测到 {graph.organometallic_bonds} 条金属–碳（有机金属）σ 键："
+            "已计入碳的价键和，避免给 Cp/烷基/羰基碳补氢"
+        )
     graph.metal_coordination = any(
         bond.metal for atom in range(n) for bond in adj[atom]
     )
@@ -540,8 +592,44 @@ def _assign_bond_orders(graph: BondGraph) -> None:
     #    represent them with one C=O and one C–O so carbon keeps valence 4.
     _fix_carboxylate_orders(graph)
 
+    # 2b) Organometallic M–C bonds must *fill an open valence*: a carboxylate or
+    #     amide carbon is already saturated by its own sigma/pi bonds, so a short
+    #     M...C contact there is coordination to the group, not a carbon sigma bond.
+    _prune_saturated_organometallic_bonds(graph)
+
     # 3) Kekulé structure inside aromatic rings.
     _assign_kekule(graph, aromatic_rings)
+
+
+def _prune_saturated_organometallic_bonds(graph: BondGraph) -> None:
+    """Drop metal–carbon bonds whose carbon has no open valence left.
+
+    Called after the covalent bond orders are known and before the ring Kekulé
+    assignment, so the ring logic sees the final bond set.  Removing a bond also
+    removes its reverse entry; the atom keeps its covalent chemistry untouched.
+    """
+    removed = 0
+    for key in list(graph.by_key):
+        bonds = graph.by_key[key]
+        if not bonds or not bonds[0].organometallic:
+            continue
+        bond = bonds[0]
+        carbon = bond.j if graph.symbols[bond.j] == "C" else bond.i
+        others = [b for b in graph.adj.get(carbon, ()) if not b.organometallic]
+        non_metal_sum = sum(b.order for b in others) + graph.virtual_pi.get(carbon, 0.0)
+        if non_metal_sum >= VALENCE.get("C", 4) - 1e-6:
+            for a, b in ((bond.i, bond.j), (bond.j, bond.i)):
+                graph.adj[a] = [x for x in graph.adj.get(a, ())
+                                if not (x.j == b and x.image == bond.image
+                                        and x.organometallic)]
+            graph.by_key.pop(key, None)
+            removed += 1
+    if removed:
+        graph.organometallic_bonds = max(0, graph.organometallic_bonds - removed)
+        graph.warnings.append(
+            f"丢弃 {removed} 条金属–碳接触：对应碳已被自身 σ/π 键饱和"
+            "（羧酸/酰胺型 M...C 不是碳 σ 键）"
+        )
 
 
 def _fix_carboxylate_orders(graph: BondGraph) -> None:
@@ -635,8 +723,34 @@ def _assign_kekule(graph: BondGraph, aromatic_rings: list[Ring]) -> None:
                 "芳香环 Kekulé 匹配失败（组件原子 %s），按分数 π 键处理" % sorted(comp_must)
             )
             continue
+        # Defensive post-condition: a ring pi bond must never push an atom past its
+        # neutral valence (an odd ring with all atoms "must cover" can otherwise get
+        # a bogus matching, e.g. two double bonds on one carbon).
+        def _allowed(atom: int) -> float:
+            # a metal-coordinated heteroatom may carry one extra bond as X+ (the
+            # charge is what the metal coordination implies); carbon may not.
+            bonus = 1.0 if graph.metal_bond_count(atom) else 0.0
+            return VALENCE.get(graph.symbols[atom], 4) + bonus
+
+        over_valence = [
+            atom for atom in comp
+            if (graph.order_sum(atom) + sum(
+                1.0 for key in solution if key[0] == atom or key[1] == atom
+            )) > _allowed(atom) + 1e-6
+        ]
+        if over_valence:
+            for atom in comp_must:
+                graph.virtual_pi[atom] = graph.virtual_pi.get(atom, 0.0) + 1.0
+            graph.warnings.append(
+                "芳香环 Kekulé 解会使原子 %s 超过价态，退回分数 π 键表示" % sorted(over_valence)
+            )
+            continue
         for key in solution:
             _set_order(graph, key, 2.0)
+
+
+#: cost added when a Kekulé partner has no open valence (see _solve_kekule_component)
+_SATURATED_PARTNER_PENALTY = 100.0
 
 
 def _solve_kekule_component(
@@ -686,7 +800,15 @@ def _solve_kekule_component(
             elif graph.symbols[other] in {"C", "B"}:
                 continue  # carbon with satisfied valence must not gain a pi bond
             else:
-                options.append((distance, other, key, False))
+                # A partner that is already saturated can still carry the pi bond
+                # (e.g. Zn–N⁺=C in an imidazolate), but strongly prefer one with an
+                # open valence: the penalty makes that a last resort instead of a
+                # silent over-coordination.
+                penalty = 0.0
+                if (graph.order_sum(other) + graph.virtual_pi.get(other, 0.0)
+                        >= VALENCE.get(graph.symbols[other], 4) - 1e-6):
+                    penalty = _SATURATED_PARTNER_PENALTY
+                options.append((distance + penalty, other, key, False))
         for distance, other, key, other_is_must in sorted(options):
             new_remaining = rest - {other} if other_is_must else rest
             rec(new_remaining, covered | {other}, chosen + (key,), cost + distance)
