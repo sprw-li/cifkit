@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 72 条局限 = 9 ✅（已修/已覆盖） / 62 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
+**共 75 条局限 = 11 ✅（已修/已覆盖） / 63 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -17,14 +17,14 @@
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 7 | 2 | 4 | 1 |
+| H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
-| L | 许可 / 商用合规 | 11 | 2 | 9 | 0 |
+| L | 许可 / 商用合规 | 14 | 3 | 10 | 1 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
-- **H3** 本机与云端**都没有跑过真实计算软件**：本机 0/12 安装；云端路径已备好（输入包 + 门禁包装 + RUNBOOK → 输入模板的真实可运行性仍未确认；dry-run 的 payload 不是 GPU 结果
+- **H3b** **本仓导出的模板从未在任何真实软件里跑完一次计算**：NWChem 已能从几何读入，但周期性任务从 `task dft`（被拒：`dete → 只能说明「文件形状正确」，不能说明「能算出结果」
 
 ---
 
@@ -125,7 +125,7 @@
 | G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
-| H3 | 本机与云端**都没有跑过真实计算软件**：本机 0/12 安装；云端路径已备好（输入包 + 门禁包装 + RUNBOOK），但**缺 Bohrium 凭据/基址/镜像名**，连 5 分钟探测作业都还没提交 | 🔴 | 输入模板的真实可运行性仍未确认；dry-run 的 payload 不是 GPU 结果 | 凭据就绪后一条命令：`scripts\cloud_h3_submit.py --go`（先 probe，默认只跑 5 分钟探测作业 ≤0.46 RMB）；有自带 CP2K/QE 的镜像时加 `--image` | runs/cloud_h3/RUNBOOK.md；scripts/cloud_h3_submit.py；tests/test_cloud_h3_submit.py |
+| H3a | 云端验收管线**已跑通**：Bohrium `batchjob`（光子付费）提交 → 调度 → 运行 → 取回；**NWChem 7.2.2 接受并跑完**本项目写的最小自洽算例（`Total times` 输出、exit 0、作业 succeeded，237 s / 5 光子） | ✅ | 只覆盖 NWChem；VASP/QE/CP2K/ORCA 等本机与云端镜像都没有 | `runs/cloud_h3/CLOUD-LOG.md`（5 个作业的 jobId/耗时/光子）、`runs/cloud_h3/artifacts_cp2k/acceptance_result.json`、`scripts/cloud_h3_submit.py --bohr-status` |
 | H4 | 已提供**跨平台 CI workflow**（ubuntu/macos/windows × py3.11/3.13 + wheel 构建），但**从未在 Linux/macOS 上真正执行过**（本机只有 Windows） | 🟡 | 首次 CI 运行前不能宣称跨平台可用 | 每个 CI 步骤都是本机可复跑的同一命令（check_eol / sca_scan / verify_formats / adversarial / pytest / check_all）；CI 里强制 `core.autocrlf=false` 以验证 eol=lf 契约 | .github/workflows/ci.yml；docs/LIMITATIONS.md G6 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
@@ -163,6 +163,9 @@
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | J9 | CPU 密集 op 的并发扩展性差（GIL）：4 worker 吞吐仅约 1.2×，p50 延迟上升约 3× | 🟡 | 该服务适合多小请求，不适合并行大计算 | 重计算放工作队列/进程池；`executor="process"` 仅在长批时可选 | docs/PERFORMANCE.md §10.4 |
+| J10 | 性能回归门禁存在，但**容差很宽**（时间 0.5×、内存 2.0×）且基线是**单机**的；在共享/高负载机器上无法检测中小幅度的性能退化 | 🟡 | 只能抓数量级回归 | `scripts/perf_gate.py`（多次取中位数 + warm-up + 抖动区间），`release_check --perf` opt-in；基线换机器必须重录 | runs/perf_baseline.json；tests/test_perf_gate.py |
+| K9 | 导出产物**曾**泄露宿主绝对路径（NWChem `permanent_dir`，ASE 默认行为）；已修并有门禁，但同类问题仍可能出在**新增**格式上 | ✅ | 新增格式时门禁会自动扫到 | `scripts/check_portability.py`（31 格式全扫，二进制跳过）+ `tests/test_portability.py`；云端跑作业时发现 | runs/portability.json |
+| H3b | **本仓导出的模板从未在任何真实软件里跑完一次计算**：NWChem 已能从几何读入，但周期性任务从 `task dft`（被拒：`detected periodicity = 3`）改到 plane-wave 后，**仍缺 per-element `*.psp` 与收敛 `ecut`**；其余软件模板无算例 | 🔴 | 只能说明「文件形状正确」，不能说明「能算出结果」 | 云端复跑：`run_our_template.py`（见 CLOUD-LOG 作业 3/4/5）；修好 psp 后可再验 | runs/cloud_h3/artifacts_ours*/our_template_result.json；tests/test_nwchem_periodicity.py |
 | L1 | 本仓代码许可此前未声明 | ✅ | 商用集成无从判断 | 已加 **MIT** `LICENSE`（可商用/可闭源/可再分发） | LICENSE |
 | L2 | Open Babel 是 **GPL-2.0**，曾出现在依赖清单里 | ✅ | GPL 会传染闭源商用 | 实测**核心不 import 它**（屏蔽后 31 格式 + 12 包全过）；已从"运行时 packages"移到可选清单 | scripts/verify_formats_no_gpl.py；LICENSING.md §2 |
 | L3 | **ASE 是 LGPL-2.1+** | 🟡 | 修改 ASE/静态嵌入会触发 LGPL 义务 | 本仓不修改 ASE；动态使用通常可与专有代码共存，**商用前请法务确认** | scripts/license_audit.py |

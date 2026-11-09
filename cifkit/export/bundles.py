@@ -71,7 +71,10 @@ BUNDLE_INFO: dict[str, dict[str, Any]] = {
     },
     "nwchem": {
         "description": "NWChem .nw template",
-        "missing": ["theory/basis block", "charge/multiplicity"],
+        "missing": ["theory/basis block", "charge/multiplicity",
+                    "periodic systems need the plane-wave module (nwpw/pspw) with "
+                    "per-element pseudopotentials and a converged cutoff; cifkit does not "
+                    "guess a task (two candidates were rejected by real NWChem 7.2.2)"],
         "template": True,
     },
     "aims": {

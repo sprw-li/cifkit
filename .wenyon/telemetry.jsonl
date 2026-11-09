@@ -1,0 +1,2 @@
+{"timestamp":"2026-11-09T15:52:39.675960100+00:00","action":"cli.version","success":true,"duration_ms":0,"cli_version":"1.40.1","platform":"windows-amd64","metadata":{"variant":"external"}}
+{"timestamp":"2026-11-09T15:55:25.971366300+00:00","action":"cli.version","success":true,"duration_ms":0,"cli_version":"1.40.1","platform":"windows-amd64","metadata":{"variant":"external"}}

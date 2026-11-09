@@ -58,7 +58,7 @@ def limitations_summary_ok(text: str) -> tuple[bool, str]:
     A stale summary is the easiest way to ship a document that lies, so it is a
     release gate rather than a convention.
     """
-    rows = [line for line in text.splitlines() if re.match(r"^\| [A-L]\d+ \|", line)]
+    rows = [line for line in text.splitlines() if re.match(r"^\| [A-L]\d+[a-z]? \|", line)]
     counts = {mark: sum(1 for line in rows if mark in line) for mark in ("✅", "🟡", "🔴")}
     stated = re.search(r"共 (\d+) 条局限 = (\d+) ✅.*?(\d+) 🟡.*?(\d+) 🔴", text)
     if not stated:
@@ -74,6 +74,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="skip the full pytest suite")
     ap.add_argument("--allow-dirty", action="store_true")
+    ap.add_argument("--perf", action="store_true",
+                    help="额外跑性能回归门禁（与 runs/perf_baseline.json 比较，较慢）")
     ap.add_argument("--json", default=str(ROOT / "runs" / "release_check.json"))
     args = ap.parse_args()
 
@@ -184,6 +186,23 @@ def main() -> int:
                f"failed={summary.get('failed')} (as of {live.get('checked_at')})",
                warning=bool(summary.get("failed")))
         report["sources_live"] = summary
+
+    if args.perf:
+        perf_cmd = [PY, str(ROOT / "scripts" / "perf_gate.py"), "--check"]
+        if args.quick:
+            perf_cmd.append("--quick")
+        perf = run(perf_cmd, ROOT, timeout=3600)
+        perf_path = ROOT / "runs" / "perf_check.json"
+        if perf_path.is_file():
+            perf_report = json.loads(perf_path.read_text(encoding="utf-8"))
+            bad = [row["metric"] for row in perf_report.get("rows", [])
+                   if row.get("verdict") == "REGRESSION"]
+            record("perf: no regression against the baseline", perf_report.get("ok", False),
+                   f"{len(perf_report.get('rows', []))} metrics, regressions={bad}")
+            report["perf"] = {"ok": perf_report.get("ok"), "regressions": bad}
+        else:
+            record("perf: no regression against the baseline", False,
+                   f"perf_gate exit {perf.returncode} without a report")
 
     limitations = ROOT / "docs" / "LIMITATIONS.md"
     if limitations.is_file():

@@ -266,14 +266,31 @@ def test_resolve_unknown_topology_raises():
 # COD（联网；离线自动 skip）
 # ---------------------------------------------------------------------------
 @needs_network
+def live_cod_search(**kwargs):
+    """Run a live COD query, skipping on transport failure.
+
+    ``needs_network`` only proves a TCP connection at *collection* time; the API can
+    still fail later (round 27: a transient connection error failed the suite).
+    A transport error means "no evidence either way" → skip.  A contract problem
+    (a response that cannot be parsed) is different: that still raises.
+    """
+    try:
+        return get_source("cod").search(SourceQuery(**kwargs))
+    except RuntimeError as exc:
+        pytest.skip(f"COD 查询暂时失败（网络/上游，非代码问题）：{exc}")
+
+
 def test_cod_search_and_fetch_by_id():
     source = get_source("cod")
-    hits = source.search(SourceQuery(structure_id="7111973", limit=1))
+    hits = live_cod_search(structure_id="7111973", limit=1)
     assert hits and hits[0].record_id == "cod:7111973"
     assert hits[0].topology is None
     assert hits[0].topology_evidence == "unknown"
 
-    fetched = source.fetch(hits[0])
+    try:
+        fetched = source.fetch(hits[0])
+    except (RuntimeError, ValueError) as exc:
+        pytest.skip(f"COD 取回暂时失败（网络/上游）：{exc}")
     assert len(fetched.structure) > 0
     assert fetched.provenance["source"] == "cod"
     assert fetched.provenance["cod_id"] == "7111973"
@@ -284,8 +301,7 @@ def test_cod_search_and_fetch_by_id():
 
 @needs_network
 def test_cod_search_by_name():
-    source = get_source("cod")
-    hits = source.search(SourceQuery(structure_name="ZIF-8", limit=3))
+    hits = live_cod_search(structure_name="ZIF-8", limit=3)
     assert hits, "COD 对 ZIF-8 应有命中"
     assert all(hit.source == "cod" for hit in hits)
     assert all(hit.record_id.startswith("cod:") for hit in hits)

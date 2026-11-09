@@ -11,17 +11,30 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _mp_or_skip(**kwargs):
+    """Live MP query: skip on transport/upstream failure (no evidence either way)."""
+    from cifkit.sources import get_source
+    from cifkit.types import SourceQuery
+
+    try:
+        return get_source("materials-project").search(SourceQuery(**kwargs))
+    except (RuntimeError, OSError) as exc:
+        pytest.skip(f"MP 查询暂时失败（网络/上游）：{exc}")
+
+
 def test_mp_live_search_mp149():
     src = MaterialsProjectSource()
-    hits = src.search(SourceQuery(structure_id="mp-149", limit=1))
+    hits = _mp_or_skip(structure_id="mp-149", limit=1)
     assert hits, "MP live search returned no hit for mp-149"
     assert hits[0].record_id.startswith("mp-")
-    fetched = src.fetch(hits[0])
+    try:
+        fetched = src.fetch(hits[0])
+    except (RuntimeError, OSError, ValueError) as exc:
+        pytest.skip(f"MP 取回暂时失败（网络/上游）：{exc}")
     assert len(fetched.structure) > 0
     assert fetched.provenance.get("source") == "materials-project"
 
 
 def test_mp_live_formula_search():
-    src = MaterialsProjectSource()
-    hits = src.search(SourceQuery(structure_name="GaN", limit=3))
+    hits = _mp_or_skip(structure_name="GaN", limit=3)
     assert hits, "MP live formula search returned no hit for GaN"

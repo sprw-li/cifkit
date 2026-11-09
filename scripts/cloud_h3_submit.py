@@ -78,9 +78,43 @@ def run_cli(args: list[str], *, network: bool) -> subprocess.CompletedProcess:
     return proc
 
 
+def bohr_cli() -> Path | None:
+    """Locate the desktop Bohrium CLI (the *working* pipeline on this machine).
+
+    Round 28 finding: the machine has a valid access key installed by the Bohrium
+    desktop app (``bohr doctor`` → ``auth_validity: pass``) but **no** REST
+    credentials in the environment; the official ``bohr batchjob`` module is then
+    the correct entry point, and photons (not the CNY balance) must pay for it.
+    """
+    try:
+        version = (Path(r"D:\App\Bohrium\active-version").read_text(encoding="utf-8").strip())
+    except OSError:
+        return None
+    candidate = Path(r"D:\App\Bohrium\versions") / version / "bohr.exe"
+    return candidate if candidate.is_file() else None
+
+
+def run_bohr(args: list[str]) -> subprocess.CompletedProcess:
+    """Run ``bohr <args>``; prints the CLI output and records it under runs/cloud_h3."""
+    cli = bohr_cli()
+    if cli is None:
+        raise SystemExit("bohr CLI not found (D:\\App\\Bohrium\\active-version)")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    proc = subprocess.run([str(cli), *args], cwd=str(ROOT), env=env, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=3600)
+    print(proc.stdout.strip()[-3000:])
+    name = "_".join(part for part in args[:3] if not part.startswith("-"))
+    (OUT / f"bohr_{name}.log").write_text(
+        (proc.stdout or "") + "\n--- stderr ---\n" + (proc.stderr or ""), encoding="utf-8")
+    return proc
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="report credential presence (no network)")
+    ap.add_argument("--bohr", action="store_true",
+                    help="用桌面端 bohr CLI（本机实测可用的管线，光子付费）")
+    ap.add_argument("--bohr-status", action="store_true", help="bohr doctor + auth + billing(只读)")
     ap.add_argument("--dry-run", action="store_true", help="build the payload; zero network")
     ap.add_argument("--go", action="store_true", help="actually probe + submit (needs credentials)")
     ap.add_argument("--stage", choices=sorted(STAGES), default="probe")
@@ -91,6 +125,22 @@ def main() -> int:
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
+
+    if args.bohr_status or args.bohr:
+        cli = bohr_cli()
+        print(f"bohr CLI: {cli}")
+        if cli is None:
+            print("not installed — the REST path (RELAYBENCH_GPU_BASE_URL/… ) is the only option here")
+            return 1
+        for sub in (["doctor", "-o", "json"], ["auth", "status", "-o", "json"],
+                    ["billing", "balance", "-o", "json"]):
+            run_bohr(sub)
+        if args.bohr_status and not args.bohr:
+            print("\nread-only checks done. Re-run with --bohr --go to submit via `bohr batchjob`.")
+            print("NOTE: this machine's CNY balance is insufficient; use photons via the CLIENT's")
+            print("      --payment-source photon (the wrapper does that automatically).")
+            return 0
+
     state = credentials_state()
     missing = [name for name, present in state.items() if not present]
     print("credentials:", {k: ("set" if v else "unset") for k, v in state.items()})
@@ -142,6 +192,30 @@ def main() -> int:
         print("refusing to submit — set the variables in this shell, then rerun with --go.")
         print("(The pipeline never invents a base URL; see the skill's hard rules.)")
         return 1
+
+    if args.bohr:
+        image = args.image or "registry.dp.tech/infra/pytorch:2.13.0-cuda12.6-cudnn9-runtime"
+        machine = "c4_m8_cpu" if args.stage != "probe" else "c2_m4_cpu"
+        command = command + (" --install cp2k" if args.image is None and args.stage != "probe" else "")
+        dry = run_bohr(["batchjob", "submit", "--dry-run", "--name", label,
+                        "--image", image, "--machine-type", machine,
+                        "--command", command, "--input", str(BUNDLE),
+                        "--max-run-time", f"{run_minutes}m", "--max-wait-time", f"{wait_minutes}m",
+                        "-o", "json"])
+        if dry.returncode != 0:
+            return dry.returncode
+        submit = run_bohr(["batchjob", "submit", "--yes", "--payment-source", "photon",
+                           "--name", label, "--image", image, "--machine-type", machine,
+                           "--command", command, "--input", str(BUNDLE),
+                           "--max-run-time", f"{run_minutes}m",
+                           "--max-wait-time", f"{wait_minutes}m",
+                           "--out-file", "acceptance_result.json", "-o", "json"])
+        if submit.returncode != 0:
+            print("bohr submit failed — inspect the message; do not blindly retry", file=sys.stderr)
+            return submit.returncode
+        print("\njob submitted. Poll with:")
+        print(f"  bohr batchjob describe <jobId> -o json   （或 --bohr-status 查看余额/光子）")
+        return 0
 
     print("\n== probe (auth + SKU list; first thing after getting credentials) ==")
     probe = run_cli(["probe"], network=True)

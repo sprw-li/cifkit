@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = Path(sys.executable)
@@ -27,12 +28,25 @@ ZIF8 = ROOT / "tests" / "data" / "zif8_cr_sod.cif"
 results: list[tuple[str, bool, str]] = []
 
 
+def load_reference() -> float:
+    """Pure-Python loop; printed so a slow run can be attributed to the machine.
+
+    Round 27: a release gate on a loaded box timed out a 900 s subprocess on a
+    command that normally takes 1.3 s.  Recording the load keeps that diagnosable.
+    """
+    started = time.perf_counter()
+    total = 0
+    for i in range(3_000_000):
+        total += i * i % 97
+    return time.perf_counter() - started
+
+
 def check(name: str, ok: bool, detail: str) -> None:
     results.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name} :: {detail}")
 
 
-def run(args: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
+def run(args: list[str], timeout: int = 1800) -> subprocess.CompletedProcess:
     return subprocess.run([str(PY), "-m", "cifkit", *args], cwd=str(ROOT), capture_output=True,
                           text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
@@ -48,6 +62,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", default=str(ROOT / "runs" / "lead_verify_r11"))
     args = ap.parse_args()
+    print(f"[load] pure-Python control loop: {load_reference():.2f}s "
+          f"(baseline ~0.3s; a much larger value means the machine is loaded)")
     work = Path(args.work)
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)

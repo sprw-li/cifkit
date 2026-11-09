@@ -347,6 +347,90 @@ _ASE_READBACK: dict[str, str] = {
 _TEMPLATE_FORMATS = ("siesta", "abacus", "orca", "dftb")
 
 
+def _adapt_nwchem_periodicity(path: Path) -> None:
+    """Handle the periodic case honestly instead of emitting a broken task.
+
+    Verified in a Bohrium container with a real NWChem 7.2.2 (2026-11-09):
+
+    * ``task dft energy`` on a periodic cell →
+      ``dft_rdinput: detected periodicity = 3`` (exit 3);
+    * ``nwpw`` + ``ecut 20`` → ``nwpw_input: unknown directive: ecut`` (exit 255).
+
+    So we do **not** guess a plane-wave task.  We drop the molecular ``dft`` and
+    Gaussian ``basis`` blocks (they cannot apply), record both rejected attempts in
+    a comment, and leave the choice of module — plus the pseudopotentials and
+    cutoffs it needs — to the user, who has the manual and the elements at hand.
+    """
+    text = path.read_text(encoding="utf-8")
+    if "system crystal" not in text:
+        return
+
+    kept: list[str] = []
+    dropping = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if dropping:
+            if stripped == "end":          # terminator of the dropped block
+                dropping = False
+            continue
+        if stripped.startswith("task "):
+            continue
+        if stripped.startswith("mult "):
+            continue
+        if stripped == "dft" or stripped.startswith("dft "):
+            dropping = True
+            continue
+        if stripped == "basis" or stripped.startswith("basis "):
+            dropping = True
+            continue
+        kept.append(line)
+
+    while kept and not kept[-1].strip():
+        kept.pop()
+    kept.extend([
+        "",
+        "# ----------------------------------------------------------------",
+        "# cifkit: this structure is PERIODIC (see 'system crystal' above).",
+        "# The molecular DFT task that fits a cluster does NOT work here; both of",
+        "# the following were tried against NWChem 7.2.2 on 2026-11-09 and were",
+        "# rejected by the program itself:",
+        "#   task dft energy        -> dft_rdinput: detected periodicity = 3",
+        "#   nwpw / ecut 20         -> nwpw_input: unknown directive: ecut",
+        "# cifkit therefore does not write a task for periodic systems.  Add the",
+        "# plane-wave (nwpw/pspw) input, the per-element pseudopotentials and a",
+        "# converged cutoff yourself, then a matching 'task' line.",
+        "# ----------------------------------------------------------------",
+        "",
+    ])
+    path.write_text("\n".join(kept), encoding="utf-8")
+
+
+def _relativise_nwchem_dirs(path: Path) -> None:
+    """Make NWChem's ``permanent_dir``/``scratch_dir`` portable.
+
+    ASE's ``nwchem-in`` writer does ``os.path.abspath(params.pop('perm', label))``
+    (see ``ase/io/nwchem/nwwriter.py``), so the default label ``"nwchem"`` turns
+    into an **absolute host path** (for example ``<cwd>\\nwchem``, i.e. a Windows
+    drive-letter path on this machine), which is meaningless — and often fatal —
+    on a Linux cluster.  Found by running the file in a cloud container (round 28).
+
+    Rewriting the two header lines to ``.`` keeps the file self-contained: NWChem
+    then uses the working directory.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    changed = False
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        for key in ("permanent_dir", "scratch_dir"):
+            if stripped.startswith(key) and len(stripped) > len(key):
+                value = stripped[len(key):].strip()
+                if value and value != ".":
+                    lines[index] = f"{key} .\n"
+                    changed = True
+    if changed:
+        path.write_text("".join(lines), encoding="utf-8")
+
+
 def _write_ase(structure: Structure, path: Path, title: str | None, *, ase_format: str) -> None:
     import ase.io
 
@@ -354,6 +438,9 @@ def _write_ase(structure: Structure, path: Path, title: str | None, *, ase_forma
     if title:
         atoms.info["comment"] = _comment(structure, title)
     ase.io.write(str(path), atoms, format=ase_format)
+    if ase_format == "nwchem-in":
+        _relativise_nwchem_dirs(path)
+        _adapt_nwchem_periodicity(path)
 
 
 def _write_json(structure: Structure, path: Path, title: str | None) -> None:

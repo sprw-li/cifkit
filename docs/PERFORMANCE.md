@@ -160,3 +160,12 @@ CoRE MOF 2024 里可用的最大 Cr 基 MOF（`SI/NCR/Chen_Manz/am9b13361_si_002
 44608 原子**，切面后 >5 万，本仓**未尝试** ——
 这不是"支持超大体系"的承诺。解析本身（pymatgen）就要 25.36 s，
 是整条链路的瓶颈。
+
+### 10.7 性能回归门禁（round 26/27）
+
+`scripts/perf_gate.py`：`--record` 存本机基线，`--check` 与之比较（中位数 + warm-up + 抖动区间）。
+**负载感知**：基线含一个纯 Python 控制循环；若机器比基线时慢 >2×，时间类指标记为
+`inconclusive` 而非回归（内存类不受影响）。当前基线（2026-11-09 23:40）：
+`features` 无 RDF 0.020 s、RDF 0.127 s、`convert` 0.039 s、`features_many`(6) 0.142 s、
+流式数据集(60 run) 1.90 s / 峰值 1.164 MiB、控制循环 0.172 s。
+它是 **opt-in** 门（`release_check --perf`），不阻塞默认发布流程。

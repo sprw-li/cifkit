@@ -479,6 +479,13 @@ payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/su
 
 **H3 在此期间仍是 🔴**：没有真实运行就没有证据，dry-run 的 payload 不得当作 GPU 结果。
 
+**round 28 实测（真正的管线）**：本机桌面端装有有效凭据（`bohr doctor` → `auth_validity: pass`），
+官方 `bohr batchjob` 才是本机可用入口；现金余额 -0.09 CNY 不足，**必须用 `--payment-source photon`**
+（光子余额 25 067）。已实测：`c2_m4_cpu`（0.16 RMB/h）+ PyTorch 镜像，5 分钟上限，
+作业 `7972cc62…` **成功调度并运行**（spendTime 6 s、photonCost 0），产物
+`acceptance_result.json` 已取回 → **镜像里没有任何计算化学软件**（预期结论）。
+细节与命令见 `runs/cloud_h3/PIPELINE-FOUND.md`；`scripts/cloud_h3_submit.py --bohr-status` 可复现只读检查。
+
 ### 8.18 数据源实时可用性检查（round 25）
 
 `scripts/sources_live_check.py`：对每个数据源做 **TCP 可达性 + 一次真实小查询**，记录
@@ -488,3 +495,37 @@ payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/su
 2026-11-09 快照：`core-mof` ok（8300 条）、`cod` ok（by_id + 文本查询都有结果）、
 `aflow` ok（ZnO 3 条）、`local` ok（16 CIF）、`materials-project` **needs-key**、
 `qmof` **not-configured**（无本地镜像）。
+
+### 8.19 性能回归门禁（round 26，`scripts/perf_gate.py`）
+
+`--record` 存基线、`--check` 与基线比较（**每项指标取多次运行的中位数，且先做 warm-up**，
+否则首次调用的惰性导入会污染基线）。默认容差很宽：时间允许慢到 **0.5×**、内存允许涨到 **2.0×**
+——因为本机是共享且高负载的（对照实验里 4 线程只有 0.78×，机器自己就会变慢），
+这道门抓的是**数量级回归**，不是噪声。
+
+实测基线（2026-11-09，中位数）：`features`（无 RDF）0.026 s、`features`（RDF）0.167 s、
+`convert`（vasp+xyz）0.051 s、`features_many`（6×jobs=1）0.148 s、
+流式数据集（60 run）2.13 s / 峰值 **1.16 MiB**。
+
+用法：`scripts/perf_gate.py --record|--check [--quick]`；`release_check --perf` 会把它接成一道门
+（**opt-in**，默认不跑）。基线是**本机的**，换机器/换 Python 要重录。
+
+**负载感知（round 27 的教训）**：基线里同时记录一个**纯 Python 控制循环**（`control_loop_s`，
+与库代码无关）。若本次控制循环比基线慢 >2×，说明机器处于高负载，此时**时间类指标一律记为
+`inconclusive` 而不是 `REGRESSION`**；内存类指标不受负载影响，照常判定。
+起因：一次发布门禁在极端负载下跑了 30 分钟（正常 2 分钟），把 2 个指标误报成性能回归，
+同时还有一个 1.3 秒的命令撞上 900 秒子进程超时。现在：① 误报被降级为 `inconclusive`；
+② 对抗性脚本打印控制循环并报告负载；③ CLI 子进程预算 900→1800 s、对抗性组预算 2400→5400 s。
+
+### 8.20 产物可移植性门禁（round 28）
+
+云端跑出来的一个副作用：**我们自己导出的 NWChem 输入里写着本机的绝对路径**
+（`permanent_dir D:\Dev\Project5-skill-cif\nwchem`）——因为 ASE 的 `nwchem-in` writer 对默认
+label 调了 `os.path.abspath`。这种文件在容器/集群上直接不可用。
+
+- 修复：写完后把 `permanent_dir`/`scratch_dir` 改写成 `.`（自包含）；
+- 门禁 `scripts/check_portability.py`：**把 31 个格式全部生成一遍**，扫描
+  工作区根路径 / Windows 盘符路径 / `~` 家目录 / `/home|/Users` 形态；二进制（PNG，含 NUL）跳过；
+- 测试 `tests/test_portability.py`：NWChem 头两行必须是相对路径，且 ≥20 个文本格式全部干净。
+
+这类缺陷是"本地测试永远发现不了、一上云就炸"的典型，因此单列一道门。

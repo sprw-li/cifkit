@@ -14,9 +14,10 @@ Optional: ``python run_acceptance.py --install cp2k`` tries to install a code wi
 ``apt-get`` first (needs network in the container; bandwidth is ~100 kB/s, so this
 is a deliberate, explicit choice — see the skill's reference/limits.md).
 
-Exit code: 0 when at least one code reaches ``verified``; 1 when nothing is
-installed (a useful result: it means the *image* lacks the software, not that the
-harness failed).
+Exit code: always 0 when the probe itself completed — including when nothing is
+installed (that is a useful result: it means the *image* lacks the software, not
+that the harness failed).  A non-zero exit would turn the job into
+``BATCH_JOB_FAILED`` and hide that distinction; the JSON carries the outcome.
 """
 from __future__ import annotations
 
@@ -141,7 +142,10 @@ def main() -> int:
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nverified: {verified or 'none'}")
     print(f"report written: {args.out}")
-    return 0 if verified else 1
+    # Exit 0 even when nothing was verified: the *probe* succeeded.  A non-zero
+    # exit would make the platform report BATCH_JOB_FAILED, which conflates
+    # "this image has no calculation software" with "the harness crashed".
+    return 0
 
 
 def cuda_summary() -> dict:
