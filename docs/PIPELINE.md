@@ -423,3 +423,26 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 
 **约定**：本工作台的自测完整性以"非 agentlib 组全绿 + agentlib 组的状态另行核对"为准；
 若要发布，请在**两边仓库都干净**时再跑一次完整 `check_all`。
+
+### 8.15 发布门禁 `scripts/release_check.py`（round 22）
+
+把"能不能发"变成一张可复跑的清单，而不是感觉：
+
+| 门 | 判据 |
+|---|---|
+| 两个仓库干净 | 本仓与 `D:\agent-library` 的 `git status --porcelain` 为空（`--allow-dirty` 降级为 WARN） |
+| 格式全绿 | **现场重跑** `verify_formats.py`：31/31 写出、25/25 第三方回读、12 bundle |
+| 健康检查全绿 | `check_all --adversarial`（或 `--quick` 用 `--fast`）**每一组**通过，含 agentlib 组 |
+| 字节完整性 | `runs/check_eol.json` 无 failures（LF + 钉住 sha256） |
+| 许可 | `runs/sca_scan.json` 源码级 copyleft = 0 |
+| 对抗性 | `runs/lead_verify_r11/adversarial_check.json` 全 ok |
+| 文档一致性 | `docs/LIMITATIONS.md` 顶部统计与表格行数**逐项相符**（写歪了就不算发布） |
+| 软件验收 | `runs/check_software.json` 存在（信息项：`verified` 数反映 H3 现状，不作为通过条件） |
+
+用法：`.venv\Scripts\python.exe scripts\release_check.py [--quick] [--allow-dirty]`；
+输出 `runs/release_check.json`（含两个仓库的 HEAD、每个门的判据与耗时），退出码 0 = 可发布。
+
+**agentlib 组失败时自解释**：`check_all` 会解析 `eval_router` 的失败行，给出
+`stale-eval?`（期望的 id 仍存在但被更专门的新 id 取代）/ `missing-skill?`（期望的 id 已被删除）/
+`router-regression?` 三分类，并指出该改哪一侧——因为技能目录在**另一个仓库**里，
+经常被并发修改（2026-11 的 `document-pptx → office-pptx` 改名就是这么发现的）。

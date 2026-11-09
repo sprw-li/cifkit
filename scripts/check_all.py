@@ -71,6 +71,53 @@ DETAIL: list[dict] = []
 SKILL_CHECK = AGENTLIB / "catalog" / "skill-retro" / "scripts" / "check_skill.py"
 
 
+def diagnose_agentlib_eval(stdout: str) -> str | None:
+    """Explain an ``eval_router`` failure from its own output.
+
+    The skill catalog lives in a *different* repository that other agents edit
+    concurrently, so an eval failure is often "stale expectation", not a router
+    regression.  This turns the raw JSON failure lines into a precise statement:
+
+    * the wanted skill still exists in the catalog, but a *different* existing
+      skill now ranks first  → ``stale-eval`` candidate (update the expectation);
+    * the wanted skill is gone from the catalog → ``missing-skill`` (the eval
+      references a deleted skill);
+    * anything else → ``router-regression`` (investigate in the other repo).
+    """
+    catalog = AGENTLIB / "catalog"
+    diagnoses: list[str] = []
+    for line in (stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            case = json.loads(line)
+        except Exception:  # noqa: BLE001
+            continue
+        want = str(case.get("want") or "")
+        got_ids = case.get("got_ids") or []
+        wanted_skill = want.split("/")[-1].strip() if "/" in want else ""
+        if not wanted_skill or not got_ids:
+            continue
+        wanted_exists = (catalog / wanted_skill).is_dir()
+        top = str(got_ids[0])
+        top_exists = (catalog / top).is_dir()
+        if wanted_exists and top_exists and top != wanted_skill:
+            diagnoses.append(
+                f"stale-eval? 期望 {wanted_skill}，但目录里更专门的 {top} 被排在前面 "
+                f"(query={case.get('query')!r})")
+        elif not wanted_exists:
+            diagnoses.append(
+                f"missing-skill? 评测期望的 {wanted_skill} 已不在目录 (query={case.get('query')!r})")
+        else:
+            diagnoses.append(f"router-regression? {want!r} 未被命中，top={top}")
+    if not diagnoses:
+        return None
+    head = ("外部仓库 D:\\agent-library 的目录/评测可能不一致；"
+            "先确认哪一侧是新意图，再决定改目录还是改评测")
+    return head + " :: " + " | ".join(diagnoses[:4])
+
+
 def check_skills() -> tuple[bool, str]:
     """Run agent-library ``check_skill.py`` on every ``cif-*`` skill.
 
@@ -149,8 +196,16 @@ def main() -> int:
         first_is_workbench = "1. cif-workbench" in stdout
         checks.append(("agentlib: router route", proc.returncode == 0 and first_is_workbench,
                        f"first-candidate-cif-workbench={first_is_workbench}; {route_detail}"))
-        checks.append(("agentlib: eval_router --all", *run(
-            "eval", ["py", "-3", str(AGENTLIB / "scripts" / "eval_router.py"), "--all"], cwd=AGENTLIB)))
+        eval_ok, eval_detail = run(
+            "eval", ["py", "-3", str(AGENTLIB / "scripts" / "eval_router.py"), "--all"],
+            cwd=AGENTLIB)
+        if not eval_ok:
+            # the catalog lives in another repo: say *why* it failed, not just "exit 1"
+            diagnosis = diagnose_agentlib_eval(next(
+                (entry["stdout_tail"] for entry in reversed(DETAIL) if entry["name"] == "eval"), ""))
+            if diagnosis:
+                eval_detail = f"{eval_detail} :: {diagnosis}"
+        checks.append(("agentlib: eval_router --all", eval_ok, eval_detail))
         checks.append(("agentlib: ci --fast", *run(
             "ci", ["py", "-3", str(AGENTLIB / "scripts" / "ci.py"), "--fast"], cwd=AGENTLIB)))
 

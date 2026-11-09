@@ -1,0 +1,181 @@
+"""Pre-release gate: is this actually shippable *right now*?
+
+Composes the existing tools into one honest checklist instead of a vibe:
+
+1. **both repositories clean** (this one and the skill catalog) — a release from a
+   dirty tree is not reproducible; ``--allow-dirty`` downgrades that to a warning;
+2. **full health check** (``check_all --adversarial``, or ``--fast``) must pass
+   *every* group, including the agent-library ones;
+3. **fresh artifacts**: re-runs ``verify_formats.py`` and checks the format report,
+   the LF/hash report, the licence scan and the adversarial report;
+4. **documentation contract**: ``docs/LIMITATIONS.md`` parses and its counts add up.
+
+    .venv\\Scripts\\python.exe scripts\\release_check.py [--quick] [--allow-dirty] [--json OUT]
+
+Exit 0 only when every gate passes.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+AGENTLIB = Path(r"D:\agent-library")
+PY = sys.executable
+
+GATES: list[dict] = []
+
+
+def record(name: str, ok: bool, detail: str, *, warning: bool = False) -> None:
+    GATES.append({"gate": name, "ok": bool(ok), "warning": bool(warning), "detail": detail})
+    mark = "WARN" if (warning and not ok) else ("ok " if ok else "FAIL")
+    print(f"[{mark}] {name:34s} {detail}")
+
+
+def git_state(repo: Path) -> tuple[str, int]:
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(repo),
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=str(repo),
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    dirty = len([line for line in (status.stdout or "").splitlines() if line.strip()])
+    return (head.stdout or "").strip() or "unknown", dirty
+
+
+def run(cmd: list[str], cwd: Path, timeout: int = 2400) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=timeout,
+                          env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
+
+
+def limitations_summary_ok(text: str) -> tuple[bool, str]:
+    """Check ``docs/LIMITATIONS.md``: the headline counts must match the rows.
+
+    A stale summary is the easiest way to ship a document that lies, so it is a
+    release gate rather than a convention.
+    """
+    rows = [line for line in text.splitlines() if re.match(r"^\| [A-L]\d+ \|", line)]
+    counts = {mark: sum(1 for line in rows if mark in line) for mark in ("✅", "🟡", "🔴")}
+    stated = re.search(r"共 (\d+) 条局限 = (\d+) ✅.*?(\d+) 🟡.*?(\d+) 🔴", text)
+    if not stated:
+        return False, f"no parsable summary line ({len(rows)} rows found)"
+    consistent = (int(stated.group(1)) == len(rows) and int(stated.group(2)) == counts["✅"]
+                  and int(stated.group(3)) == counts["🟡"] and int(stated.group(4)) == counts["🔴"])
+    detail = (f"{len(rows)} rows = {counts['✅']}/{counts['🟡']}/{counts['🔴']}"
+              f" (stated {stated.group(1)} = {stated.group(2)}/{stated.group(3)}/{stated.group(4)})")
+    return consistent, detail
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--quick", action="store_true", help="skip the full pytest suite")
+    ap.add_argument("--allow-dirty", action="store_true")
+    ap.add_argument("--json", default=str(ROOT / "runs" / "release_check.json"))
+    args = ap.parse_args()
+
+    started = time.time()
+    report: dict = {"when": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "quick": args.quick}
+
+    # 1) repository state
+    project_head, project_dirty = git_state(ROOT)
+    report["project_head"] = project_head
+    record("project repo clean", project_dirty == 0,
+           f"HEAD {project_head}, {project_dirty} dirty path(s)",
+           warning=args.allow_dirty)
+    if AGENTLIB.is_dir():
+        agent_head, agent_dirty = git_state(AGENTLIB)
+        report["agentlib_head"] = agent_head
+        record("agent-library repo clean", agent_dirty == 0,
+               f"HEAD {agent_head}, {agent_dirty} dirty path(s)", warning=args.allow_dirty)
+        report["agentlib_dirty"] = agent_dirty
+    else:
+        record("agent-library present", False, f"{AGENTLIB} not found")
+
+    # 2) fresh format verification
+    verify = run([PY, str(ROOT / "scripts" / "verify_formats.py")], ROOT)
+    verify_path = ROOT / "runs" / "verify_formats" / "verify_formats.json"
+    if verify.returncode == 0 and verify_path.is_file():
+        data = json.loads(verify_path.read_text(encoding="utf-8"))
+        ok = (data.get("n_ok") == data.get("n_formats") and data.get("bundles_ok") is True
+              and data.get("n_third_party_ok") == data.get("n_third_party_readback"))
+        record("formats: all written + third-party readback", ok,
+               f"{data.get('n_ok')}/{data.get('n_formats')} formats, "
+               f"{data.get('n_third_party_ok')}/{data.get('n_third_party_readback')} readbacks, "
+               f"bundles_ok={data.get('bundles_ok')}")
+        report["formats"] = {k: data.get(k) for k in
+                             ("n_ok", "n_formats", "n_third_party_ok", "n_third_party_readback",
+                              "n_bundles", "bundles_ok")}
+    else:
+        record("formats: all written + third-party readback", False,
+               f"verify_formats exit {verify.returncode}")
+
+    # 3) health check (also regenerates check_eol / sca_scan / adversarial reports)
+    check_cmd = [PY, str(ROOT / "scripts" / "check_all.py"), "--adversarial",
+                 "--json", str(ROOT / "runs" / "release_check_all.json")]
+    if args.quick:
+        check_cmd.insert(2, "--fast")
+    check = run(check_cmd, ROOT)
+    check_report_path = ROOT / "runs" / "release_check_all.json"
+    if check_report_path.is_file():
+        check_report = json.loads(check_report_path.read_text(encoding="utf-8"))
+        failed = [g["name"] for g in check_report["groups"] if not g["ok"]]
+        ok = check_report["passed"] == check_report["total"]
+        record("check_all: every group passes", ok,
+               f"{check_report['passed']}/{check_report['total']}"
+               + (f" (failed: {failed})" if failed else ""))
+        report["check_all"] = {"passed": check_report["passed"], "total": check_report["total"],
+                               "failed": failed}
+    else:
+        record("check_all: every group passes", False,
+               f"check_all exit {check.returncode} without a report")
+
+    # 4) artifact + documentation contracts
+    eol_path = ROOT / "runs" / "check_eol.json"
+    if eol_path.is_file():
+        eol = json.loads(eol_path.read_text(encoding="utf-8"))
+        record("artifacts: byte integrity (LF + pinned sha256)", not eol.get("failures"),
+               f"{len(eol.get('files', []))} files, failures={eol.get('failures')}")
+    sca_path = ROOT / "runs" / "sca_scan.json"
+    if sca_path.is_file():
+        sca = json.loads(sca_path.read_text(encoding="utf-8"))
+        record("artifacts: no copyleft code", not sca.get("actionable_copyleft"),
+               f"actionable={len(sca.get('actionable_copyleft', []))}, "
+               f"mentions={len(sca.get('copyleft_discussion', []))}")
+    adv_path = ROOT / "runs" / "lead_verify_r11" / "adversarial_check.json"
+    if adv_path.is_file():
+        adv = json.loads(adv_path.read_text(encoding="utf-8"))
+        bad = [row["check"] for row in adv if not row.get("ok")]
+        record("artifacts: adversarial checks", not bad, f"{len(adv)} checks, failed={bad}")
+    software_path = ROOT / "runs" / "check_software.json"
+    if software_path.is_file():
+        software = json.loads(software_path.read_text(encoding="utf-8"))
+        verified = software["counts"].get("verified", 0)
+        record("artifacts: software acceptance report", True,
+               f"verified={verified}/{len(software['software'])} (informational: H3 stays open)",
+               warning=True)
+
+    limitations = ROOT / "docs" / "LIMITATIONS.md"
+    if limitations.is_file():
+        consistent, detail = limitations_summary_ok(limitations.read_text(encoding="utf-8"))
+        record("docs: LIMITATIONS summary matches the rows", consistent, detail)
+
+    report["gates"] = GATES
+    report["seconds"] = round(time.time() - started, 1)
+    failures = [g for g in GATES if not g["ok"] and not g["warning"]]
+    report["ok"] = not failures
+    out = Path(args.json)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print(f"\nrelease gate: {'PASS' if not failures else 'FAIL'} "
+          f"({len(GATES) - len(failures)}/{len(GATES)} gates, {report['seconds']}s)")
+    print(f"report: {out}")
+    return 0 if not failures else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
