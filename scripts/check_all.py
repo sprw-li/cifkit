@@ -51,11 +51,22 @@ def run(name: str, cmd: list[str], *, cwd: Path = ROOT, timeout: int = 1800, env
     dt = time.time() - t0
     tail = (proc.stdout or "").strip().splitlines()[-4:]
     tail_s = " | ".join(line.strip() for line in tail if line.strip())[:300]
+    DETAIL.append({
+        "name": name,
+        "command": " ".join(cmd),
+        "exit_code": proc.returncode,
+        "seconds": round(dt, 1),
+        "stdout_tail": (proc.stdout or "")[-4000:],
+        "stderr_tail": (proc.stderr or "")[-4000:],
+    })
     if proc.returncode != 0:
         err = (proc.stderr or "").strip().splitlines()[-3:]
         return False, f"exit {proc.returncode} in {dt:.1f}s :: {' | '.join(err)[:400]}"
     return True, f"ok in {dt:.1f}s :: {tail_s}"
 
+
+#: full output of every group, for the optional --json report
+DETAIL: list[dict] = []
 
 SKILL_CHECK = AGENTLIB / "catalog" / "skill-retro" / "scripts" / "check_skill.py"
 
@@ -87,6 +98,10 @@ def check_skills() -> tuple[bool, str]:
         )
         out = (proc.stdout or "").strip()
         last = out.splitlines()[-1] if out else ""
+        DETAIL.append({"name": f"check_skill {skill.name}",
+                       "command": f"check_skill.py {skill}",
+                       "exit_code": proc.returncode, "stdout_tail": out[-2000:],
+                       "stderr_tail": (proc.stderr or "")[-2000:]})
         good = proc.returncode == 0 and "errors=0" in last
         ok_all = ok_all and good
         results.append(f"{skill.name}:{last or 'no output'}")
@@ -97,6 +112,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fast", action="store_true", help="skip the full pytest suite")
     ap.add_argument("--skip-agentlib", action="store_true")
+    ap.add_argument("--json", default=None,
+                    help="把每组状态与完整输出写成 JSON（失败排查用）")
     ap.add_argument("--adversarial", action="store_true",
                     help="额外跑 scripts/adversarial_check.py（对抗性自检，较慢）")
     args = ap.parse_args()
@@ -130,15 +147,15 @@ def main() -> int:
         )
         stdout = proc.stdout or ""
         first_is_workbench = "1. cif-workbench" in stdout
-        checks.append(("router route", proc.returncode == 0 and first_is_workbench,
+        checks.append(("agentlib: router route", proc.returncode == 0 and first_is_workbench,
                        f"first-candidate-cif-workbench={first_is_workbench}; {route_detail}"))
-        checks.append(("eval_router --all", *run(
+        checks.append(("agentlib: eval_router --all", *run(
             "eval", ["py", "-3", str(AGENTLIB / "scripts" / "eval_router.py"), "--all"], cwd=AGENTLIB)))
-        checks.append(("ci --fast", *run(
+        checks.append(("agentlib: ci --fast", *run(
             "ci", ["py", "-3", str(AGENTLIB / "scripts" / "ci.py"), "--fast"], cwd=AGENTLIB)))
 
         skills_ok, skills_detail = check_skills()
-        checks.append(("check_skill cif-*", skills_ok, skills_detail))
+        checks.append(("agentlib: check_skill cif-*", skills_ok, skills_detail))
 
     checks.append(("check_eol", *run(
         "eol", [str(PY), str(ROOT / "scripts" / "check_eol.py")], timeout=600)))
@@ -155,7 +172,25 @@ def main() -> int:
     for name, ok, detail in checks:
         print(f"[{'PASS' if ok else 'FAIL'}] {name:22s} {detail}")
         failed += 0 if ok else 1
+    agentlib_failures = [name for name, ok, _ in checks if not ok and name.startswith("agentlib:")]
+    if agentlib_failures:
+        print("\nNOTE: 以下组依赖另一个仓库 D:\\agent-library 的当前状态："
+              + ", ".join(agentlib_failures))
+        print("      该项目若正被并发修改（未提交的 intents/catalog 变动），路由评测可能与本工作台无关地失败；")
+        print("      排查用 `--json` 报告里的 outputs[].stdout_tail（见 docs/PIPELINE.md §8.14）。")
     print(f"\n{len(checks) - failed}/{len(checks)} groups passed")
+    if args.json:
+        report = {
+            "when": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "passed": len(checks) - failed,
+            "total": len(checks),
+            "groups": [{"name": name, "ok": ok, "detail": detail} for name, ok, detail in checks],
+            "outputs": DETAIL,
+        }
+        path = Path(args.json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"report: {path}")
     return 0 if failed == 0 else 1
 
 

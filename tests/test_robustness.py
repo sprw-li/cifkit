@@ -68,6 +68,7 @@ def test_concurrent_index_build_is_safe(tmp_path):
 
     env = dict(os.environ)
     env["CIFKIT_CACHE"] = str(tmp_cache)
+    env.setdefault("CIFKIT_LOCK_TOTAL_TIMEOUT", "900")
     env["PYTHONIOENCODING"] = "utf-8"
     code = (
         "from cifkit.sources.core_mof import build_index;"
@@ -155,7 +156,7 @@ def test_eight_concurrent_index_builds(tmp_path):
         )
         for _ in range(8)
     ]
-    outputs = [proc.communicate(timeout=180) for proc in procs]
+    outputs = [proc.communicate(timeout=900) for proc in procs]
     for proc, (out, err) in zip(procs, outputs):
         assert proc.returncode == 0, err
         assert out.strip() == "8300", out

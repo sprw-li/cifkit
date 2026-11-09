@@ -408,3 +408,18 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   实测 11152 原子：解析 16.8s、建键 0.71s、缺氢 0.03s、特征 1.5s、环 2.1s、校验 2.4s，全部 ok。
 - COD 侧：`search(structure_id="7111973")` 与 `"cod:7111973"` 现在都接受
   （此前 search 返回的 `record_id` 回查会被拒，属真实可用性缺陷，已修 + 回归测试）。
+
+### 8.14 check_all 的外部依赖与失败诊断（round 21）
+
+`check_all` 的 10 组里有 4 组（`agentlib: router route` / `eval_router --all` / `ci --fast` /
+`check_skill cif-*`）跑的是 **`D:\agent-library`**，即技能目录本身。这意味着：
+
+* 那个仓库被并发修改时（例如别人正在注册新的 `office-*` 技能、但评测期望值还没同步），
+  这 4 组会失败，而**与本工作台无关**；
+* 因此组名加了 `agentlib:` 前缀，失败时还会打印提示，明确指向外部仓库；
+* 诊断入口：`python scripts\check_all.py --json runs\check_all_full.json`，
+  报告里 `groups[].ok` 指出哪组失败，`outputs[]` 保留该组的完整 stdout/stderr 尾巴
+  （此前只打印最后 4 行，"9/10" 无法定位，现已修复）。
+
+**约定**：本工作台的自测完整性以"非 agentlib 组全绿 + agentlib 组的状态另行核对"为准；
+若要发布，请在**两边仓库都干净**时再跑一次完整 `check_all`。

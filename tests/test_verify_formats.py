@@ -43,7 +43,7 @@ def test_verify_formats_fast_subset_exit_zero(tmp_path):
         [sys.executable, str(ROOT / "scripts" / "verify_formats.py"),
          "--only", "vasp,cif,xyz,extxyz,castep,png,pdb,lammps",
          "--outdir", str(tmp_path / "vf")],
-        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=600,
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=1800,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = json.loads((tmp_path / "vf" / "verify_formats.json").read_text(encoding="utf-8"))

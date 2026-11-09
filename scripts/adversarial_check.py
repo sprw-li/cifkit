@@ -369,7 +369,7 @@ def main() -> int:
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",
           "check_skill.py" in text and "check_skills()" in text
-          and '"check_skill cif-*"' in text and "--skip-agentlib" in text,
+          and 'agentlib: check_skill' in text and "--skip-agentlib" in text,
           "helper runs catalog/skill-retro/scripts/check_skill.py over cif-* skills")
 
     print("\n== summary ==")
