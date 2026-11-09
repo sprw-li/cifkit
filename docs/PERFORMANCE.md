@@ -60,3 +60,62 @@ Measure-Command { & $PY -m cifkit batch --spec $spec --spec $spec --spec $spec -
 - 未在 Linux/macOS 上测；未对 87 元素全量 `metals` 做端到端计时（子集 Fe/Cu/Mg 3.6 s，见 WP1 报告）。
 - `batch` 的并发上限取决于机器核心数与网络；没有做 N=8/16 的扩展性曲线。
 - slab 缓存是**进程内**的：跨进程不共享（跨进程可考虑落盘，但会引入失效问题，暂不做）。
+
+## 10. 嵌入接口基准（round 15，`scripts/bench_api.py`）
+
+> **环境与免责**：单机 Windows / Python 3.14.8 / 16 核，
+> **测量时机器有其它负载**（纯 Python 对照实验只有 `0.78x`（线程）
+> 与 `0.84x`（进程）——连对照实验都上不去，说明机器饱和）。
+> 这些数字只表示量级，**不是性能承诺**，也没有 CI 阈值。
+
+### 10.1 吞吐（ZIF-8，138 原子）
+
+| 操作 | 时间 | 吞吐 |
+|---|---|---|
+| `features`（不含 RDF） | 0.0209 s | **47.88 /s** |
+| `features`（含 RDF，50 bins） | 0.1952 s | **5.12 /s** |
+| `features` 冷启动（首次 import） | 0.6829 s | — |
+| `convert` → vasp+xyz（落盘） | 0.0621 s | **16.1 /s** |
+| `convert` → 内存返回 | 0.0422 s | **23.69 /s** |
+
+RDF 是主要成本（约 5–10×）；`convert` 落盘与内存返回几乎同价（写入不是瓶颈）。
+
+### 10.2 并行：`jobs>1` **不是加速承诺**（诚实结论）
+
+| 场景 | 串行 | jobs=4 线程 | jobs=4 进程 |
+|---|---|---|---|
+| 8× ZIF-8 `features_many`(无 RDF) | 0.1602 s | 0.1829 s（**0.88x**） | 1.392 s（**0.12x**） |
+
+原因：pymatgen 大量工作持 GIL，加上单项工作量小、Windows 进程启动 ~0.3–0.5 s。
+因此 `features_many(executor=...)` 默认用线程，`process` 仅在调用方确信批足够长时可选
+（见 `cifkit/features.py` 的 docstring）。**不要**把 `--jobs` 当成提速手段宣传。
+
+### 10.3 数据集流式（F6）：结构保证 vs 实测内存
+
+| 语料 | 模式 | `max_rows_held` | 峰值内存（tracemalloc，含预热） |
+|---|---|---|---|
+| 8× ZIF-8（无 RDF） | stream | **1** | 1.152 MiB |
+| 8× ZIF-8（无 RDF） | materialised | 8 | 1.347 MiB |
+| 12× 2208 原子 slab（RDF） | stream | **1** | 2.058 MiB |
+| 12× 2208 原子 slab（RDF） | materialised | 12 | 1.936 MiB |
+
+**诚实解读**：
+- 可验证的是**结构性质**——流式全程只持有 1 行（`max_rows_held=1`），与语料规模无关；
+  而传统模式持有全部行。
+- **峰值内存差异在这个规模上是噪声**（1.17× 与
+  0.94×），因为峰值被 pymatgen/特征提取的
+  工作内存（几 MiB）主导。要看出流式的内存收益需要**千级/更大行**的语料，本机未验证。
+- 两种模式的 **CSV/JSONL 输出一致**（`tests/test_dataset.py::test_stream_and_materialised_modes_agree`）。
+
+### 10.4 `GuardedService` 并发曲线
+
+| workers | 请求 | 吞吐 | p50 | p95 |
+|---|---|---|---|---|
+| 1 | 4 | 25.33 /s | 38.6 ms | 39.7 ms |
+| 2 | 8 | 27.47 /s | 69.9 ms | 76.0 ms |
+| 4 | 16 | 31.0 /s | 113.2 ms | 170.2 ms |
+
+并发提升有限（4 worker 吞吐约 1.2×）而 p50 延迟明显上升（GIL + 机器负载）——
+**该服务适合"多小请求"而不是"并行大计算"**；重计算请放进程池或工作队列。
+
+复现：`.venv\Scripts\python.exe scripts\bench_api.py [--quick]`（写 `runs/bench_api.json`）。

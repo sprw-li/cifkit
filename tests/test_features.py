@@ -97,3 +97,15 @@ def test_features_rings_reports_truncation():
     row = extract_features(_S.from_file(str(slab)), rdf=False, rings=True)
     assert row["ring_basis"] == "metal-net"
     assert "rings_truncated" in row and isinstance(row["rings_truncated"], bool)
+
+
+def test_features_many_executors_agree():
+    """Streaming/parallel plumbing must not change the numbers (only the timing)."""
+    from cifkit.features import features_many
+
+    paths = [ZIF8, ZIF8, ZIF8, ZIF8]
+    serial = features_many(paths, jobs=1, rdf=False)
+    for executor in ("thread", "process", "auto"):
+        rows = features_many(paths, jobs=2, rdf=False, executor=executor)
+        assert [r["natoms"] for r in rows] == [r["natoms"] for r in serial], executor
+        assert [r.get("formula") for r in rows] == [r.get("formula") for r in serial], executor

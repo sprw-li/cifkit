@@ -348,3 +348,15 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 - `scripts/sca_scan.py`：SCA-lite，按"代码 / 注释 / docstring"分类标记；`--strict` 作为 check_all 第 8 组
   （当前源码级 copyleft = 0，mention-only = 2）。
 - 局限表：J1/J2/J5/J8 与 L7 由 🔴 降为 🟡/✅（剩余 🔴 为 A6/C2/C3/F6/H3/H4，均需外部条件）。
+
+### 8.9 流式数据集与分页（round 15）
+
+- `cifkit.dataset`：`iter_manifests`（惰性遍历）、`iter_runs`（流式算特征）、
+  `build_dataset(stream=True)`（默认；JSONL 先行，再流式回读生成 CSV，全程只持 1 行）、
+  `iter_jsonl`/`count_jsonl`；`stream=False` 保留为对照实现，两者输出一致（测试保证）。
+- `api.dataset_rows`：只读 `offset+limit` 行做分页（含 `total`/`has_more`/`columns` 投影）；
+  `api.features_many` 支持 `offset/limit/total`。
+- `features_many(executor=...)`：线程/进程可选；**实测 `jobs>1` 无加速**（GIL + 小工作量），
+  默认线程，`--jobs` 不作为提速承诺。
+- 基准：`scripts/bench_api.py`（吞吐/并行/内存/并发曲线 + 纯 Python 对照实验）→
+  `runs/bench_api.json`；解读见 `docs/PERFORMANCE.md` §10。

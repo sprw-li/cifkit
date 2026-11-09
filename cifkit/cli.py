@@ -537,12 +537,14 @@ def cmd_dataset(args) -> int:
         features=not args.no_features,
         copy_structures=not args.no_structures,
         label_key=args.label_key,
+        stream=not getattr(args, "no_stream", False),
     )
     if args.json:
         _print_json(result)
     else:
         print(f"dataset: {outdir}")
-        for key in ("n_runs", "n_ok", "n_failed", "csv", "jsonl", "structures"):
+        for key in ("mode", "n_runs", "n_ok", "n_failed", "csv", "jsonl", "structures",
+                    "max_rows_held"):
             if key in result:
                 print(f"  {key}: {result[key]}")
     return 0 if result.get("n_failed", 0) == 0 else 1

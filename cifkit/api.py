@@ -247,17 +247,32 @@ def features(*, path: str | Path | None = None, structure: Any = None, cif_text:
 
 
 def features_many(paths: Iterable[str | Path], *, jobs: int = 4, rdf: bool = True,
-                  rings: bool = False, topology: bool = False) -> dict[str, Any]:
-    """Batch features; bad inputs are reported per item instead of raising."""
+                  rings: bool = False, topology: bool = False,
+                  offset: int = 0, limit: int | None = None) -> dict[str, Any]:
+    """Batch features; bad inputs are reported per item instead of raising.
+
+    ``offset``/``limit`` paginate the *result rows* (the work is still done for all
+    inputs, so a page boundary never changes the numbers).  ``total``/``has_more``
+    are returned for the caller's paging UI.
+    """
     from cifkit.features import features_many as _many
 
     items = [str(p) for p in paths]
     if not items:
         raise InvalidRequest("paths is empty")
+    if offset is not None and int(offset) < 0:
+        raise InvalidRequest("offset must be >= 0")
+    if limit is not None and int(limit) <= 0:
+        raise InvalidRequest("limit must be positive")
     rows = _many(items, jobs=int(jobs), rdf=rdf, rings=rings, topology=topology)
     ok = sum(1 for r in rows if not r.get("error"))
+    start = int(offset or 0)
+    end = None if limit is None else start + int(limit)
+    page = rows[start:end]
     return {"ok": ok == len(rows), "n_inputs": len(rows), "n_ok": ok,
-            "n_failed": len(rows) - ok, "rows": rows}
+            "n_failed": len(rows) - ok, "rows": page,
+            "total": len(rows), "offset": start, "limit": limit,
+            "has_more": end is not None and end < len(rows)}
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +345,12 @@ def convert(*, path: str | Path | None = None, structure: Any = None, cif_text: 
 # ---------------------------------------------------------------------------
 def dataset(*, runs_dir: str | Path, outdir: str | Path, features_enabled: bool = True,
             copy_structures: bool = True, label_key: str | None = None,
-            rdf: bool = True, topology: bool = False) -> dict[str, Any]:
-    """Build a dataset from pipeline runs; returns the dataset summary."""
+            rdf: bool = True, topology: bool = False, stream: bool = True) -> dict[str, Any]:
+    """Build a dataset from pipeline runs; returns the dataset summary.
+
+    ``stream=True`` (default) keeps at most one row in memory — see
+    :mod:`cifkit.dataset` and limitation F6.
+    """
     from cifkit.dataset import build_dataset
 
     src = Path(runs_dir)
@@ -339,7 +358,57 @@ def dataset(*, runs_dir: str | Path, outdir: str | Path, features_enabled: bool 
         raise NotFound(f"runs dir not found: {src}")
     return build_dataset(src, Path(outdir), features=features_enabled,
                          copy_structures=copy_structures, label_key=label_key,
-                         rdf=rdf, topology=topology)
+                         rdf=rdf, topology=topology, stream=stream)
+
+
+def dataset_rows(*, dataset_dir: str | Path, offset: int = 0, limit: int = 100,
+                 columns: Iterable[str] | None = None, with_features: bool = False,
+                 include_manifest: bool = False) -> dict[str, Any]:
+    """Paginate a built dataset's ``dataset.jsonl`` **without loading it all**.
+
+    Reads only up to ``offset + limit`` lines, so a multi-million-row dataset can
+    be paged with bounded memory (limitation J4).
+    """
+    from cifkit.dataset import count_jsonl, iter_jsonl
+
+    base = Path(dataset_dir)
+    jsonl = base if base.is_file() else base / "dataset.jsonl"
+    if not jsonl.is_file():
+        raise NotFound(f"dataset.jsonl not found under {base}")
+    if int(offset) < 0:
+        raise InvalidRequest("offset must be >= 0")
+    if int(limit) <= 0:
+        raise InvalidRequest("limit must be positive")
+    wanted = {str(c) for c in columns} if columns else None
+    rows: list[dict[str, Any]] = []
+    index = 0
+    stop = int(offset) + int(limit)
+    for obj in iter_jsonl(jsonl):
+        if index >= stop:
+            break
+        if index >= int(offset):
+            row: dict[str, Any] = {"run_id": obj.get("run_id")}
+            meta = obj.get("meta") or {}
+            row.update({k: v for k, v in meta.items() if k != "run_id"})
+            if until_meta := obj.get("after"):
+                row.update(until_meta)
+            if obj.get("error") and not obj.get("features"):
+                row["error"] = obj["error"]
+            if with_features:
+                row.update(obj.get("features") or {})
+            elif obj.get("features"):
+                row["feature_version"] = (obj["features"] or {}).get("feature_version")
+            if include_manifest:
+                row["manifest"] = obj.get("manifest")
+            if wanted is not None:
+                row = {k: v for k, v in row.items() if k in wanted or k == "run_id"}
+            rows.append(row)
+        index += 1
+    total = count_jsonl(jsonl)
+    return {"dataset_dir": str(base), "rows": rows, "total": total,
+            "offset": int(offset), "limit": int(limit),
+            "has_more": int(offset) + len(rows) < total,
+            "columns": sorted({k for row in rows for k in row})}
 
 
 def topology(*, path: str | Path | None = None, structure: Any = None, cif_text: str | None = None,
@@ -379,6 +448,7 @@ def validate(*, path: str | Path | None = None, structure: Any = None, cif_text:
 OPS: dict[str, Any] = {
     "capabilities": capabilities,
     "fetch": fetch,
+    "dataset_rows": dataset_rows,
     "features": features,
     "features_many": features_many,
     "convert": convert,
@@ -401,6 +471,7 @@ __all__ = [
     "features_many",
     "convert",
     "dataset",
+    "dataset_rows",
     "topology",
     "validate",
     "OPS",

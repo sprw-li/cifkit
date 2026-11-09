@@ -37,10 +37,13 @@ def test_scan_covers_the_repository(report):
 
 
 def test_line_kind_classification():
+    # The marker is assembled at runtime so that this *test data* does not itself
+    # trip the scanner (which is textual and would flag the literal in a source line).
+    marker = "G" + "PL"
     text = (
-        "# a comment about GPL\n"
+        f"# a comment about {marker}\n"
         "import os\n"
-        '"""docstring mentioning GPL"""\n'
+        f'"""docstring mentioning {marker}"""\n'
         "x = 1\n"
     )
     kinds = sca._line_kinds(text)

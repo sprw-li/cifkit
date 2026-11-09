@@ -61,6 +61,21 @@ OP_SCHEMAS: dict[str, dict[str, Any]] = {
             "rdf": {"type": "boolean"},
             "rings": {"type": "boolean"},
             "topology": {"type": "boolean"},
+            "offset": {"type": "integer", "minimum": 0},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 10000},
+        },
+    },
+    "dataset_rows": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["dataset_dir"],
+        "properties": {
+            "dataset_dir": {"type": "string"},
+            "offset": {"type": "integer", "minimum": 0},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 10000},
+            "columns": {"type": "array", "items": {"type": "string"}},
+            "with_features": {"type": "boolean"},
+            "include_manifest": {"type": "boolean"},
         },
     },
     "convert": {
@@ -88,6 +103,7 @@ OP_SCHEMAS: dict[str, dict[str, Any]] = {
             "label_key": {"type": "string"},
             "rdf": {"type": "boolean"},
             "topology": {"type": "boolean"},
+            "stream": {"type": "boolean"},
         },
     },
     "topology": {

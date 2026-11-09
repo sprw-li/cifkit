@@ -221,6 +221,16 @@ def features_from_cif(path: str | Path, **kwargs: Any) -> dict[str, Any]:
     return row
 
 
+def _features_one_worker(payload: tuple[str, dict[str, Any]]) -> dict[str, Any]:
+    """Process-pool entry point: must be top-level so it can be pickled."""
+    path_str, options = payload
+    try:
+        return features_from_cif(Path(path_str), **options)
+    except Exception as exc:  # noqa: BLE001
+        return {"path": path_str, "filename": Path(path_str).name,
+                "error": f"{type(exc).__name__}: {exc}"}
+
+
 def features_many(
     paths: Iterable[str | Path],
     *,
@@ -231,18 +241,50 @@ def features_many(
     topology: bool = False,
     rings: bool = False,
     symprec: float = 0.1,
+    executor: str = "auto",
 ) -> list[dict[str, Any]]:
-    """Feature rows for many files; a bad file becomes ``{"path", "error"}`` (no exception)."""
+    """Feature rows for many files; a bad file becomes ``{"path", "error"}`` (no exception).
+
+    ``executor``:
+
+    * ``"auto"`` (default) — threads.  Honest measurement: parallelism buys
+      almost nothing for this workload (threads ≈1.0-1.3×, processes ≈0.95-1.0×
+      at jobs=4; see docs/PERFORMANCE.md), because pymatgen holds the GIL and the
+      per-item work is small.  ``jobs`` exists for I/O-bound mixes, not as a
+      promised speed-up.
+    * ``"thread"`` — never spawn processes (use inside an existing pool / Lambda).
+    * ``"process"`` — always fork a process pool.
+    """
     path_list = [Path(p) for p in paths]
+    options = {"rdf": rdf, "rdf_bins": rdf_bins, "rdf_max": rdf_max,
+               "topology": topology, "rings": rings, "symprec": symprec}
 
     def _one(p: Path) -> dict[str, Any]:
         try:
-            return features_from_cif(p, rdf=rdf, rdf_bins=rdf_bins, rdf_max=rdf_max,
-                                     topology=topology, rings=rings, symprec=symprec)
+            return features_from_cif(p, **options)
         except Exception as exc:  # noqa: BLE001
             return {"path": str(p), "filename": p.name, "error": f"{type(exc).__name__}: {exc}"}
 
-    if int(jobs) <= 1 or len(path_list) <= 1:
+    workers = max(1, int(jobs))
+    if workers <= 1 or len(path_list) <= 1:
         return [_one(p) for p in path_list]
-    with ThreadPoolExecutor(max_workers=max(1, int(jobs))) as pool:
+
+    mode = (executor or "auto").lower()
+    if mode == "auto":
+        # Measured on this project's workload (see docs/PERFORMANCE.md): neither
+        # threads nor processes beat serial by more than noise, and process
+        # spawning (~0.3-0.5 s on Windows) is a net loss for small batches.  So
+        # "auto" stays with threads; "process" is available when the caller knows
+        # the batch is long enough to amortise the start-up.
+        mode = "thread"
+    if mode == "process":
+        from concurrent.futures import ProcessPoolExecutor
+
+        payloads = [(str(p), options) for p in path_list]
+        try:
+            with ProcessPoolExecutor(max_workers=workers) as pool:
+                return list(pool.map(_features_one_worker, payloads))
+        except Exception:  # noqa: BLE001 - restricted environments: fall back to threads
+            pass
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         return list(pool.map(_one, path_list))

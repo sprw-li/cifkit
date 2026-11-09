@@ -13,6 +13,7 @@
         "capabilities",
         "convert",
         "dataset",
+        "dataset_rows",
         "features",
         "features_many",
         "fetch",

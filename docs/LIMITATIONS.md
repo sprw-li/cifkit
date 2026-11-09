@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 65 条局限 = 6 ✅（已修/已覆盖） / 53 🟡（可绕过/已知边界） / 6 🔴（未解决/未验证）**
+**共 67 条局限 = 6 ✅（已修/已覆盖） / 56 🟡（可绕过/已知边界） / 5 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -15,19 +15,18 @@
 | C | 补氢 / 修复 | 6 | 0 | 4 | 2 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
-| F | 特征 / 数据集 | 6 | 1 | 4 | 1 |
-| G | 性能 / 并发 / 稳定性 | 6 | 1 | 5 | 0 |
+| F | 特征 / 数据集 | 6 | 1 | 5 | 0 |
+| G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 5 | 1 | 2 | 2 |
 | I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
-| L | 许可 / 商用合规 | 10 | 2 | 8 | 0 |
+| L | 许可 / 商用合规 | 11 | 2 | 9 | 0 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
 - **A6** 未验证 AFLOW/COD 大规模限流与重试（只有单次重试逻辑） → 大批量抓取可能被限流
 - **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
 - **C3** 有机金属 M–C σ 键（Cp/烷基/CO）不当配位键 → 有机金属体系不适用
-- **F6** 未做超大数据集流式处理（manifest 列表一次性载入） → 超大库可能内存吃紧
 - **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
 - **H4** 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI → 跨平台差异未验证（行尾问题已由 G6 兜住）
 
@@ -104,13 +103,14 @@
 | F3 | 配位数按距离判据，不读化学价/自旋 | 🟡 | 氧化态/磁性不在特征里 | 结合外部数据 | docs/FEATURES |
 | F4 | `rings` 已覆盖无金属框架（完整键图回退） | ✅ | 节点数上限 >600 原子跳过并标 `truncated` | 金属框架仍走 underlying net（`ring_basis=metal-net`） | `cifkit.topology.ring_statistics`；diamond 6 元环=16/胞实测 |
 | F5 | dataset 只汇总已有 manifest，无去重/清洗/标签计算 | 🟡 | 数据集质量取决于 runs | 上游用 pipeline/batch 控制质量 | docs/FEATURES |
-| F6 | 未做超大数据集流式处理（manifest 列表一次性载入） | 🔴 | 超大库可能内存吃紧 | 分批/分目录构建；from-library 已有测试 | tests/test_dataset.py |
+| F6 | 数据集**已流式**（manifest 惰性遍历 + 行不驻留 + 分页读取），但内存收益未在大语料量化 | 🟡 | 本机 8–12 runs 的峰值差异在噪声内（1.17×/0.94×），千级语料未测 | `build_dataset(stream=True)`（默认）、`iter_manifests`、`api.dataset_rows` 分页；结构性证据是 `max_rows_held=1` | docs/PERFORMANCE.md §10.3；tests/test_dataset.py |
 
 ## G. 性能 / 并发 / 稳定性
 
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
+| F7 | 流式/并行的**收益未在大规模语料或空闲机器上验证**（本机饱和：纯 Python 对照 4 线程仅 0.78x） | 🟡 | 不要把 `--jobs`/流式当性能承诺 | `scripts/bench_api.py` 记录 `cpu_load_percent`+对照实验，随时可复测 | docs/PERFORMANCE.md §10 |
 | G1 | batch 并发只在 3 并发测过（demo 2.8×，轻量 spec 1.91×），未测 8/16 扩展性 | 🟡 | 更大规模收益未知 | 起步 4；按机器/网络调 | docs/PERFORMANCE |
 | G2 | slab 缓存是**进程内** LRU（24 条），跨进程不共享 | 🟡 | 多进程重复计算 | 单进程内批量复用 | docs/PERFORMANCE |
 | G3 | `library/index.jsonl` 并发追加无跨进程行锁（只保证不产生半行） | 🟡 | 极端并发顺序不定 | 避免多进程同时 --ingest | docs/ROBUSTNESS |
@@ -150,7 +150,7 @@
 | J1 | **提供** `authorizer=` 钩子与 per-tenant `Policy`，但**不含**鉴权实现（无 JWT/OAuth/密钥库） | 🟡 | 平台仍需自己做认证与授权决策 | `GuardedService(policy, authorizer=...)`；`request["auth"]` 走信封层，不进入 op 契约 | cifkit/platform.py；tests/test_platform.py |
 | J2 | 超时是**尽力而为**（线程超时返回 504，但无法安全终止已在跑的计算） | 🟡 | 超时后 worker 可能仍在后台跑完 | `Policy(timeout_s=...)` → 504 `timeout`；需要硬杀用 `executor="process"` | cifkit/platform.py；tests/test_platform.py |
 | J3 | `handle()` 吞掉异常（防 traceback 外泄） | 🟡 | 线上排障只能看日志 | 复现时直接调 `api.*` 拿真实异常 | `cifkit/service.py` |
-| J4 | 无流式/分页；大结果一次性 JSON | 🟡 | 超大 dataset/features_many 响应会很大 | 平台侧分片调用；`features_many` 控制 `paths` 数量 | docs/API.md §7 |
+| J4 | 已有**分页**（`dataset_rows` 只读 offset+limit 行；`features_many` 支持 offset/limit + total），但**无流式响应/HTTP chunked** | 🟡 | 极大响应仍需一次性 JSON | 平台按页拉取；`columns=` 投影减小体积 | cifkit/api.py；tests/test_pagination.py |
 | J5 | 有**背压与并发上限**（`max_concurrency` + `queue_size` → 503 `busy`），但仍无压力曲线 | 🟡 | 真实吞吐/延迟未测 | `GuardedService` 有界准入 + 统计计数；压测仍需平台侧做 | tests/test_platform.py::test_backpressure_rejects_when_saturated |
 | J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
 | J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |
@@ -161,6 +161,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
+| J9 | CPU 密集 op 的并发扩展性差（GIL）：4 worker 吞吐仅约 1.2×，p50 延迟上升约 3× | 🟡 | 该服务适合多小请求，不适合并行大计算 | 重计算放工作队列/进程池；`executor="process"` 仅在长批时可选 | docs/PERFORMANCE.md §10.4 |
 | L1 | 本仓代码许可此前未声明 | ✅ | 商用集成无从判断 | 已加 **MIT** `LICENSE`（可商用/可闭源/可再分发） | LICENSE |
 | L2 | Open Babel 是 **GPL-2.0**，曾出现在依赖清单里 | ✅ | GPL 会传染闭源商用 | 实测**核心不 import 它**（屏蔽后 31 格式 + 12 包全过）；已从"运行时 packages"移到可选清单 | scripts/verify_formats_no_gpl.py；LICENSING.md §2 |
 | L3 | **ASE 是 LGPL-2.1+** | 🟡 | 修改 ASE/静态嵌入会触发 LGPL 义务 | 本仓不修改 ASE；动态使用通常可与专有代码共存，**商用前请法务确认** | scripts/license_audit.py |

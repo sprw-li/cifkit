@@ -254,6 +254,49 @@ def main() -> int:
           f"code={write_out['error']['code']}")
     guarded.shutdown()
 
+    # ------------------------------------------- 3d) dataset streaming + paging
+    import tempfile as _tf
+
+    from cifkit import api as _api
+    from cifkit.dataset import build_dataset as _build
+
+    ds_root = Path(_tf.mkdtemp(prefix="cifkit-adv-ds-"))
+    runs = ds_root / "runs"
+    for index in range(7):
+        # NOTE: do not name this `run` — that would shadow the module-level run() helper
+        run_dir = runs / f"run{index}"
+        run_dir.mkdir(parents=True)
+        shutil.copyfile(ZIF8, run_dir / "standardized.cif")
+        (run_dir / "manifest.json").write_text(json.dumps({
+            "ok": True,
+            "artifacts": {"standardized.cif": str(run_dir / "standardized.cif")},
+            "source": {"source": "local", "record": {"record_id": f"local:{index}"}},
+        }), encoding="utf-8")
+    streamed = _build(runs, ds_root / "s", rdf=False, stream=True)
+    material = _build(runs, ds_root / "m", rdf=False, stream=False)
+
+    def _norm(path, outdir):
+        text = path.read_text(encoding="utf-8-sig")
+        return text.replace(json.dumps(str(outdir))[1:-1], "<OUT>").replace(str(outdir), "<OUT>")
+
+    check("dataset: stream == materialised (CSV/JSONL, path-normalised)",
+          _norm(ds_root / "s" / "dataset.csv", ds_root / "s")
+          == _norm(ds_root / "m" / "dataset.csv", ds_root / "m")
+          and _norm(ds_root / "s" / "dataset.jsonl", ds_root / "s")
+          == _norm(ds_root / "m" / "dataset.jsonl", ds_root / "m"),
+          f"n_ok stream={streamed['n_ok']} materialised={material['n_ok']}")
+    check("dataset: streaming holds one row, materialised holds all",
+          streamed["max_rows_held"] == 1 and material["max_rows_held"] == material["n_runs"],
+          f"max_rows_held={streamed['max_rows_held']} vs {material['max_rows_held']}")
+
+    pages = [_api.dataset_rows(dataset_dir=ds_root / "s", offset=off, limit=3)
+             for off in (0, 3, 6)]
+    ids = [row["run_id"] for page in pages for row in page["rows"]]
+    check("dataset_rows: paging covers every row exactly once",
+          ids == [f"run{i}" for i in range(7)] and pages[0]["total"] == 7
+          and pages[2]["has_more"] is False,
+          f"ids={ids} total={pages[0]['total']} has_more_last={pages[2]['has_more']}")
+
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",

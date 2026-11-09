@@ -45,7 +45,7 @@ NETWORK_OPS = {"fetch", "resolve"}
 #: operations that write to disk
 WRITE_OPS = {"convert", "dataset"}
 #: parameters interpreted as filesystem paths (per operation)
-READ_PATH_PARAMS = {"path", "runs_dir"}
+READ_PATH_PARAMS = {"path", "runs_dir", "dataset_dir"}
 WRITE_PATH_PARAMS = {"outdir"}
 
 DEFAULT_ALLOWED_ATOMS = 20_000
