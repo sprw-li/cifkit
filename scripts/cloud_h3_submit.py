@@ -52,10 +52,26 @@ def credentials_state() -> dict[str, bool]:
     return state
 
 
+UPLOAD_EXCLUDES = ("__pycache__", ".pytest_cache", "_result.json", ".pyc", ".log")
+
+
+def bundle_files(bundle: Path) -> list[Path]:
+    """Explicit allowlist: compiled caches embed the host checkout path."""
+    files = []
+    for path in sorted(bundle.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(bundle).as_posix()
+        if any(token in relative for token in UPLOAD_EXCLUDES):
+            continue
+        files.append(path)
+    return files
+
+
 def build_zip() -> Path:
     target = OUT / "input.zip"
     OUT.mkdir(parents=True, exist_ok=True)
-    files = sorted(p for p in BUNDLE.rglob("*") if p.is_file())
+    files = bundle_files(BUNDLE)
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in files:
             archive.write(path, path.relative_to(BUNDLE).as_posix())

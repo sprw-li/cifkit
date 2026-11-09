@@ -80,8 +80,11 @@ def main() -> int:
 
     if args.install and not shutil.which("nwchem"):
         started = time.time()
-        proc = subprocess.run(["bash", "-lc", "apt-get update -qq && apt-get install -y nwchem"],
-                              capture_output=True, text=True)
+        env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+        proc = subprocess.run(["bash", "-lc",
+                               "apt-get update -qq && apt-get install -y "
+                               "-o Dpkg::Options::=--force-confdef nwchem"],
+                              capture_output=True, text=True, timeout=900, env=env)
         report["install"] = {"exit": proc.returncode, "seconds": round(time.time() - started, 1)}
         print(f"[install] nwchem exit {proc.returncode} in {report['install']['seconds']}s")
 
@@ -93,9 +96,19 @@ def main() -> int:
         print("nwchem not installed")
         return 0
 
-    source = HERE / args.case
+    # containment: a case name must resolve *inside* the bundle (no absolute paths,
+    # no "..": otherwise any readable host file can be copied out through the result)
+    source = (HERE / args.case).resolve()
+    if HERE.resolve() not in source.parents:
+        report["errors"].append(f"case escapes the bundle: {args.case}")
+        Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                                  encoding="utf-8")
+        print("case escapes the bundle")
+        return 1
     if not source.is_file():
-        source = HERE / Path(args.case).name
+        source = (HERE / Path(args.case).name).resolve()
+    if not source.is_file() or HERE.resolve() not in source.parents:
+        report["errors"].append(f"case not found: {args.case}")
     if not source.is_file():
         report["errors"].append(f"case not found: {args.case}")
         Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -113,7 +126,16 @@ def main() -> int:
     command = [binary, prepared.name]
     report["command"] = " ".join(command)
     started = time.time()
-    proc = subprocess.run(command, cwd=workdir, capture_output=True, text=True, timeout=1800)
+    try:
+        proc = subprocess.run(command, cwd=workdir, capture_output=True, text=True,
+                              timeout=1800)
+    except subprocess.TimeoutExpired:
+        report["exit"] = "timeout"
+        report["errors"].append("nwchem exceeded the 1800 s ceiling")
+        Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                                  encoding="utf-8")
+        print("nwchem timed out")
+        return 0
     report["seconds"] = round(time.time() - started, 1)
     report["exit"] = proc.returncode
     blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
