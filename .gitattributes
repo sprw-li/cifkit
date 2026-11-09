@@ -1,0 +1,22 @@
+# Line-ending policy: everything in this repo is authored and hashed as LF.
+#
+# Why this file exists (P1-b, review round 11): several artifacts are pinned by
+# sha256 of their *bytes* — the bundled topology references
+# (cifkit/data/nets/*-reference.cif, see cifkit/data/nets/*.json cif_sha256) and
+# the demo run manifest.  With the Windows default `core.autocrlf=true` a fresh
+# clone would check those files out as CRLF, so the hashes (and therefore
+# `pytest tests/test_topology_nets.py` and `scripts/verify_demo.py`) failed on
+# every clean clone while the developer working copy (checked out as LF) passed.
+#
+# `eol=lf` makes the checkout byte-identical to what is committed, on every OS.
+* text=auto eol=lf
+
+# Explicitly protect byte-pinned and generated artifacts from any EOL rewriting.
+cifkit/data/nets/*.json text eol=lf
+cifkit/data/nets/*-reference.cif text eol=lf
+tests/data/*.cif text eol=lf
+runs/** -text
+*.png binary
+*.zip binary
+*.gz binary
+*.xlsx binary

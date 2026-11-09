@@ -211,3 +211,29 @@ def test_convert_batch_disambiguates_duplicate_stems(tmp_path):
     assert len(outputs) == 2, outputs
     outdirs = {Path(run["outdir"]).name for run in data["runs"]}
     assert len(outdirs) == 2, outdirs
+
+
+def test_convert_single_with_stem_stays_flat(tmp_path):
+    """Round-9 behaviour kept: single input + --stem X → outdir/X.vasp (no subdir)."""
+    out = tmp_path / "flat"
+    proc = _run(["convert", str(ZIF8), "--to", "vasp", "--stem", "myslab",
+                 "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert (out / "myslab.vasp").is_file()
+    assert not (out / "myslab").exists()
+    assert data["formats"]["vasp"].endswith("myslab.vasp")
+
+
+def test_convert_single_cif_directory_is_batch(tmp_path):
+    """A *directory* argument always means batch: subdir + convert_manifest.json."""
+    src = tmp_path / "one"
+    src.mkdir()
+    shutil.copyfile(ZIF8, src / "only.cif")
+    out = tmp_path / "out"
+    proc = _run(["convert", str(src), "--to", "vasp", "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_inputs"] == 1 and "runs" in data
+    assert (out / "convert_manifest.json").is_file()
+    assert (out / "only" / "only.vasp").is_file()

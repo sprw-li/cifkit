@@ -85,3 +85,15 @@ def test_features_rings_nonmetal_framework():
     per_cell = json.loads(row["rings_per_cell"])
     assert per_cell["6"] == 16.0  # diamond cubic: 16 six-membered rings per conventional cell
     assert row["ring_sizes"]
+
+
+def test_features_rings_reports_truncation():
+    """The metal branch must expose rings_truncated (None was a bug: big slabs truncate)."""
+    from pymatgen.core import Structure as _S
+
+    slab = Path(__file__).resolve().parents[1] / "runs" / "demo_sod_zif8" / "final.cif"
+    if not slab.is_file():
+        pytest.skip("demo slab not built")
+    row = extract_features(_S.from_file(str(slab)), rdf=False, rings=True)
+    assert row["ring_basis"] == "metal-net"
+    assert "rings_truncated" in row and isinstance(row["rings_truncated"], bool)

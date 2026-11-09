@@ -61,6 +61,27 @@ def main() -> int:
           and (single / f"{ZIF8.stem}.xyz").is_file() and "runs" not in data,
           f"exit={proc.returncode} files={sorted(p.name for p in single.iterdir())}")
 
+    # single input + --stem keeps the round-9 flat behaviour (outdir/X.vasp)
+    stem_out = work / "stem"
+    proc = run(["convert", str(ZIF8), "--to", "vasp", "--stem", "myslab",
+                "--outdir", str(stem_out), "--json"])
+    check("convert single + --stem stays flat (outdir/myslab.vasp, no subdir)",
+          proc.returncode == 0 and (stem_out / "myslab.vasp").is_file()
+          and not (stem_out / "myslab").exists(),
+          f"contents={sorted(p.name for p in stem_out.iterdir())}")
+
+    # a *directory* argument always means batch, even with a single CIF inside
+    one_dir = work / "one_cif"
+    one_dir.mkdir()
+    shutil.copyfile(ZIF8, one_dir / "only.cif")
+    proc = run(["convert", str(one_dir), "--to", "vasp", "--outdir", str(work / "one_out"), "--json"])
+    data = loads(proc.stdout)
+    check("convert dir-with-one-cif is batch (manifest + subdir)",
+          proc.returncode == 0 and data["n_inputs"] == 1 and "runs" in data
+          and (work / "one_out" / "convert_manifest.json").is_file()
+          and (work / "one_out" / "only" / "only.vasp").is_file(),
+          f"n_inputs={data['n_inputs']} manifest={(work / 'one_out' / 'convert_manifest.json').is_file()}")
+
     batch_src = work / "src"
     batch_src.mkdir()
     shutil.copyfile(ZIF8, batch_src / "a.cif")

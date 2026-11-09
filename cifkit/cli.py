@@ -308,8 +308,17 @@ def _convert_one(
     *,
     stem: str | None = None,
     title: str | None = None,
+    in_subdir: bool = False,
 ) -> dict:
-    """Convert one structure file into formats/bundles under ``outdir``."""
+    """Convert one structure file into formats/bundles under ``outdir``.
+
+    Args:
+        stem: output base name (defaults to the input file stem).
+        in_subdir: write into ``outdir/<name>/`` instead of directly into
+            ``outdir``. Batch mode uses sub-directories so two inputs with the
+            same file name cannot collide; single-input mode stays flat so the
+            round-9 ``--stem X`` behaviour (``outdir/X.vasp``) is preserved.
+    """
     from cifkit import export
 
     entry: dict = {"input": str(src), "ok": False, "formats": {}, "bundles": {}}
@@ -320,7 +329,7 @@ def _convert_one(
         return entry
     entry["natoms"] = len(structure)
     name = stem or src.stem
-    target = outdir / name if stem else outdir
+    target = (outdir / name) if in_subdir else outdir
     target.mkdir(parents=True, exist_ok=True)
     for fmt in formats:
         try:
@@ -376,10 +385,12 @@ def cmd_convert(args) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    if len(inputs) == 1:
-        # single input: files land directly in --outdir (backwards compatible)
+    batch_mode = len(inputs) > 1 or any(Path(item).is_dir() for item in args.file)
+    if not batch_mode:
+        # single file: files land directly in --outdir (round-9 behaviour, so
+        # `--stem X` still produces `outdir/X.vasp`)
         result = _convert_one(inputs[0], outdir, formats, bundles, stem=args.stem,
-                              title=args.title)
+                              title=args.title, in_subdir=False)
         result.update({"outdir": str(outdir), "n_inputs": 1})
     else:
         # batch: one sub-directory per input + a manifest of everything written.
@@ -400,7 +411,7 @@ def cmd_convert(args) -> int:
             else:
                 stem = base
             runs.append(_convert_one(src, outdir, formats, bundles, stem=stem,
-                                     title=args.title))
+                                     title=args.title, in_subdir=True))
         manifest = {
             "ok": all(run["ok"] for run in runs),
             "outdir": str(outdir),

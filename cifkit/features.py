@@ -186,6 +186,9 @@ def extract_features(
                 features["rings_per_node"] = json.dumps(per_node, ensure_ascii=False, sort_keys=True)
                 features["n_metal_nodes"] = sig.get("n_metal_nodes")
                 features["n_linkers"] = sig.get("n_linkers")
+                features["rings_truncated"] = any(
+                    bool(v.get("truncated")) for v in per_node.values() if isinstance(v, dict)
+                )
             else:
                 # covalent / organic framework: ring statistics of the full bond graph
                 stats = ring_statistics(structure)
