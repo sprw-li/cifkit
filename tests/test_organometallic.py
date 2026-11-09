@@ -174,3 +174,18 @@ def test_repair_end_to_end_adds_no_hydrogen():
         repaired, report = repair_all(structure, add_hydrogen=True)
         assert len(repaired) == before, "no atoms may be added"
         assert report.added_h == 0, report.added_h
+
+
+def test_large_slab_bond_perception_is_clean():
+    """2208-atom Zn–N slab: the organometallic/Kekulé changes must not add warnings."""
+    slab = Path(__file__).resolve().parents[1] / "runs" / "demo_sod_zif8" / "final.cif"
+    if not slab.is_file():
+        pytest.skip("demo slab not built")
+    graph = perceive_bonds(Structure.from_file(str(slab)))
+    assert graph.organometallic_bonds == 0
+    assert graph.warnings == [], graph.warnings
+    for atom in range(graph.n_atoms):
+        allowance = VALENCE.get(graph.symbols[atom], 4)
+        if graph.metal_bond_count(atom):
+            allowance += 1.0
+        assert graph.order_sum(atom) <= allowance + 1e-6

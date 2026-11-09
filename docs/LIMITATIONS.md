@@ -6,25 +6,24 @@
 
 ## 摘要
 
-**共 70 条局限 = 9 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 2 🔴（未解决/未验证）**
+**共 71 条局限 = 9 ✅（已修/已覆盖） / 61 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
 | A | 数据源 | 6 | 0 | 6 | 0 |
 | B | 拓扑判定 | 5 | 1 | 4 | 0 |
-| C | 补氢 / 修复 | 6 | 0 | 5 | 1 |
+| C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 6 | 2 | 3 | 1 |
+| H | 技能 / 路由 / 测试覆盖 | 7 | 2 | 4 | 1 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
 | L | 许可 / 商用合规 | 11 | 2 | 9 | 0 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
-- **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
 - **H3** 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → → 输入模板的真实可运行性仍未被任何软件确认
 
 ---
@@ -58,7 +57,7 @@
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | C1 | μ3-O vs μ3-OH 仅凭 M–O 距离双峰判定 | 🟡 | 无双峰时保守按 oxo（可能少补 1 个 H） | 给出 warning；需要化学式/中子/DFT 才能确定 | docs/REPAIR §8 |
-| C2 | **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） | 🔴 | 该 MOF 不在覆盖范围 | 已记录原因，不用坏 fixture 硬凑 | tests/data/REPAIR_FIXTURES.md |
+| C2 | **已查证为数据缺口**：CoRE MOF 2024（8300 条）**无** MIL-101 / OCUNAC 条目（名字字段只填了 1372 条，指纹检索 Cr≥3+F≥1+C≥20 只命中一个 Cr/F-MOF）；COD 全文检索 “MIL-101” 只返回无关小分子 | 🟡 | 该 MOF 不在覆盖范围；需要外部语料才能覆盖 | 已用 `runs/c2_core_mil_search.json` / `runs/c2_mil101_probe.json` 留证；可用最大 Cr/F-MOF（11152 原子）已做能力实测 | docs/PERFORMANCE.md §10.6 |
 | C3 | **σ 型 M–C 已建模**（距离窗口 + 价键守卫）：二茂铁/ZnMe₂/η⁶-芳烃不再被乱补氢；但**离域多重度未建模**，M–M / M–H / 桥连羰基 / 4d-5d 长 σ 键仍漏 | 🟡 | 金属配位数会偏高；极端有机金属体系仍不适用 | `Bond.organometallic`、`ORGANOMETALLIC_MIN/MAX_DISTANCE`、`_prune_saturated_organometallic_bonds`；乙酸根 Zr···C 即使 2.5 Å 也被价键守卫拒绝 | tests/test_organometallic.py；docs/REPAIR.md |
 | C4 | 自由羧酸判定依赖"全结构无金属配位" | 🟡 | 混合体系可能误判 | 只对单相纯有机酸可靠 | docs/REPAIR §8.5 |
 | C5 | 补的 H 是几何位置（RDKit/VSEPR），不是 DFT/QM 优化 | 🟡 | H 位置/键长是合理初值，非平衡态 | 后续做 DFT 弛豫 | docs/REPAIR |
@@ -122,6 +121,7 @@
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | G7 | 锁等待在**高负载**下过紧（8 并发构建索引时 waiter 曾 120s 超时）——现已改为「超时后先复查缓存 + 有界重试」 | ✅ | 极端负载下仍可能整体超时（此时会明确报错） | `CIFKIT_LOCK_TIMEOUT`(120s)/`CIFKIT_LOCK_TOTAL_TIMEOUT`(900s) 可调；对等进程完成后 waiter 直接复用其索引 | tests/test_lock_contention.py；cifkit/sources/core_mof.py |
+| G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3 | 已提供**可执行的接受性验收框架** `scripts/check_software.py`：探测 12 种计算软件 → 检查外部数据（POTCAR/UPF/basis/.skf/力场）→ 生成最小自洽算例 → 跑并核对成功标记；框架本身用 stub 可执行文件自测通过，但**本机未安装任何计算软件**（verified=0/12） | 🔴 | 输入模板的真实可运行性仍未被任何软件确认 | 有软件/数据时：`python scripts\check_software.py --run` （环境变量 `CIFKIT_*_PP/_PSEUDO_DIR/_SK/_DATA` 指向用户自备数据） | runs/check_software.json；tests/test_check_software.py |

@@ -295,3 +295,29 @@ def test_cod_search_by_name():
 def test_cod_rejects_non_numeric_id():
     with pytest.raises(ValueError):
         get_source("cod").search(SourceQuery(structure_id="ZIF-8"))
+
+
+def test_cod_search_accepts_prefixed_record_id(monkeypatch):
+    """search() returns record_id="cod:<id>"; resolving by that id must work."""
+    from cifkit.sources import cod as cod_module
+    from cifkit.types import SourceQuery
+
+    calls: list[str] = []
+
+    def fake_ensure(cod_id, *, refresh=False):
+        calls.append(cod_id)
+        path = cod_module.cod_cache_path(cod_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "data_1\n_cell_length_a 5\n_cell_length_b 5\n_cell_length_c 5\n"
+            "_cell_angle_alpha 90\n_cell_angle_beta 90\n_cell_angle_gamma 90\n"
+            "loop_\n_atom_site_label\n_atom_site_type_symbol\n_atom_site_fract_x\n"
+            "_atom_site_fract_y\n_atom_site_fract_z\nSi1 Si 0 0 0\n",
+            encoding="utf-8")
+        return path, True
+
+    monkeypatch.setattr(cod_module, "_ensure_cif", fake_ensure)
+    source = cod_module.CODSource()
+    records = source.search(SourceQuery(structure_id="cod:7111973", source="cod", limit=1))
+    assert calls == ["7111973"], calls
+    assert records and records[0].record_id.endswith("7111973")

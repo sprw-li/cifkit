@@ -417,3 +417,9 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 验证过的场景：服务器允许 5 req/s 时，**30 次批量抓取的违规次数 = 0**；
 被限流后靠退避重试最终全部成功。**未验证**：公网真实端点的实际限额
 （我们不知道 COD/AFLOW/MP 的真实配额），以及长时间高并发抓取。
+
+### COD id 写法（round 20）
+
+`search(structure_id=...)` 现在同时接受 `7111973` 和 `cod:7111973`（也支持逗号分隔多 id）。
+原因：`search()` 返回的记录 `record_id` 形如 `cod:<id>`，此前用它回查会被拒绝——
+即 **search → 按 record_id 回查**这条正常用法会报错（已修并有回归测试）。

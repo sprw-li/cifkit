@@ -182,6 +182,10 @@ class CODSource:
                 cod_id = cod_id.strip()
                 if not cod_id:
                     continue
+                # Accept the same shapes that ``search()`` itself returns: records
+                # carry ``record_id = "cod:<id>"``, so a caller doing
+                # search-then-resolve-by-record_id must not be rejected here.
+                cod_id = cod_id.rsplit(":", 1)[-1].strip()
                 if not cod_id.isdigit():
                     raise ValueError(f"COD 结构 id 必须是数字（形如 7111973），收到 {cod_id!r}")
                 path, reused = _ensure_cif(cod_id)

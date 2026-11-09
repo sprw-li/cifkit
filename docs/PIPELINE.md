@@ -394,3 +394,17 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   因此 H3 保持 🔴，但"缺少的证据"现在是可机械补齐的（H3 的处置方式已写进 docs/LIMITATIONS.md）。
 - `tests/test_check_software.py`：用 stub 可执行文件验证框架自身（verified / ran-no-marker /
   failed / timeout / 数据缺失跳过 / 报告诚实性）。
+
+### 8.13 数据覆盖审计与超大结构实测（round 20）
+
+局限 C2 的处置方式可以复用：**先查证，再决定**。
+
+- `scripts/audit_dataset_coverage.py`：在本地 CoRE 索引上按 **name / CSD refcode / DOI**
+  子串、**元素指纹**（`--formula "Cr>=3,F>=1,C>=20"`）、**最大晶胞**（`--largest Cr`）检索。
+  实测：8300 条里 **0 条** MIL-101/OCUNAC（只有 1372 条有 name 字段），
+  Cr≥3+F≥1+C≥20 只命中一个 `Cr816H1632C4896O3536F272`（11152 原子）。
+- `scripts/bench_large_structure.py`：对指定条目逐阶段计时（解析/建键/缺氢/特征/环/校验），
+  **默认不建超胞**，只报告投影原子数（2×2×1 = 44608）。
+  实测 11152 原子：解析 16.8s、建键 0.71s、缺氢 0.03s、特征 1.5s、环 2.1s、校验 2.4s，全部 ok。
+- COD 侧：`search(structure_id="7111973")` 与 `"cod:7111973"` 现在都接受
+  （此前 search 返回的 `record_id` 回查会被拒，属真实可用性缺陷，已修 + 回归测试）。

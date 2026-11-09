@@ -141,3 +141,22 @@ RDF 是主要成本（约 5–10×）；`convert` 落盘与内存返回几乎同
 
 > 口径声明：tracemalloc 峰值（含预热）；单机 Windows、机器有其它负载；这是**量级证据**，
 > 不是承诺。旧文件旧结论保留在 §10.3 作为对照。
+
+### 10.6 超大结构实测：11152 原子 Cr/F-MOF（round 20）
+
+CoRE MOF 2024 里可用的最大 Cr 基 MOF（`SI/NCR/Chen_Manz/am9b13361_si_002_ASR_pacman.cif`，
+`Cr3H6C18O13F`，**11152 原子**）逐阶段实测：
+
+| 阶段 | 时间 | 结果 |
+|---|---|---|
+| 解析 CIF（pymatgen） | 25.36 s | 11152 原子 |
+| 键感知 `perceive_bonds` | 1.01 s | 14144 条键、0 警告、0 有机金属 |
+| 缺氢计划 `hydrogen_demand` | 0.04 s | 1536 个 H 位点 |
+| `features`（无 RDF） | 2.23 s | 密度 0.705417 |
+| `features --rings` | 3.34 s | `ring_basis=metal-net`、`truncated=True`（>600 原子按设计跳过） |
+| `validate` | 3.43 s | ok=True, 9 项检查 |
+
+**边界（实测结论）**：11k 原子可以解析/建键/出特征；但 **2×2×1 超胞会是
+44608 原子**，切面后 >5 万，本仓**未尝试** ——
+这不是"支持超大体系"的承诺。解析本身（pymatgen）就要 25.36 s，
+是整条链路的瓶颈。
