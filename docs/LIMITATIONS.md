@@ -6,19 +6,19 @@
 
 ## 摘要
 
-**共 69 条局限 = 7 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 3 🔴（未解决/未验证）**
+**共 70 条局限 = 8 ✅（已修/已覆盖） / 60 🟡（可绕过/已知边界） / 2 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
 | A | 数据源 | 6 | 0 | 6 | 0 |
-| B | 拓扑判定 | 5 | 0 | 5 | 0 |
+| B | 拓扑判定 | 5 | 1 | 4 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 5 | 1 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 1 | 5 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 6 | 2 | 2 | 2 |
-| I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
+| H | 技能 / 路由 / 测试覆盖 | 6 | 2 | 3 | 1 |
+| I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
 | L | 许可 / 商用合规 | 11 | 2 | 9 | 0 |
 
@@ -26,7 +26,6 @@
 
 - **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
 - **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
-- **H4** 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI → 跨平台差异未验证（行尾问题已由 G6 兜住）
 
 ---
 
@@ -47,7 +46,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| A7 | 数据源适配器**未做失败注入**（磁盘满、代理中断、缓存写坏） | 🟡 | 极端环境下行为未知 | 缓存写用原子替换（locks.atomic_write_*）；网络错误统一重试 | tests/test_robustness.py、cifkit/locks.py |
+| A7 | 已做**故障注入**（磁盘满/只读/权限拒绝/坏 JSON/锁崩溃），验证「旧文件不被破坏 + 无残留临时文件 + 明确报错」 | ✅ | 故障类型仍有边界（代理级中断、NFS 语义、杀进程时序未单独注入） | `tests/test_failure_injection.py`（11 条，全部用 monkeypatch 注入，无需真满盘） | tests/test_failure_injection.py |
 | B1 | 落盘参考只有 **6 个 net**（sod/pcu/dia/fcu/tbo/bcu） | 🟡 | hms/qtz/cag 等 net 判 `unknown` | 可扩展 `cifkit/data/nets/`；未知不硬猜 | docs/SOURCES §5 |
 | B2 | SBU 收缩是启发式；多齿配体结构会返回 `unknown` | 🟡 | 部分真实 MOF 无法识别 | 诚实返回 unknown；参考结构避开多齿 | docs/SOURCES §5.1 |
 | B3 | 高配位 net（pcu/fcu/tbo/bcu）环统计有上限（`rings_truncated`） | 🟡 | 这些 net 靠 CN+配位序列+linker 比判定，不靠环 | `verified_on` 字段明确写出依据 | docs/SOURCES §5 |
@@ -126,7 +125,7 @@
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3 | 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） | 🔴 | 模板正确性靠静态检查 | 用户侧验证；文档标注 | docs/EXPORT |
-| H4 | 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI | 🔴 | 跨平台差异未验证（行尾问题已由 G6 兜住） | 文档说明；`.gitattributes` 保证各平台 checkout 字节一致 | README、.gitattributes |
+| H4 | 已提供**跨平台 CI workflow**（ubuntu/macos/windows × py3.11/3.13 + wheel 构建），但**从未在 Linux/macOS 上真正执行过**（本机只有 Windows） | 🟡 | 首次 CI 运行前不能宣称跨平台可用 | 每个 CI 步骤都是本机可复跑的同一命令（check_eol / sca_scan / verify_formats / adversarial / pytest / check_all）；CI 里强制 `core.autocrlf=false` 以验证 eol=lf 契约 | .github/workflows/ci.yml；docs/LIMITATIONS.md G6 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
 ## I. 环境 / 网络 / 依赖获取
@@ -137,6 +136,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
+| H6 | **打包/发布未验证**：`python -m build` 与 wheel 安装只在 CI 里跑过定义、本机未执行（无 build 工具/无 PyPI 流程） | 🟡 | 发行物可能有打包缺陷（package-data、入口点） | CI 的 build job 会 `pip install dist/*.whl` 并 import 四个子模块 | .github/workflows/ci.yml |
 | I1 | 不提供 POTCAR/UPF/skf/力场/basis（许可与体积） | 🟡 | 用户必须自备 | bundle `missing` 明确列出 | docs/EXPORT |
 | I2 | 数据许可：CoRE CC-BY-4.0；COD 公有领域；MP/AFLOW 条款；QMOF 派生自 CoRE/CSD | 🟡 | 再分发前需核对 | SOURCES/pipeline 记录 DOI/license | docs/SOURCES |
 | I3 | 本环境网络受限：figshare 不稳、rcsr.anu.edu.au 不可达 | 🟡 | QMOF/RCSR 在线验证受限 | 本地镜像/缓存优先 | docs/SOURCES |

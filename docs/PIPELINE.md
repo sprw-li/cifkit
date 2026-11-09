@@ -370,3 +370,16 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 - 验证方式：**本地 mock 服务器**（`tests/test_http_client.py` 10 条、`tests/test_sources_http.py` 6 条），
   包括"服务器允许 5 req/s 时 30 次批量抓取违规 0 次"与"被限流后退避重试最终成功"。
 - 诚实边界：公网真实配额未知；长时间高并发抓取未测（`docs/LIMITATIONS.md` A6）。
+
+### 8.11 故障注入与跨平台 CI（round 18）
+
+- **故障注入** `tests/test_failure_injection.py`（11 条）：磁盘满（`os.replace` 抛 ENOSPC）、
+  写入失败（`Path.write_text` 抛 EACCES）、只读目录（POSIX）、坏 `index.json`（截断）、
+  坏 `manifest.json`（构建继续并记录）、锁持有者崩溃。断言重点不是"抛异常"，
+  而是**旧文件完好 + 无 `.tmp` 残留 + 报错说明原因**。
+- **字节级完整性** `scripts/check_eol.py`：6 个拓扑参考 CIF 的 sha256 与记录值比对 + 全库
+  关键文本文件零 CRLF + `.gitattributes` 必须含 `eol=lf`；已接入 `check_all` 第 8 组。
+- **跨平台 CI** `.github/workflows/ci.yml`：ubuntu/macos/windows × py3.11/3.13，强制
+  `core.autocrlf=false`，依次跑 check_eol → sca_scan --strict → verify_formats →
+  adversarial → pytest → check_all --skip-agentlib，另加 wheel 构建 job。
+  **诚实标注**：本机只有 Windows，该 workflow **尚未真正执行过**（局限 H4）。

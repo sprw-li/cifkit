@@ -8,7 +8,8 @@ Runs, in order:
   5. agent-library eval_router --all (must keep 0 false positives)
   6. agent-library ci.py --fast
   7. agent-library check_skill on the cif-* skills (each must be errors=0)
-  8. scripts/sca_scan.py --strict (no copyleft *code* in our sources; MIT claim)
+  8. scripts/check_eol.py (hash-pinned files are LF; .gitattributes contract)
+  9. scripts/sca_scan.py --strict (no copyleft *code* in our sources; MIT claim)
 
 Optional (``--adversarial``): scripts/adversarial_check.py, which tries to break the
 convert/verify/rings behaviour instead of confirming it.
@@ -138,6 +139,9 @@ def main() -> int:
 
         skills_ok, skills_detail = check_skills()
         checks.append(("check_skill cif-*", skills_ok, skills_detail))
+
+    checks.append(("check_eol", *run(
+        "eol", [str(PY), str(ROOT / "scripts" / "check_eol.py")], timeout=600)))
 
     checks.append(("sca_scan --strict", *run(
         "sca", [str(PY), str(ROOT / "scripts" / "sca_scan.py"), "--strict"], timeout=600)))

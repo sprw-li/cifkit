@@ -1,0 +1,119 @@
+name: ci
+
+# Cross-platform CI (limitation H4).  Nothing here has been executed by the author
+# yet — this machine only has Windows — so the workflow is written to be as
+# self-checking as possible: every step is a command that also runs locally
+# (scripts/check_all.py, scripts/check_eol.py, scripts/sca_scan.py,
+# scripts/verify_formats.py), so a green run here is the same evidence as a green
+# run locally.
+#
+# Design notes
+# ------------
+# * `core.autocrlf=false` on every runner: the point of the Windows job is to
+#   prove the `.gitattributes` eol=lf policy (limitation G6), which is invisible
+#   if git "helpfully" rewrites line endings.
+# * Python 3.11 (the declared minimum) and 3.13 are both exercised; pymatgen's
+#   wheels are the practical constraint, so `pip install -e .` is allowed to
+#   resolve them.
+# * The agent-library checks (router/eval/ci/check_skill) need a *different*
+#   repository that is not part of this checkout, so they are skipped here with
+#   `--skip-agentlib`; everything else must pass.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      CIFKIT_CACHE: ${{ github.workspace }}/_cache
+    steps:
+      - name: Checkout (no EOL rewriting)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Force LF checkout semantics
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+
+      - name: Byte-level integrity (.gitattributes eol=lf + pinned sha256)
+        shell: bash
+        run: python scripts/check_eol.py
+
+      - name: Licence scan (no copyleft code)
+        shell: bash
+        run: python scripts/sca_scan.py --strict
+
+      - name: Format verifier (31 formats + 12 bundles, third-party readback)
+        shell: bash
+        run: python scripts/verify_formats.py
+
+      - name: Adversarial self-check
+        shell: bash
+        run: python scripts/adversarial_check.py
+
+      - name: Test suite (full)
+        shell: bash
+        run: python -m pytest tests -q -p no:cacheprovider
+
+      - name: Health check (skips agent-library, which lives in another repo)
+        shell: bash
+        run: python scripts/check_all.py --skip-agentlib
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.os }}-py${{ matrix.python }}
+          path: |
+            runs/verify_formats/verify_formats.json
+            runs/check_eol.json
+            runs/sca_scan.json
+            runs/lead_verify_r11/adversarial_check.json
+          if-no-files-found: ignore
+
+  build:
+    name: build sdist+wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Check the wheel can be imported
+        run: |
+          python -m pip install dist/*.whl
+          python -c "import cifkit, cifkit.api, cifkit.service, cifkit.platform; print('import ok', cifkit.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
