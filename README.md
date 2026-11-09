@@ -97,6 +97,21 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 
 > 完整**局限清单**（按类别、状态、影响、规避）见 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)。
 
+## 商用平台接入（可复用接口）
+
+| 能力 | 入口 | 说明 |
+|---|---|---|
+| 进程内库 | `from cifkit import api` | `capabilities / features / features_many / convert / dataset / topology / validate`；返回值 JSON 可序列化、线程安全、无全局状态 |
+| RPC 处理器 | `from cifkit.service import handle` | `{"op":..., "params":{...}}` → `{"ok":..., "data"/"error"}`；可挂 FastAPI/Flask/Lambda，自带零依赖 HTTP 服务器 |
+| 机器可读契约 | [cifkit/schemas/](cifkit/schemas/request.json) | request / response / ops / feature_row 四个 JSON Schema；契约校验在派发前执行（400 + JSON 路径） |
+| 许可 | [LICENSE](LICENSE) **MIT** + [LICENSING.md](LICENSING.md) | 代码可商用/可闭源；数据源逐源条款；**核心 GPL-free**（屏蔽 Open Babel 实测 31 格式全过） |
+| 权限松 | 见 [docs/API.md](docs/API.md) §4 | 核心 API 不需要任何 key、可全离线；只有 Materials Project 需环境变量注入 |
+
+接口契约、错误码、版本策略、平台清单：[docs/API.md](docs/API.md)。
+机器可读依赖许可审计：`.venv\Scripts\python.exe scripts\license_audit.py [--all] [--strict]`。
+
+---
+
 ## CIF → anything（任意格式 / 输入包 / 数据管线）
 
 | 能力 | 命令 | 覆盖 |
@@ -154,7 +169,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 270 条（默认 266 passed + 4 条 opt-in/skipped：`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像；含 demo 端到端，需 _cache）
+& $PY -m pytest tests -q            # 297 条（默认 293 passed + 4 条 opt-in/skipped：`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像；含 demo 端到端，需 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
@@ -190,7 +205,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - **Round 5（收尾确认）**：[docs/REVIEW-ROUND3.md](docs/REVIEW-ROUND3.md)，结论 **PASS**：2 个 PARTIAL 均 FIXED、6 条新 P2 中 5 条 FIXED（第 6 条"尚未提交"在最终 commit 后关闭）、无新 P0/P1；`check_all.py` fast/full 均 6/6 通过，`--online` Crossref 200 + 真实标题，tamper 用例全部 FAIL。
 - **Round 6（数据源扩展）**：补齐 **Materials Project**（需 `MP_API_KEY`）与 **AFLOW**（免 key）适配器，
   COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
-  路由 intent 增数据源关键词/examples（评测 89/89、负例 0/25），测试总数 **270 条（默认 266 passed + 4 条 opt-in/skipped：`test_metals_zip_full` 需 `CIFKIT_USECASE_FULL=1`、MP live 2 条需 `MP_API_KEY`、QMOF live 1 条需本地镜像）**。
+  路由 intent 增数据源关键词/examples（评测 89/89、负例 0/25），测试总数 **297 条（默认 293 passed + 4 条 opt-in/skipped：`test_metals_zip_full` 需 `CIFKIT_USECASE_FULL=1`、MP live 2 条需 `MP_API_KEY`、QMOF live 1 条需本地镜像）**。
   - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
 
 ---

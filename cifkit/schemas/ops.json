@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cifkit operation parameters",
+  "type": "object",
+  "properties": {
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "cif_text": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "object"
+        },
+        "rdf": {
+          "type": "boolean"
+        },
+        "rdf_bins": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rdf_max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "topology": {
+          "type": "boolean"
+        },
+        "rings": {
+          "type": "boolean"
+        },
+        "symprec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "features_many": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths"
+      ],
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "jobs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "rdf": {
+          "type": "boolean"
+        },
+        "rings": {
+          "type": "boolean"
+        },
+        "topology": {
+          "type": "boolean"
+        }
+      }
+    },
+    "convert": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "cif_text": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "object"
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bundles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outdir": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runs_dir",
+        "outdir"
+      ],
+      "properties": {
+        "runs_dir": {
+          "type": "string"
+        },
+        "outdir": {
+          "type": "string"
+        },
+        "features_enabled": {
+          "type": "boolean"
+        },
+        "copy_structures": {
+          "type": "boolean"
+        },
+        "label_key": {
+          "type": "string"
+        },
+        "rdf": {
+          "type": "boolean"
+        },
+        "topology": {
+          "type": "boolean"
+        }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "cif_text": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "object"
+        },
+        "net": {
+          "type": "string",
+          "enum": [
+            "sod",
+            "pcu",
+            "dia",
+            "fcu",
+            "tbo",
+            "bcu"
+          ]
+        }
+      }
+    },
+    "validate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "cif_text": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "object"
+        },
+        "vacuum": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

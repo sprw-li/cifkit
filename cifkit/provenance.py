@@ -14,7 +14,12 @@ from typing import Any
 from cifkit.cache import project_root
 from cifkit.types import RunResult, StructureRecord, TaskSpec
 
-_PACKAGES = ["pymatgen", "ase", "numpy", "scipy", "networkx", "matplotlib", "rdkit", "openbabel-wheel"]
+#: packages whose *versions are recorded in every manifest*.  Only packages cifkit
+#: actually imports belong here: ``openbabel-wheel`` (GPL-2.0) is listed as an
+#: optional extra instead, because importing it is not required by any code path
+#: (verified by ``scripts/verify_formats_no_gpl.py``).  See LICENSING.md.
+_PACKAGES = ["pymatgen", "ase", "numpy", "scipy", "networkx", "matplotlib", "rdkit"]
+_OPTIONAL_PACKAGES = ["openbabel-wheel"]
 
 
 def now() -> str:
@@ -31,7 +36,7 @@ def sha256_file(path: str | Path) -> str:
 
 def environment() -> dict[str, Any]:
     versions: dict[str, str] = {}
-    for name in _PACKAGES:
+    for name in [*_PACKAGES, *_OPTIONAL_PACKAGES]:
         try:
             versions[name] = _md.version(name)
         except Exception:  # noqa: BLE001 - optional packages

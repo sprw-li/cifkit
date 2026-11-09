@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cifkit request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "capabilities",
+        "convert",
+        "dataset",
+        "features",
+        "features_many",
+        "topology",
+        "validate"
+      ]
+    },
+    "params": {
+      "type": "object"
+    }
+  }
+}

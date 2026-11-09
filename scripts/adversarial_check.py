@@ -199,6 +199,27 @@ def main() -> int:
           and json.loads(fd["rings_per_cell"])["6"] == 16.0,
           f"zif8={fz['ring_basis']} diamond={fd['ring_basis']}")
 
+    # ------------------------------------------- 3b) embedding interface
+    from cifkit.contract import OP_SCHEMAS, validate_request, validate_response
+    from cifkit.service import OPS, handle
+
+    check("contract: schemas cover every op",
+          set(OP_SCHEMAS) == set(OPS),
+          f"ops={sorted(OPS)}")
+    violated = handle({"op": "features", "params": {"rdf_bins": 0, "api_key": "SECRET"}})
+    blob = json.dumps(violated, ensure_ascii=False)
+    check("service: contract violation -> 400 with JSON paths + no secret leak",
+          violated["http_status"] == 400
+          and violated["error"]["code"] == "invalid-request"
+          and any("rdf_bins" in v for v in violated["error"]["detail"]["violations"])
+          and "SECRET" not in blob,
+          f"violations={violated['error']['detail']['violations']}")
+    ok_response = handle({"op": "features", "params": {"path": str(ZIF8), "rdf": False}})
+    check("service: successful response satisfies RESPONSE_SCHEMA",
+          ok_response["ok"] is True and validate_response(ok_response) == []
+          and validate_request({"op": "features", "params": {"path": str(ZIF8)}}) == [],
+          f"natoms={ok_response['data']['natoms']}")
+
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
     check("check_all: check_skill group wired to the real script",

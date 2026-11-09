@@ -587,6 +587,39 @@ def _verify(path: Path, fmt: str, natoms: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+def render_structure_text(
+    structure: Structure,
+    fmt: str,
+    *,
+    title: str | None = None,
+    pseudopotentials: dict[str, str] | None = None,
+) -> str | bytes:
+    """Render ``structure`` to ``fmt`` **without** leaving files behind.
+
+    Implemented through :func:`write_structure` into a temporary file, so the
+    inline result is byte-identical to the on-disk export (same writers and the
+    same read-back verification).  Text formats return ``str``; binary formats
+    (e.g. ``png``) return ``bytes``.
+    """
+    import tempfile
+
+    key = normalize_format(fmt)
+    with tempfile.TemporaryDirectory(prefix="cifkit-render-") as tmp:
+        path = Path(tmp) / f"structure.{key}"
+        write_structure(structure, path, key, title=title, pseudopotentials=pseudopotentials)
+        data = path.read_bytes()
+    if key in BINARY_OUTPUT_FORMATS:
+        return data
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:  # pragma: no cover - unexpected binary format
+        return data
+
+
+#: formats whose inline rendering is returned as ``bytes`` (not ``str``)
+BINARY_OUTPUT_FORMATS = {"png"}
+
+
 def write_structure(
     structure: Structure,
     path,
@@ -630,4 +663,5 @@ def write_structure(
     return str(out)
 
 
-__all__ = ["FORMAT_INFO", "normalize_format", "supported_formats", "write_structure"]
+__all__ = ["FORMAT_INFO", "normalize_format", "supported_formats", "write_structure",
+           "render_structure_text", "BINARY_OUTPUT_FORMATS"]

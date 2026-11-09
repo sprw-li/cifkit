@@ -1,10 +1,45 @@
 # 局限清单（cifkit / cif → anything）
 
-> 更新：2026-11-08（round 9）。每一条都尽量给出**影响 / 现状 / 规避 / 证据**。
+> 更新：2026-11-09（round 13）。每一条都尽量给出**影响 / 现状 / 规避 / 证据**。
 > 状态：✅ 已修或已覆盖；🟡 可绕过/有已知边界；🔴 未解决/未验证。
 > 本表是"诚实边界"，不是 TODO 承诺；不把模板/预估说成已验证。
 
+## 摘要
+
+**共 65 条局限 = 5 ✅（已修/已覆盖） / 49 🟡（可绕过/已知边界） / 11 🔴（未解决/未验证）**
+
+| 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
+|---|---|---|---|---|---|
+| A | 数据源 | 6 | 0 | 5 | 1 |
+| B | 拓扑判定 | 4 | 0 | 4 | 0 |
+| C | 补氢 / 修复 | 6 | 0 | 4 | 2 |
+| D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
+| E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
+| F | 特征 / 数据集 | 6 | 1 | 4 | 1 |
+| G | 性能 / 并发 / 稳定性 | 6 | 1 | 5 | 0 |
+| H | 技能 / 路由 / 测试覆盖 | 5 | 1 | 2 | 2 |
+| I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
+| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 0 | 4 | 4 |
+| L | 许可 / 商用合规 | 10 | 2 | 7 | 1 |
+
+**未解决的 🔴 一览（需要外部条件或额外工程）**
+
+- **A6** 未验证 AFLOW/COD 大规模限流与重试（只有单次重试逻辑） → 大批量抓取可能被限流
+- **C2** **MIL-101 未验证**（CoRE 无条目；COD 部分占据展开 16000 原子） → 该 MOF 不在覆盖范围
+- **C3** 有机金属 M–C σ 键（Cp/烷基/CO）不当配位键 → 有机金属体系不适用
+- **F6** 未做超大数据集流式处理（manifest 列表一次性载入） → 超大库可能内存吃紧
+- **H3** 测试套件里未在 CI 跑真实 VASP/QE/CP2K/... 执行（环境无这些软件） → 模板正确性靠静态检查
+- **H4** 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI → 跨平台差异未验证（行尾问题已由 G6 兜住）
+- **J1** 无鉴权/多租户/配额/限流 → 平台必须自己包一层；裸暴露 RPC 会被滥用
+- **J2** 无请求级超时与取消 → 大结构（RDF/环统计）会长时间占住调用线程
+- **J5** 未做并发/压力测试（无线程池上限、无背压） → 并发上限未知
+- **J8** 路径参数无沙箱（`path`/`runs_dir`/`outdir`） → 越权读写的风险在平台侧
+- **L7** 未做逐文件版权审计（历史提交的第三方片段未逐一核验） → MIT 声明可能有遗漏
+
+---
+
 ## A. 数据源
+
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
@@ -17,6 +52,7 @@
 
 ## B. 拓扑判定
 
+
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | B1 | 落盘参考只有 **6 个 net**（sod/pcu/dia/fcu/tbo/bcu） | 🟡 | hms/qtz/cag 等 net 判 `unknown` | 可扩展 `cifkit/data/nets/`；未知不硬猜 | docs/SOURCES §5 |
@@ -25,6 +61,7 @@
 | B4 | 参考签名来自单个代表性结构，不是完整 RCSR 库 | 🟡 | 同 net 不同 SBU/畸变可能 mismatch | 报告差异；可自行替换参考 | `cifkit/data/nets/*.json` |
 
 ## C. 补氢 / 修复
+
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
@@ -37,6 +74,7 @@
 
 ## D. 几何 / 切面 / 真空
 
+
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | D1 | slab 终止面按"悬键+化学计量"启发式打分 | 🟡 | 不保证是能量最低表面 | 可指定 termination/shift；DFT 表面能另算 | docs/GEOM |
@@ -45,6 +83,7 @@
 | D4 | 超大超胞/slab 有原子数上限（`MAX_SLAB_ATOMS`） | 🟡 | 会明确报错而非 OOM | 降低厚度/超胞 | docs/GEOM |
 
 ## E. 导出 / 计算软件输入包（cif → anything）
+
 
 > 已支持 `cifkit convert <文件或目录...> --to ... --bundle ...`：多输入时每输入一个子目录 + `convert_manifest.json`（n_ok/n_failed/每条错误），坏输入不中断批量；**同名文件（不同目录）会自动加序号后缀**，不会互相覆盖（round 10 自查修）。
 > 语义细节：**给目录就一定走批量**（即使目录里只有 1 个 CIF → 子目录 + manifest）；单文件保持扁平输出（`outdir/<stem>.vasp`，`--stem X` → `outdir/X.vasp`）；子目录**不递归**扫描。
@@ -62,6 +101,7 @@
 
 ## F. 特征 / 数据集
 
+
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | F1 | RDF 是有限网格近似（默认 50 bins × 8 Å），O(N²) | 🟡 | 大结构慢/列多 | `--no-rdf`；调 bins/max | docs/FEATURES |
@@ -72,6 +112,7 @@
 | F6 | 未做超大数据集流式处理（manifest 列表一次性载入） | 🔴 | 超大库可能内存吃紧 | 分批/分目录构建；from-library 已有测试 | tests/test_dataset.py |
 
 ## G. 性能 / 并发 / 稳定性
+
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
@@ -84,6 +125,7 @@
 
 ## H. 技能 / 路由 / 测试覆盖
 
+
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
@@ -92,7 +134,8 @@
 | H4 | 只在 Windows + Python 3.14 实测；未做 Linux/macOS CI | 🔴 | 跨平台差异未验证（行尾问题已由 G6 兜住） | 文档说明；`.gitattributes` 保证各平台 checkout 字节一致 | README、.gitattributes |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
-## I. 许可 / 环境 / 网络
+## I. 环境 / 网络 / 依赖获取
+
 
 > 自检工具：`scripts/verify_formats.py`（31 格式独立回读）、`scripts/adversarial_check.py`（18 项破坏性检查）、`scripts/check_all.py [--fast] [--adversarial]`（7 组健康检查，含 `check_skill cif-*`）。
 > 干净 clone 验收（round 12）：`git clone` → 拓扑参考哈希测试通过、`verify_demo` 8/8、`check_all --fast` 7/7（修复前分别是 FAIL / 7-of-8 / 6-of-7）。
@@ -103,3 +146,33 @@
 | I2 | 数据许可：CoRE CC-BY-4.0；COD 公有领域；MP/AFLOW 条款；QMOF 派生自 CoRE/CSD | 🟡 | 再分发前需核对 | SOURCES/pipeline 记录 DOI/license | docs/SOURCES |
 | I3 | 本环境网络受限：figshare 不稳、rcsr.anu.edu.au 不可达 | 🟡 | QMOF/RCSR 在线验证受限 | 本地镜像/缓存优先 | docs/SOURCES |
 | I4 | MP 无 key（同 A2） | 🟡 | live 未验证 | 用户设置 key | tests/test_mp_live.py |
+
+## J. 嵌入接口 / 商用平台（cifkit.api + cifkit.service）
+
+
+| # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
+|---|---|---|---|---|---|
+| J1 | 无鉴权/多租户/配额/限流 | 🔴 | 平台必须自己包一层；裸暴露 RPC 会被滥用 | 服务层只做 secret 打码 + 契约校验；鉴权/限流由平台网关负责 | docs/API.md §4 |
+| J2 | 无请求级超时与取消 | 🔴 | 大结构（RDF/环统计）会长时间占住调用线程 | 平台放工作队列 + 进程级超时；`features(rdf=False)` 降开销 | docs/API.md §7 |
+| J3 | `handle()` 吞掉异常（防 traceback 外泄） | 🟡 | 线上排障只能看日志 | 复现时直接调 `api.*` 拿真实异常 | `cifkit/service.py` |
+| J4 | 无流式/分页；大结果一次性 JSON | 🟡 | 超大 dataset/features_many 响应会很大 | 平台侧分片调用；`features_many` 控制 `paths` 数量 | docs/API.md §7 |
+| J5 | 未做并发/压力测试（无线程池上限、无背压） | 🔴 | 并发上限未知 | 平台自设 worker 数；本仓只验证线程安全 | tests/test_api.py::test_api_is_thread_safe |
+| J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
+| J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |
+| J8 | 路径参数无沙箱（`path`/`runs_dir`/`outdir`） | 🔴 | 越权读写的风险在平台侧 | 平台必须做路径白名单/挂载隔离 | docs/API.md §4 |
+
+## L. 许可 / 商用合规
+
+
+| # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
+|---|---|---|---|---|---|
+| L1 | 本仓代码许可此前未声明 | ✅ | 商用集成无从判断 | 已加 **MIT** `LICENSE`（可商用/可闭源/可再分发） | LICENSE |
+| L2 | Open Babel 是 **GPL-2.0**，曾出现在依赖清单里 | ✅ | GPL 会传染闭源商用 | 实测**核心不 import 它**（屏蔽后 31 格式 + 12 包全过）；已从"运行时 packages"移到可选清单 | scripts/verify_formats_no_gpl.py；LICENSING.md §2 |
+| L3 | **ASE 是 LGPL-2.1+** | 🟡 | 修改 ASE/静态嵌入会触发 LGPL 义务 | 本仓不修改 ASE；动态使用通常可与专有代码共存，**商用前请法务确认** | scripts/license_audit.py |
+| L4 | 数据源许可各不相同（CoRE CC-BY-4.0 / COD 公有领域 / MP+条款 / AFLOW 条款 / QMOF 派生 CSD） | 🟡 | 再分发数据可能违约 | `manifest` 记录 `license`；逐源表见 LICENSING.md §3；平台需透传署名 | LICENSING.md |
+| L5 | 下载的 `core-mof` 缓存**不建议再分发**（CSD 派生） | 🟡 | 打包镜像可能侵权 | 只分发代码/脚本，让用户自行 `bootstrap_data.py` 取数 | LICENSING.md §3 |
+| L6 | 不提供 POTCAR/UPF/skf/力场/basis | 🟡 | 输入包不能直接算 | `missing` 列表 + README 明确；平台需引导用户自备 | docs/EXPORT.md §6 |
+| L7 | 未做逐文件版权审计（历史提交的第三方片段未逐一核验） | 🔴 | MIT 声明可能有遗漏 | 商用前做一次第三方代码扫描（SCA） | LICENSING.md §6 |
+| L8 | 依赖许可审计基于安装元数据 + 人工覆盖，非法律意见；条款会变 | 🟡 | 审计可能过期 | 定期重跑 `license_audit.py --all`，核对官方页面 | scripts/license_audit.py |
+| L9 | Python 依赖的**间接依赖**未展开（只审运行时直接依赖） | 🟡 | 传递依赖里可能藏 copyleft | `license_audit.py --all` 全量扫描（本机 100+ 包）后人工复核 | scripts/license_audit.py --all |
+| L10 | 平台若把生成的结构/输入包再分发，需自行确认基础数据许可 | 🟡 | 连带责任 | 平台侧做数据血缘与许可标记 | LICENSING.md §4 |

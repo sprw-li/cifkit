@@ -10,7 +10,14 @@ Public API (DESIGN.md §6):
 from __future__ import annotations
 
 from cifkit.export.bundles import BUNDLE_INFO, supported_bundles, write_bundle
-from cifkit.export.writers import FORMAT_INFO, normalize_format, supported_formats, write_structure
+from cifkit.export.writers import (
+    BINARY_OUTPUT_FORMATS,
+    FORMAT_INFO,
+    normalize_format,
+    render_structure_text,
+    supported_formats,
+    write_structure,
+)
 
 __all__ = [
     "write_structure",
@@ -20,4 +27,6 @@ __all__ = [
     "write_bundle",
     "supported_bundles",
     "BUNDLE_INFO",
+    "render_structure_text",
+    "BINARY_OUTPUT_FORMATS",
 ]

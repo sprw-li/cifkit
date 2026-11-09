@@ -227,7 +227,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 附加：`tests/test_cli.py` 增加 UTF-16 spec 用例（8 条），应用层支持 UTF-16BE。
 
 附带的健壮性增强：`repair/geom -o` 自动创建父目录；`export` 对不支持的格式返回 exit 2 并列出可用格式。
-测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；cif→anything 扩展后全量为 **270**（默认 266 passed + 4 条 opt-in/skipped））。
+测试总数 119 → **127**（新增 `tests/test_cli.py` 8 条 CLI 合同测试；cif→anything 扩展后全量为 **297**（默认 293 passed + 4 条 opt-in/skipped））。
 
 ### 8.2 数据源扩展（CoRE MOF / COD / Materials Project / AFLOW）
 
@@ -249,7 +249,7 @@ Round 2 二次复核（[REVIEW-ROUND2.md](REVIEW-ROUND2.md)，PASS；4/4 P1 FIXE
 - 路由：intent `cif-structure-pipeline` 增加数据源关键词与 examples；评测 79 条全过、
   负例 0/25；`ci.py --fast` exit 0。
 - 测试：新增 `tests/test_sources_mp_aflow.py`（11 条，MP mock + AFLOW mock/live + auto 选源）、
-  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **270** 条（默认 266 passed + 4 条 opt-in/skipped）。
+  `tests/test_cli.py` 中 `sources`/MP 无 key 2 条、`test_spec`/`test_validate` 各若干；全套 **297** 条（默认 293 passed + 4 条 opt-in/skipped）。
 
 ### 8.3 进阶应用套件（第 5 轮 4 个测试实例）
 
@@ -323,3 +323,17 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 | `scripts/check_all.py --adversarial` | 追加对抗性自检（convert 边界 / 格式验证器可被欺骗 / 环计数语义 / check_skill 真跑） | `python scripts\check_all.py --adversarial` |
 | `scripts/verify_formats.py` | 31 格式 + 12 输入包的独立回读验证（第三方库） | `python scripts\verify_formats.py [--only vasp,cif]` |
 | `scripts/adversarial_check.py` | 上面那张表的实现（18 项破坏性检查，写 `runs/lead_verify_r11/adversarial_check.json`） | `python scripts\adversarial_check.py` |
+
+### 8.7 嵌入接口与商用合规（round 13）
+
+- **库接口** `cifkit/api.py`：`capabilities/features/features_many/convert/dataset/topology/validate`，
+  纯 dict 返回、无全局状态、线程安全；`convert` 支持**内存返回**（text / base64）不落盘。
+- **服务接口** `cifkit/service.py`：`handle(request) -> response`，错误码稳定（400/404/502/500），
+  secret 参数打码，自带 stdlib HTTP 服务器用于联调；可挂 FastAPI/Flask/Lambda。
+- **契约** `cifkit/contract.py` + `cifkit/schemas/*.json`：request/response/ops/feature_row；
+  派发前校验，`detail.violations` 给出 JSON 路径；`python -m cifkit.contract --dump` 重新生成。
+- **许可**：`LICENSE`(MIT) + `LICENSING.md`（代码/数据分离、依赖分类、商用清单）；
+  `scripts/license_audit.py` 审计依赖（**7 宽松 / 1 弱 copyleft ASE / 1 强 copyleft openbabel**），
+  `scripts/verify_formats_no_gpl.py` 证明**核心不需要 GPL 的 Open Babel**。
+- 测试：`tests/test_api.py`(11) + `tests/test_service.py`(8) + `tests/test_contract.py`(8)。
+- 局限：见 `docs/LIMITATIONS.md` §J（接口/平台）与 §L（许可/商用）。

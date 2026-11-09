@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cifkit feature row",
+  "type": "object",
+  "required": [
+    "feature_version",
+    "formula",
+    "natoms",
+    "a",
+    "b",
+    "c",
+    "alpha",
+    "beta",
+    "gamma"
+  ],
+  "properties": {
+    "feature_version": {
+      "const": "cifkit-features/v1"
+    },
+    "formula": {
+      "type": "string"
+    },
+    "reduced_formula": {
+      "type": "string"
+    },
+    "natoms": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "n_elements": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "metal_fraction": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "h_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "spacegroup_number": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cn_mean": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ring_basis": {
+      "type": "string",
+      "enum": [
+        "metal-net",
+        "full-bond-graph"
+      ]
+    }
+  }
+}

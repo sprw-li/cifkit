@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cifkit response",
+  "type": "object",
+  "required": [
+    "ok",
+    "op",
+    "api_version"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "op": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "api_version": {
+      "type": "string"
+    },
+    "elapsed_ms": {
+      "type": "number"
+    },
+    "data": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "detail": {}
+      }
+    },
+    "http_status": {
+      "type": "integer"
+    },
+    "params_echo": {
+      "type": "object"
+    }
+  }
+}
