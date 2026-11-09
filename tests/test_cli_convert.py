@@ -191,3 +191,23 @@ def test_convert_rejects_unknown_bundle(tmp_path):
     proc = _run(["convert", str(ZIF8), "--bundle", "nope", "--outdir", str(tmp_path / "z"), "--json"])
     assert proc.returncode == 2
     assert "bundle" in (proc.stderr or "").lower()
+
+
+def test_convert_batch_disambiguates_duplicate_stems(tmp_path):
+    """P1 (round 10 self-check): identical file names from different dirs must not clobber."""
+    d1 = tmp_path / "d1"
+    d2 = tmp_path / "d2"
+    d1.mkdir()
+    d2.mkdir()
+    shutil.copyfile(ZIF8, d1 / "same.cif")
+    shutil.copyfile(ZIF8, d2 / "same.cif")
+    out = tmp_path / "out"
+    proc = _run(["convert", str(d1 / "same.cif"), str(d2 / "same.cif"),
+                 "--to", "vasp", "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_ok"] == 2
+    outputs = sorted(p.name for p in out.glob("*/same*.vasp"))
+    assert len(outputs) == 2, outputs
+    outdirs = {Path(run["outdir"]).name for run in data["runs"]}
+    assert len(outdirs) == 2, outdirs

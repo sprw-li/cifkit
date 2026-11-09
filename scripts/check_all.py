@@ -9,6 +9,9 @@ Runs, in order:
   6. agent-library ci.py --fast
   7. agent-library check_skill on the cif-* skills (each must be errors=0)
 
+Optional (``--adversarial``): scripts/adversarial_check.py, which tries to break the
+convert/verify/rings behaviour instead of confirming it.
+
 Usage::
 
     .venv\\Scripts\\python.exe scripts\\check_all.py [--fast] [--skip-agentlib]
@@ -92,6 +95,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fast", action="store_true", help="skip the full pytest suite")
     ap.add_argument("--skip-agentlib", action="store_true")
+    ap.add_argument("--adversarial", action="store_true",
+                    help="额外跑 scripts/adversarial_check.py（对抗性自检，较慢）")
     args = ap.parse_args()
 
     checks: list[tuple[str, bool, str]] = []
@@ -132,6 +137,10 @@ def main() -> int:
 
         skills_ok, skills_detail = check_skills()
         checks.append(("check_skill cif-*", skills_ok, skills_detail))
+
+    if args.adversarial:
+        checks.append(("adversarial_check", *run(
+            "adversarial", [str(PY), str(ROOT / "scripts" / "adversarial_check.py")], timeout=2400)))
 
     print("\n== check_all ==")
     failed = 0

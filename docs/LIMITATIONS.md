@@ -46,7 +46,7 @@
 
 ## E. 导出 / 计算软件输入包（cif → anything）
 
-> 已支持 `cifkit convert <文件或目录...> --to ... --bundle ...`：多输入时每输入一个子目录 + `convert_manifest.json`（n_ok/n_failed/每条错误），坏输入不中断批量。
+> 已支持 `cifkit convert <文件或目录...> --to ... --bundle ...`：多输入时每输入一个子目录 + `convert_manifest.json`（n_ok/n_failed/每条错误），坏输入不中断批量；**同名文件（不同目录）会自动加序号后缀**，不会互相覆盖（round 10 自查修）。
 
 > 已支持：`cifkit convert <文件或目录...> --to ... --bundle ...`（多输入 → 每输入一个子目录 + `convert_manifest.json`，坏输入单独记录不中断）。
 
@@ -91,6 +91,8 @@
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
 ## I. 许可 / 环境 / 网络
+
+> 自检工具：`scripts/verify_formats.py`（31 格式独立回读）、`scripts/adversarial_check.py`（16 项破坏性检查）、`scripts/check_all.py [--fast] [--adversarial]`（7 组健康检查，含 `check_skill cif-*`）。
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|

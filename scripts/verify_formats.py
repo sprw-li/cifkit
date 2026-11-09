@@ -199,9 +199,11 @@ def main() -> int:
         "bundles_ok": all(b["all_present"] and b["readme"] for b in bundles) if bundles else None,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "note": (
-            "第三方回读 = 用与写出器不同的库（pymatgen/ASE）读回并比对原子数；"
-            "模板类格式（cp2k/siesta/abacus/orca/dftb）与 png 用关键字/魔数检查，"
-            "不算第三方回读；模板不包含 POTCAR/UPF/basis/skf，也未经真实软件运行。"
+            "第三方回读 = 用与写出器不同的库（pymatgen/ASE）读回并比对原子数。"
+            "**回读一致 ≠ 目标软件接受**：这只说明另一个库能解析出同样多的原子，"
+            "不代表 VASP/QE/CP2K/... 会接受该输入。模板类格式（cp2k/siesta/abacus/orca/dftb）"
+            "与 png 只用关键字/魔数检查，不算第三方回读；模板不包含 POTCAR/UPF/basis/skf/力场，"
+            "也从未在真实软件中运行过。"
         ),
     }
     json_path.parent.mkdir(parents=True, exist_ok=True)

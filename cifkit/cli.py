@@ -382,10 +382,23 @@ def cmd_convert(args) -> int:
                               title=args.title)
         result.update({"outdir": str(outdir), "n_inputs": 1})
     else:
-        # batch: one sub-directory per input + a manifest of everything written
-        runs = []
+        # batch: one sub-directory per input + a manifest of everything written.
+        # Stems must be unique: d1/same.cif and d2/same.cif would otherwise write to
+        # the same sub-directory and silently overwrite each other.
+        counts: dict[str, int] = {}
+        base_stems: list[str] = []
         for index, src in enumerate(inputs):
-            stem = args.stem and f"{args.stem}_{index:03d}" if args.stem else src.stem
+            base = f"{args.stem}_{index:03d}" if args.stem else src.stem
+            base_stems.append(base)
+            counts[base] = counts.get(base, 0) + 1
+        seen: dict[str, int] = {}
+        runs = []
+        for src, base in zip(inputs, base_stems):
+            if counts[base] > 1:
+                seen[base] = seen.get(base, 0) + 1
+                stem = f"{base}_{seen[base]:03d}"
+            else:
+                stem = base
             runs.append(_convert_one(src, outdir, formats, bundles, stem=stem,
                                      title=args.title))
         manifest = {
