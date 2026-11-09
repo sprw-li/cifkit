@@ -155,13 +155,15 @@ geometry units angstrom nocenter noautosym noautoz
   N  9.2729999999999937e-02 7.1673999999999993e-01 4.4477000000000000e-01
 end
 
-# cifkit: periodic system detected -> NWChem's molecular DFT module rejects it
-# (dft_rdinput: detected periodicity = 3) and a Gaussian basis set does not
-# apply; the plane-wave module below is the correct path.  STILL REQUIRED:
-#   * per-element pseudopotentials (*.psp), and
-#   * a converged ecut for the elements in this structure.
+# ----------------------------------------------------------------
+# cifkit: periodic structure -> NWChem plane-wave module.
+# Verified against NWChem 7.2.2 on 2026-11-10: 'task dft' is rejected
+# (detected periodicity = 3), 'ecut' is not an nwpw directive, and the
+# block below finished normally (exit 0, 'Total times' printed).
+# Raise/adjust 'cutoff' (Hartree) and 'xc' for production; NWChem locates
+# its pseudopotentials in /usr/share/nwchem/libraryps/TM/<Element>/.
 nwpw
-  ecut 20
+  cutoff 20
   xc pbe
 end
 

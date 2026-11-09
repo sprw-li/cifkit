@@ -486,6 +486,15 @@ payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/su
 `acceptance_result.json` 已取回 → **镜像里没有任何计算化学软件**（预期结论）。
 细节与命令见 `runs/cloud_h3/PIPELINE-FOUND.md`；`scripts/cloud_h3_submit.py --bohr-status` 可复现只读检查。
 
+**round 29：这条链路闭环**。做法不再是「猜语法」，而是读程序自己的证据：
+
+1. 容器里 `dpkg -L nwchem` + 搜 `/usr/share/nwchem/**` → 伪势库在 `libraryps/TM/<元素>/`（含 Zn），候选指令 token 是 **`cutoff`**（不是 `ecut`）；
+2. 一个作业跑 4 个变体 → 唯一能跑完的是 `nwpw` + `cutoff 20` + `xc pbe` + `end` + **`task pspw energy`**（exit 0、打印 `Total times`）；
+3. 把该模式固化进导出器（带证据注释），并把 **`memory` 指令** 放在输入顶部（Debian 的 NWChem 不认 `-memory`；且要求 `total = stack + heap + global`）；
+4. 复验：cifkit 自己导出的 NWChem 文件在作业 `774a6dd5…` 里完整跑完——**`Total times cpu 1020.8 s`**、exit 0、succeeded（17.7 min / 4 光子）。
+
+138 原子 ZIF-8 的同一模板输入解析全通过，但在 8 GiB / 32 GiB 机器上 `cutoff 20` 内存不足——这是资源约束，已如实记在局限 H3c。
+
 ### 8.18 数据源实时可用性检查（round 25）
 
 `scripts/sources_live_check.py`：对每个数据源做 **TCP 可达性 + 一次真实小查询**，记录

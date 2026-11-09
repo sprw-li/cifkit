@@ -37,21 +37,25 @@ def _directives(text: str) -> list[str]:
             if line.strip() and not line.lstrip().startswith("#")]
 
 
-def test_periodic_input_gets_no_unverified_task(nwchem_text):
-    """Two tasks were rejected by real NWChem; do not invent a third."""
+def test_periodic_input_uses_the_verified_plane_wave_task(nwchem_text):
+    """The pattern that finished in real NWChem 7.2.2, not a guess."""
     assert "system crystal" in nwchem_text, "the fixture is periodic"
     directives = _directives(nwchem_text)
-    assert not [line for line in directives if line.startswith("task")], directives[-4:]
-    assert not [line for line in directives if line.startswith("dft")], "molecular DFT block"
-    assert not [line for line in directives if line.startswith("basis")], "Gaussian basis block"
+    assert "task pspw energy" in directives
+    assert "task dft energy" not in directives, "molecular DFT rejects periodicity=3"
+    assert "task nwpw energy" not in directives, "unknown theory in real NWChem"
+    assert "nwpw" in directives
+    assert "cutoff 20" in [line.strip() for line in directives]
+    assert "ecut" not in " ".join(directives), "'ecut' is rejected by nwpw_input"
+    assert not [line for line in directives if line.startswith("basis")], "Gaussian basis"
 
 
-def test_the_rejections_and_requirements_are_recorded(nwchem_text):
-    """The file must tell the user what was tried and what is still needed."""
+def test_the_evidence_for_the_pattern_is_recorded(nwchem_text):
+    """The file must explain *why* this task, and cite the failed attempts."""
     lowered = nwchem_text.lower()
     assert "periodicity = 3" in lowered
-    assert "unknown directive" in lowered
-    assert "pseudopotential" in lowered and "cutoff" in lowered
+    assert "cutoff" in lowered and "pseudopotential" in lowered
+    assert "libraryps" in lowered
 
 
 def test_no_host_paths_and_relative_dirs(nwchem_text):
@@ -78,7 +82,7 @@ def test_the_export_path_is_periodic_only(tmp_path):
     write_structure(boxed, target, fmt="nwchem")
     text = target.read_text(encoding="utf-8")
     assert "system crystal" in text, "periodicity is declared even for a molecule in a box"
-    assert not [line for line in _directives(text) if line.startswith("task")]
+    assert "task pspw energy" in _directives(text), "the periodic path applies here too"
 
     with pytest.raises(Exception):
         write_structure(Molecule(["H", "H"], [[0, 0, 0], [0, 0, 0.74]]),

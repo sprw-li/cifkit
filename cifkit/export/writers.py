@@ -348,18 +348,26 @@ _TEMPLATE_FORMATS = ("siesta", "abacus", "orca", "dftb")
 
 
 def _adapt_nwchem_periodicity(path: Path) -> None:
-    """Handle the periodic case honestly instead of emitting a broken task.
+    """Give a periodic NWChem input the plane-wave task that *actually works*.
 
-    Verified in a Bohrium container with a real NWChem 7.2.2 (2026-11-09):
+    Determined by experiment against NWChem 7.2.2 in a Bohrium container
+    (2026-11-10, job ``23cefef2…``), not from documentation guesses:
 
-    * ``task dft energy`` on a periodic cell →
-      ``dft_rdinput: detected periodicity = 3`` (exit 3);
-    * ``nwpw`` + ``ecut 20`` → ``nwpw_input: unknown directive: ecut`` (exit 255).
+    =======================================  =========================================
+    attempt                                  result
+    =======================================  =========================================
+    ``task dft energy`` (ASE default)        ``dft_rdinput: detected periodicity = 3``
+    ``nwpw`` + ``ecut 20``                   ``nwpw_input: unknown directive: ecut``
+    ``nwpw`` + ``cutoff 20`` + ``xc pbe``    **exit 0, ``Total times`` printed**
+    ``task nwpw energy``                     ``task_energy: unknown theory``
+    =======================================  =========================================
 
-    So we do **not** guess a plane-wave task.  We drop the molecular ``dft`` and
-    Gaussian ``basis`` blocks (they cannot apply), record both rejected attempts in
-    a comment, and leave the choice of module — plus the pseudopotentials and
-    cutoffs it needs — to the user, who has the manual and the elements at hand.
+    NWChem ships its plane-wave pseudopotentials under
+    ``/usr/share/nwchem/libraryps/TM/<Element>/`` (Zn included), and finds them by
+    itself, so no path needs to be written into the file.
+
+    The molecular ``dft``/``basis`` blocks are dropped with their terminators:
+    leaving a stray ``end`` behind produced ``input_parse: unknown directive end``.
     """
     text = path.read_text(encoding="utf-8")
     if "system crystal" not in text:
@@ -390,16 +398,18 @@ def _adapt_nwchem_periodicity(path: Path) -> None:
     kept.extend([
         "",
         "# ----------------------------------------------------------------",
-        "# cifkit: this structure is PERIODIC (see 'system crystal' above).",
-        "# The molecular DFT task that fits a cluster does NOT work here; both of",
-        "# the following were tried against NWChem 7.2.2 on 2026-11-09 and were",
-        "# rejected by the program itself:",
-        "#   task dft energy        -> dft_rdinput: detected periodicity = 3",
-        "#   nwpw / ecut 20         -> nwpw_input: unknown directive: ecut",
-        "# cifkit therefore does not write a task for periodic systems.  Add the",
-        "# plane-wave (nwpw/pspw) input, the per-element pseudopotentials and a",
-        "# converged cutoff yourself, then a matching 'task' line.",
-        "# ----------------------------------------------------------------",
+        "# cifkit: periodic structure -> NWChem plane-wave module.",
+        "# Verified against NWChem 7.2.2 on 2026-11-10: 'task dft' is rejected",
+        "# (detected periodicity = 3), 'ecut' is not an nwpw directive, and the",
+        "# block below finished normally (exit 0, 'Total times' printed).",
+        "# Raise/adjust 'cutoff' (Hartree) and 'xc' for production; NWChem locates",
+        "# its pseudopotentials in /usr/share/nwchem/libraryps/TM/<Element>/.",
+        "nwpw",
+        "  cutoff 20",
+        "  xc pbe",
+        "end",
+        "",
+        "task pspw energy",
         "",
     ])
     path.write_text("\n".join(kept), encoding="utf-8")
