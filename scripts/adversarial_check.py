@@ -164,10 +164,14 @@ def main() -> int:
           f"tp={report['n_third_party_ok']}/{report['n_third_party_readback']} "
           f"bundles_ok={report['bundles_ok']}")
     readers = {r["format"]: r["reader"] for r in report["formats"]}
-    templates = {f for f, r in readers.items() if r == "structural-check"}
-    check("verify_formats: templates labelled, not claimed as read-back",
-          templates == {"cp2k", "siesta", "abacus", "orca", "dftb"} and "软件接受" in report["note"],
-          f"templates={sorted(templates)}")
+    # round 38 upgraded the in-house keyword check to a strict parser; the label
+    # must still say "in-house" (never a third-party read-back).
+    templates = {f for f, r in readers.items() if str(r).startswith("strict-parse")}
+    check("verify_formats: templates labelled as in-house parsing, not read-back",
+          templates == {"cp2k", "siesta", "abacus", "orca", "dftb"}
+          and all("in-house" in str(readers[f]) for f in templates)
+          and "软件接受" in report["note"],
+          f"templates={sorted(templates)} readers={[readers[f] for f in sorted(templates)]}")
 
     from pymatgen.core import Lattice, Structure
 
