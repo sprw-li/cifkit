@@ -454,3 +454,17 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 .venv\Scripts\python.exe scripts\sources_live_check.py
 .venv\Scripts\python.exe scripts\release_check.py --quick   # 信息项里会带上这次的 summary
 ```
+
+## 真实限流实测（`scripts/probe_source_limits.py`）
+
+本地 mock 覆盖了 429/503/Retry-After/退避，但**真实配额**只能实测。该脚本对每个源最多发
+**10 个请求**（5 个按生产节奏 0.25 s + 5 个无间隔 burst），**不做压测**，结果写
+`runs/source_limits.json`：
+
+| 源 | 结果 | 单请求延迟（中位） | 429/503 | Retry-After |
+|---|---|---|---|---|
+| COD | 10/10 成功 | **2.16 s** | 无 | 未出现 |
+| AFLOW | 10/10 成功 | **2.92 s** | 无 | 未出现 |
+
+**可操作结论**：服务器延迟（2-3 s）比我们的 0.25 s 间隔大一个数量级 ——
+在这类源上**调节奏参数没有意义**，要吞吐就**跨源/跨连接并列**；配额上限仍未知（我们故意不去打）。

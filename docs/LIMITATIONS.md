@@ -38,7 +38,7 @@
 | A3 | CoRE MOF 2024 只有 ASR 子集带 RCSR 拓扑列；NCR 无拓扑元数据 | 🟡 | NCR 结构拓扑需 `topology.verify`，可能 `unknown` | 报告里区分 `metadata/verified/unknown` | docs/SOURCES §2/§5 |
 | A4 | AFLOW 无 RCSR 拓扑；`aflow:<auid>` 不能反查 | 🟡 | AFLOW 结果只能按 aurl/化学式；拓扑 unknown | 用 aurl 或化学式；拓扑靠结构比对 | docs/SOURCES §7c |
 | A5 | COD 无拓扑列、实验结构质量参差、检索按文本 | 🟡 | COD 结构需复核；拓扑 unknown | 用 spglib/validate 复核 | docs/SOURCES §6 |
-| A6 | 限流/退避行为已在**本地 mock 服务器**上验证（429/503/Retry-After/退避/限速），但**公网真实端点配额未知** | 🟡 | 真实限额、长时间高并发抓取仍未测 | 统一 `HttpClient`（指数退避+抖动+Retry-After+默认 0.25s/请求限速）；实测服务器 5 req/s 时 30 次批量抓取违规 0 次 | tests/test_http_client.py、tests/test_sources_http.py、docs/SOURCES.md |
+| A6 | 限流：**本地 mock** 已覆盖 429/503/Retry-After/退避/限速；**公网真实端点已小规模实测**（COD 与 AFLOW 各 5 次按 0.25 s 节奏 + 5 次无间隔 burst）：**10/10 全部成功，无 429/503、无 Retry-After**；单请求耗时中位 **2.16 s（COD）/2.92 s（AFLOW）** | 🟡 | 真实配额**故意没有去打**（不做压测），所以上限仍未知；但已确认**服务器延迟(2-3 s)远大于我们的 0.25 s 间隔**，即在这类源上节奏参数不是瓶颈、跨源并列才是 | `scripts/probe_source_limits.py`（可复跑，写 runs/source_limits.json，单源最多 10 请求） |
 
 ## B. 拓扑判定
 
