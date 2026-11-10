@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import subprocess
 import threading
 import time
@@ -127,9 +128,14 @@ def main() -> int:
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--go", action="store_true")
     ap.add_argument("--out", default=str(OUT / "fanout.json"))
+    ap.add_argument("--run-id", default=None,
+                    help="namespaces job names + the submission ledger (default: timestamp)")
+    ap.add_argument("--resume", action="store_true",
+                    help="reuse the previous run's ledger instead of starting a fresh one")
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
+    run_id = args.run_id or time.strftime("%Y%m%d-%H%M%S")
     budget = plan(args.jobs, args.run_minutes, args.wait_minutes, args.price, args.sku,
                   args.photon_per_rmb)
     print(json.dumps(budget, ensure_ascii=False, indent=2))
@@ -165,7 +171,11 @@ def main() -> int:
         print(out[-600:])
         return code
 
-    ledger_path = OUT / "submissions.jsonl"
+    ledger_path = OUT / f"submissions_{run_id}.jsonl"
+    if args.resume:
+        previous = sorted(OUT.glob("submissions_*.jsonl"))
+        if previous:
+            ledger_path = previous[-1]
     already: dict[int, dict] = {}
     if ledger_path.is_file():
         for line in ledger_path.read_text(encoding="utf-8").splitlines():
@@ -189,7 +199,7 @@ def main() -> int:
                 submitted.append(row)
             print(f"[skip {index:02d}] already submitted job={row['job_id']}")
             return row
-        name = f"gpu-fanout-{index:02d}"
+        name = f"gpu-fanout-{run_id}-{index:02d}"
         cmd = ["batchjob", "submit", "--yes", "--payment-source", "photon",
                "--name", name, "--image", args.image, "--machine-type", args.sku,
                "--command", "python gpu_bench.py", "--input", str(BUNDLE),
@@ -303,20 +313,33 @@ def main() -> int:
             metrics.append({"index": row["index"], "job_id": job_id,
                             "error": f"unparseable result: {exc}"})
             continue
+        fp32 = payload.get("fp32") or {}
+        fp16 = payload.get("fp16") or {}
+        copy = payload.get("copy") or {}
+        checksum = payload.get("checksum") or {}
+        multi = payload.get("multi_device") or {}
         metrics.append({
             "index": row["index"], "job_id": job_id,
             "device": payload.get("device_name"),
-            "fp32_gflops": (payload.get("fp32") or {}).get("gflops"),
-            "fp16_gflops": (payload.get("fp16") or {}).get("gflops"),
-            "copy_gbps": payload.get("copy_gbps"),
-            "checksum": payload.get("checksum"),
+            "device_count": payload.get("device_count"),
+            "fp32_gflops": fp32.get("gflops"),
+            "fp32_median_s": fp32.get("median_s"),
+            "fp32_cv": fp32.get("cv"),
+            "fp16_gflops": fp16.get("gflops"),
+            "fp16_median_s": fp16.get("median_s"),
+            "copy_gbps": copy.get("gbps"),
+            "copy_correct": copy.get("copy_correct"),
+            "checksum": checksum,
+            "multi_device": {"device_count": multi.get("device_count"),
+                             "sum_single_gflops": multi.get("sum_single_gflops"),
+                             "concurrent": multi.get("concurrent")},
             "status": payload.get("status"),
             "state": results.get(job_id, {}).get("status"),
             "photon_cost": results.get(job_id, {}).get("photon_cost"),
             "spend_time_s": results.get(job_id, {}).get("spend_time_s"),
         })
 
-    report = {"when": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "plan": budget,
+    report = {"when": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "run_id": run_id, "plan": budget,
               "photon_balance_before": available,
               "photon_balance_after": photons(),
               "submitted": submitted, "states": results, "fetched": fetched,
@@ -328,6 +351,14 @@ def main() -> int:
         "failed": sum(1 for r in results.values() if r.get("status") == "failed"),
         "with_metrics": len(metrics),
         "gpus_seen": sorted({m.get("device") for m in metrics if m.get("device")}),
+        "fp32_consistency_pct": (round(
+            100.0 * (max(m["fp32_gflops"] for m in metrics) -
+                     min(m["fp32_gflops"] for m in metrics)) /
+            statistics.mean(m["fp32_gflops"] for m in metrics), 3)
+            if len([m for m in metrics if m.get("fp32_gflops")]) > 1 else None),
+        "checksums_match": (len({round(float((m.get("checksum") or {}).get("input_checksum") or 0), 3)
+                                 for m in metrics if m.get("checksum")}) == 1
+                            if len([m for m in metrics if m.get("checksum")]) > 1 else None),
         "fp32_gflops_range": [min((m["fp32_gflops"] for m in metrics if m.get("fp32_gflops")), default=None),
                               max((m["fp32_gflops"] for m in metrics if m.get("fp32_gflops")), default=None)],
         "total_photon_cost": sum((r.get("photon_cost") or 0) for r in results.values()),

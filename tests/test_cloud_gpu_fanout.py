@@ -72,7 +72,9 @@ def test_launcher_has_the_hard_gates(fanout):
                    "projected worst case",
                    "ABORT:",
                    "batchjob\", \"kill",
-                   "submissions.jsonl"):
+                   "submissions_",          # ledger is namespaced per run id
+                   "--run-id",
+                   "--resume"):
         assert marker in source, marker
 
 
