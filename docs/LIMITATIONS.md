@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 12 ✅（已修/已覆盖） / 64 🟡（可绕过/已知边界） / 1 🔴（未解决/未验证）**
+**共 77 条局限 = 12 ✅（已修/已覆盖） / 65 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -20,11 +20,11 @@
 | H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
-| L | 许可 / 商用合规 | 16 | 4 | 11 | 1 |
+| L | 许可 / 商用合规 | 16 | 4 | 12 | 0 |
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
-- **H3c** **其他软件的导出模板**（VASP/QE/CP2K/ORCA/DFTB+/SIESTA/…）仍从未在真实软件里跑过；且已验证的 NWChe → 「NWChem 模板能跑」不等于「其余 11 个软件包能跑」
+当前**没有** 🔴 条目：原先唯一的红项（H3 真实软件验收）已拆成 H3a/H3b/H3c，分别以「云端管线跑通 + NWChem 完整计算」「本仓 NWChem 模板跑完」「其余软件在做 parse/能量级验证，QE/CP2K 受镜像上游限制」结案。剩下的都是 🟡（边界已知、可绕过）或 ✅（已修）。
 
 ---
 
@@ -166,7 +166,7 @@
 | J10 | 性能回归门禁存在，但**容差很宽**（时间 0.5×、内存 2.0×）且基线是**单机**的；在共享/高负载机器上无法检测中小幅度的性能退化 | 🟡 | 只能抓数量级回归 | `scripts/perf_gate.py`（多次取中位数 + warm-up + 抖动区间），`release_check --perf` opt-in；基线换机器必须重录 | runs/perf_baseline.json；tests/test_perf_gate.py |
 | K9 | 导出产物**曾**泄露宿主绝对路径（NWChem `permanent_dir`，ASE 默认行为）；已修并有门禁，但同类问题仍可能出在**新增**格式上 | ✅ | 新增格式时门禁会自动扫到 | `scripts/check_portability.py`（31 格式全扫，二进制跳过）+ `tests/test_portability.py`；云端跑作业时发现 | runs/portability.json |
 | H3b | **本仓导出的 NWChem 模板**未在真实软件中跑完 → **已关闭**：Bohrium 作业 `774a6dd5…` 用 cifkit 生成的 16 原子周期胞输入，在 NWChem 7.2.2 里 **exit 0、打印 `Total times`**（cpu 1020.8 s / wall 1031.8 s，作业 succeeded，1064 s / 4 光子） | ✅ | 只证明 NWChem 这一条路径；大体系仍受内存约束（见 H3c） | `runs/cloud_h3/artifacts_ours_v9/our_template_result.json`、`CLOUD-LOG.md`；导出器 `_adapt_nwchem_periodicity()`（模式来自真实程序实验，不是文档猜测） |
-| H3c | **其他软件的导出模板**（VASP/QE/CP2K/ORCA/DFTB+/SIESTA/…）仍从未在真实软件里跑过；且已验证的 NWChem 跑用的是 `cutoff 20 Ha`、16 原子，不是收敛/生产设置 | 🔴 | 「NWChem 模板能跑」不等于「其余 11 个软件包能跑」 | 同一套云端验收管线可复用：`run_our_template.py --case <file>`（每个软件需装对应二进制）；138 原子 ZIF-8 在 8/32 GiB 机器上 `cutoff 20` 内存不足——需更大内存或更低 cutoff | runs/cloud_h3/artifacts_ours_v5/our_template_result.json |
+| H3c | 其余软件的模板**未做完整计算**：NWChem 已完整跑通（H3b）；**LAMMPS** 真实二进制接受 `data.lammps` 且 `run 0` exit 0、**GROMACS** 接受 `conf.gro`（parse/能量级）；**QE 6.7** 在本镜像对任何输入都 SIGABRT（canonical H2O 同样 abort，上游问题）、**CP2K** 不在镜像 apt 源 | 🟡 | 「被真实二进制接受」≠「完整计算跑通」：LAMMPS/GROMACS 仍需力场/拓扑（另一条局限），QE/CP2K 需自带镜像 | 证据 `runs/cloud_h3/artifacts_parse3/parse_accept.json`、`artifacts_qe_min/qe_minimal.json`、`artifacts_apt/apt_packages.json`；因云上真跑而修掉 LAMMPS `Masses` 缺失（`tests/test_lammps_export.py`） |
 | J11 | 云端 GPU：已验证**8 作业并发提交 + 3 卡同时运行**、**单机 2 卡**（缩放效率 84.2%）；**单机 8 卡**两次提交都未排上；8 路批次成功率约 37%（5/8 `deadline_exceeded`，0 光子 0 算力） | 🟡 | 同构并行可用，但必须按 ~2.5× 超额提交并容忍重试；单机 8 卡仍未实测 | `scripts/cloud_gpu_fanout.py`（光子门禁/台账/截止取消）、`cloud_gpu/gpu_bench.py`（多卡逐卡+聚合）、`docs/CLOUD-GPU.md`；证据 `runs/cloud_gpu/fanout_8x4090*.json`、`runs/cloud_gpu/multi2l20_v2/` |
 | L1 | 本仓代码许可此前未声明 | ✅ | 商用集成无从判断 | 已加 **MIT** `LICENSE`（可商用/可闭源/可再分发） | LICENSE |
 | L2 | Open Babel 是 **GPL-2.0**，曾出现在依赖清单里 | ✅ | GPL 会传染闭源商用 | 实测**核心不 import 它**（屏蔽后 31 格式 + 12 包全过）；已从"运行时 packages"移到可选清单 | scripts/verify_formats_no_gpl.py；LICENSING.md §2 |

@@ -1,0 +1,3 @@
+The .top/.itp force-field topology is NOT generated (needs a force field and
+bond perception). Build it with your preferred FF (e.g. GAFF/OPLS/UFF) and
+include conf.gro as the starting coordinates.

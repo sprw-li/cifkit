@@ -1,0 +1,13 @@
+# LAMMPS minimization template (cifkit) — choose a force field!
+units metal
+atom_style atomic
+boundary p p p
+read_data data.lammps
+# mass 1 65.38   # add masses if the data file has none
+# pair_style ... / pair_coeff ...
+# kspace_style ewald 1e-6   # for charged systems
+neighbor 2.0 bin
+thermo 100
+thermo_style custom step pe etotal press temp
+min_style cg
+minimize 1e-8 1e-10 10000 100000

@@ -181,9 +181,50 @@ def _write_xyz(structure: Structure, path: Path, title: str | None) -> None:
 
 
 def _write_lammps(structure: Structure, path: Path, title: str | None) -> None:
-    import ase.io
+    """LAMMPS ``data`` file with a complete ``Masses`` section.
 
-    ase.io.write(str(path), _ase_atoms(structure), format="lammps-data")
+    Round 33: a real ``lmp`` binary read our ASE-generated file, reported
+    ``16 atoms`` and then died on ``run 0`` with
+
+        ERROR: Not all per-type masses are set. Type 1 is missing.
+
+    ASE's ``lammps-data`` writer omits masses when the atoms carry none, and it
+    also does not record which type maps to which element.  Both are needed for
+    the file to be usable, so we write the file ourselves.
+    """
+    from ase.data import atomic_masses, atomic_numbers
+
+    lat = structure.lattice
+    symbols = [element_symbol(site) for site in structure]
+    order: list[str] = []
+    for symbol in symbols:
+        if symbol not in order:
+            order.append(symbol)
+    type_of = {symbol: index + 1 for index, symbol in enumerate(order)}
+    lines = [f"# LAMMPS data written by cifkit: {_comment(structure, title)}",
+             "# type -> element: " + ", ".join(f"{type_of[s]}={s}" for s in order),
+             "# NOTE: force field (pair_style/pair_coeff) and charges are NOT included.",
+             "",
+             f"{len(structure)} atoms",
+             f"{len(order)} atom types",
+             "",
+             f"0.0 {lat.a:.10f} xlo xhi",
+             f"0.0 {lat.b:.10f} ylo yhi",
+             f"0.0 {lat.c:.10f} zlo zhi",
+             "",
+             "Masses",
+             ""]
+    for symbol in order:
+        lines.append(f"  {type_of[symbol]:4d} {atomic_masses[atomic_numbers[symbol]]:.6f} "
+                     f"# {symbol}")
+    lines += ["", "Atoms # atomic", ""]
+    import numpy as np
+
+    cart = structure.frac_coords @ np.array(lat.matrix)
+    for index, (symbol, xyz) in enumerate(zip(symbols, cart), start=1):
+        lines.append(f"  {index:6d} {type_of[symbol]:4d} "
+                     f"{xyz[0]:.10f} {xyz[1]:.10f} {xyz[2]:.10f}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _qe_pseudopotentials(structure: Structure, pseudopotentials: dict[str, str] | None = None) -> dict[str, str]:
