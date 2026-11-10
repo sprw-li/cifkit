@@ -85,6 +85,9 @@ def main() -> int:
             "exit": proc.returncode, "seconds": round(time.time() - started, 1),
             "accepted": "reading atoms from data file" in blob.lower()
                         or "read_data" in blob.lower() or proc.returncode == 0,
+            # no force field -> this is a geometry parse + zero-potential energy
+            # evaluation, not a real calculation
+            "calculation_completed": False,
             "tail": blob[-1200:]})
         print(f"[LAMMPS] exit={proc.returncode}")
 
@@ -100,6 +103,7 @@ def main() -> int:
             "code": "GROMACS", "input": "conf.gro (cifkit export)",
             "exit": proc.returncode, "seconds": round(time.time() - started, 1),
             "accepted": (workdir / "out.gro").is_file(),
+            "calculation_completed": False,
             "tail": blob[-1200:]})
         print(f"[GROMACS] exit={proc.returncode}")
 

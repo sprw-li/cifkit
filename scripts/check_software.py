@@ -277,11 +277,104 @@ def run_case(software: Software, timeout: float) -> None:
             software.run_detail = f"exit {proc.returncode}: {tail}"
 
 
+#: levels used for cloud evidence
+LEVELS = ("verified", "accepted", "blocked")
+
+
+def classify_cloud_evidence(root: Path) -> dict:
+    """Turn the cloud artifacts into a per-code acceptance level.
+
+    * ``verified`` — a real binary ran a case to a success marker
+      (NWChem's ``Total times`` / ``PROGRAM ENDED AT`` style markers);
+    * ``accepted`` — a real binary parsed our file (and, for LAMMPS, completed a
+      ``run 0`` energy evaluation) but no force field / full calculation;
+    * ``blocked``  — the code itself is unusable in that image (upstream), proven
+      by a *canonical* input failing the same way.
+
+    Returns ``{code: {"level": ..., "evidence": str, "detail": str}}``; missing or
+    malformed artifacts are simply skipped (this must never crash a report).
+    """
+    result: dict[str, dict] = {}
+    if not root.is_dir():
+        return result
+
+    def record(code: str, level: str, evidence: Path, detail: str) -> None:
+        current = result.get(code)
+        rank = {"verified": 3, "accepted": 2, "blocked": 1}
+        if current is None or rank[level] > rank[current["level"]]:
+            result[code] = {"level": level, "evidence": str(evidence), "detail": detail}
+
+    def newest(pattern: str) -> list[Path]:
+        paths = [p for p in root.glob(pattern) if p.is_file()]
+        return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
+
+    for path in newest("artifacts_*/acceptance_result.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for row in payload.get("codes", []):
+            if row.get("status") == "verified":
+                record(row.get("code", "?"), "verified", path,
+                       f"binary {row.get('binary')}, exit {row.get('exit')}")
+
+    for path in newest("artifacts_*/our_template_result.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if payload.get("finished_normally"):
+            record("NWChem (cifkit template)", "verified", path,
+                   f"{payload.get('case')} ran to a normal end in {payload.get('seconds')}s")
+
+    for path in newest("artifacts_*/parse_accept.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for case in payload.get("cases", []):
+            if not case.get("accepted"):
+                continue
+            # Parse-level cases count as ``accepted`` unless the probe says a
+            # real calculation completed (LAMMPS/GROMACS have no force field here).
+            level = "verified" if case.get("calculation_completed") else "accepted"
+            completed = bool(case.get("calculation_completed"))
+            record(case.get("code", "?"), level, path,
+                   f"input {case.get('input')} exit {case.get('exit')} "
+                   f"(calculation_completed={completed})")
+
+    for path in newest("artifacts_*/qe_minimal.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        cases = payload.get("cases", [])
+        canonical = next((c for c in cases if c.get("case") == "canonical"), None)
+        if canonical and canonical.get("abort"):
+            record("Quantum ESPRESSO", "blocked", path,
+                   "canonical H2O input also SIGABRTs -> upstream binary, not our template")
+
+    for path in newest("artifacts_*/apt_packages.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        policy = payload.get("policy", {})
+        if "Candidate: (none)" in (policy.get("cp2k") or ""):
+            record("CP2K", "blocked", path,
+                   "cp2k is absent from the image's apt mirror (Candidate: none)")
+
+    return result
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", action="store_true", help="actually execute minimal cases")
     ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--json", default=str(ROOT / "runs" / "check_software.json"))
+    ap.add_argument("--cloud", dest="cloud", action="store_true", default=True,
+                    help="also ingest runs/cloud_h3 real-run evidence (default on)")
+    ap.add_argument("--no-cloud", dest="cloud", action="store_false")
     args = ap.parse_args()
 
     for software in SOFTWARE:
@@ -303,6 +396,16 @@ def main() -> int:
               + (f"  ({software.run_detail})" if software.run_detail else ""))
     print("\nstatus counts:", counts)
 
+    cloud = classify_cloud_evidence(ROOT / "runs" / "cloud_h3") if args.cloud else {}
+    if cloud:
+        print("\ncloud evidence (real binaries, from runs/cloud_h3):")
+        for code, row in sorted(cloud.items()):
+            print(f"  {row['level']:9s} {code:26s} {row['detail']}")
+        cloud_counts: dict[str, int] = {}
+        for row in cloud.values():
+            cloud_counts[row["level"]] = cloud_counts.get(row["level"], 0) + 1
+        print("  cloud counts:", cloud_counts)
+
     report = {
         "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "ran": bool(args.run),
@@ -314,9 +417,15 @@ def main() -> int:
             "run_status": s.run_status if s.found else "not-installed",
             "run_detail": s.run_detail, "note": s.note,
         } for s in SOFTWARE],
+        "cloud": cloud,
+        "cloud_counts": (lambda: {level: sum(1 for row in cloud.values()
+                                             if row["level"] == level)
+                                  for level in LEVELS})() if cloud else {},
         "honesty": (
-            "「检测到可执行文件」≠「输入被接受」。只有 run_status='verified' 才算真实验证；"
-            "本报告不改变 docs/LIMITATIONS.md H3 的状态，除非至少一个代码达到 verified。"
+            "「检测到可执行文件」≠「输入被接受」，本地 verified 只代表本机跑通；"
+            "cloud 段的证据来自 runs/cloud_h3 里真实容器的运行记录："
+            "verified=完整跑到成功标记，accepted=真实二进制接受了我们的文件（无完整计算），"
+            "blocked=该镜像里的软件本身不可用（有 canonical 对照）。"
         ),
     }
     out = Path(args.json)

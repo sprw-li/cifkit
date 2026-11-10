@@ -551,3 +551,23 @@ label 调了 `os.path.abspath`。这种文件在容器/集群上直接不可用�
 `Bohrium 模型网关按量结算`，单次 48-68 光子），余额从 25 067 降到 **6**；
 按实测 0.157 光子/秒（4090），8×4090×6 min 约需 ~1 400 光子，因此**当前余额下大并发被门禁拒绝**。
 详见 [docs/CLOUD-GPU.md](CLOUD-GPU.md)（含 10 条并行审计发现与修复）。
+
+### 8.22 验收报告吸收云端证据（round 34）
+
+`scripts/check_software.py` 以前只报告"本机装了什么"。现在它还会读取 `runs/cloud_h3/` 下
+真实容器的运行记录，按三级分类：
+
+| 级别 | 含义 | 当前证据 |
+|---|---|---|
+| `verified` | 真实二进制跑到成功标记 | `NWChem`（最小算例 exit 0）、`NWChem (cifkit template)`（`Total times` 1032.3 s） |
+| `accepted` | 真实二进制**接受**了我们的文件，但没有完整计算 | `LAMMPS`（`read_data` + `run 0` exit 0）、`GROMACS`（`editconf` exit 0） |
+| `blocked` | 该镜像里的软件本身不可用（有 canonical 对照） | `QE 6.7`（canonical H2O 也 SIGABRT）、`CP2K`（镜像无此包） |
+
+实现要点（都是踩过的坑）：
+- 同一代码多次尝试时**按 mtime 取最新**（否则修复后的 exit 0 会被旧记录覆盖）；
+- `parse_accept` 类证据默认 `accepted`，只有探针显式声明 `calculation_completed` 才算 `verified`
+  —— LAMMPS/GROMACS 没有力场，不能冒充"算过"；
+- 产物缺失或损坏时**跳过**而不是让报告崩掉。
+
+`runs/check_software.json` 因此同时包含 `counts`（本机）与 `cloud_counts`（云端），
+`cloud` 段每条都带证据路径。
