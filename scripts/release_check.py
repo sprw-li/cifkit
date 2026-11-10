@@ -162,6 +162,20 @@ def main() -> int:
                f"verified={verified}/{len(software['software'])} (informational: H3 stays open)",
                warning=True)
 
+    ci_path = ROOT / "runs" / "check_ci.json"
+    if ci_path.is_file():
+        ci_report = json.loads(ci_path.read_text(encoding="utf-8"))
+        bad = [item["check"] for item in ci_report.get("checks", []) if not item.get("ok")]
+        record("artifacts: CI definition matches the repository",
+               ci_report.get("ok", False),
+               f"{len(ci_report.get('checks', []))} checks"
+               + (f" (failed: {bad})" if bad else ""))
+        report["ci"] = {"ok": ci_report.get("ok"), "checks": len(ci_report.get("checks", []))}
+    else:
+        record("artifacts: CI definition matches the repository", True,
+               "runs/check_ci.json not generated in this run (informational)",
+               warning=True)
+
     bundles_path = ROOT / "runs" / "check_bundles.json"
     if bundles_path.is_file():
         bundles = json.loads(bundles_path.read_text(encoding="utf-8"))

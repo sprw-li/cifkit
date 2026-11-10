@@ -218,6 +218,15 @@ def main() -> int:
     checks.append(("sca_scan --strict", *run(
         "sca", [str(PY), str(ROOT / "scripts" / "sca_scan.py"), "--strict"], timeout=600)))
 
+    # round 40: the bundle-consistency and portability gates were added recently;
+    # wiring them here means CI covers them too (see scripts/check_ci.py, which
+    # fails when a gate script is unreachable from the workflow).
+    checks.append(("check_bundles", *run(
+        "bundles", [str(PY), str(ROOT / "scripts" / "check_bundles.py")], timeout=900)))
+
+    checks.append(("check_portability", *run(
+        "portability", [str(PY), str(ROOT / "scripts" / "check_portability.py")], timeout=900)))
+
     if args.adversarial:
         checks.append(("adversarial_check", *run(
             "adversarial", [str(PY), str(ROOT / "scripts" / "adversarial_check.py")], timeout=2400)))

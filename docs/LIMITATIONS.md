@@ -126,7 +126,7 @@
 | H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
 | H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3a | 云端验收管线**已跑通**：Bohrium `batchjob`（光子付费）提交 → 调度 → 运行 → 取回；**NWChem 7.2.2 接受并跑完**本项目写的最小自洽算例（`Total times` 输出、exit 0、作业 succeeded，237 s / 5 光子） | ✅ | 只覆盖 NWChem；VASP/QE/CP2K/ORCA 等本机与云端镜像都没有 | `runs/cloud_h3/CLOUD-LOG.md`（5 个作业的 jobId/耗时/光子）、`runs/cloud_h3/artifacts_cp2k/acceptance_result.json`、`scripts/cloud_h3_submit.py --bohr-status` |
-| H4 | 已提供**跨平台 CI workflow**（ubuntu/macos/windows × py3.11/3.13 + wheel 构建），但**从未在 Linux/macOS 上真正执行过**（本机只有 Windows） | 🟡 | 首次 CI 运行前不能宣称跨平台可用 | 每个 CI 步骤都是本机可复跑的同一命令（check_eol / sca_scan / verify_formats / adversarial / pytest / check_all）；CI 里强制 `core.autocrlf=false` 以验证 eol=lf 契约 | .github/workflows/ci.yml；docs/LIMITATIONS.md G6 |
+| H4 | CI workflow **仍未在真实 runner 上跑过**（本机只有 Windows）；但已加**定义漂移门禁**：`scripts/check_ci.py` 解析 workflow，校验 10 项（两个 job、3 OS × 2 Python、3.11 在列、LF 设置、引用的脚本都存在、**每个 gate 脚本都能从 CI 到达**、每个非 CI 脚本都有明确 on-demand 归类、import 冒烟指向真实模块） | 🟡 | 只证明「定义与仓库一致」，不证明其它 OS 能跑 | `scripts/check_ci.py`（可 `--run` 在本机执行可移植步骤）、`tests/test_check_ci.py`（5 条，含注入缺失脚本的负例）、`release_check` 门禁；**同时把 check_bundles/check_portability 接进 check_all（现 7 组）**，让 CI 通过 check_all 覆盖它们 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 
 ## I. 环境 / 网络 / 依赖获取

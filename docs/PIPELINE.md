@@ -634,3 +634,22 @@ pip install --no-deps --no-index --target runs/dist_target runs/dist/cifkit-0.1.
 已修正并把"有规则的检查"变成发布门禁的一环（`release_check` 第 13 道门）。
 测试用**故意破坏的 bundle** 验证检查器真的会失败（删 `in.min`、删 `geo.gen`、改名目标文件、伪造 POTCAR），
 避免"检查器永远通过"。
+
+### 8.26 CI 定义漂移检查（round 40）
+
+CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/check_ci.py` 解析
+`.github/workflows/ci.yml`，校验：
+
+1. 有 `test` 与 `build` 两个 job；
+2. matrix 是 **3 OS × 2 Python**，且声明的最低版本 3.11 在列；
+3. workflow 里固定了 `core.autocrlf false`（否则 Windows 的 EOL 证据是假的）；
+4. **引用的每个脚本都存在**；
+5. **每个 gate 脚本都能从 CI 到达**（直接调用，或经 `check_all` 间接）；
+6. **每个非 CI 脚本都有明确的 on-demand 归类 + 理由**（新增脚本不会被静默忽略）；
+7. import 冒烟指向真实模块。
+
+实现过程中修掉两个自身缺陷：注释里提到 `scripts/check_ci.py` 一度被当成"gate 脚本"；
+"可达"的定义在检查器与测试间不一致。现在两者共用同一个 `analyse()`。
+
+顺带把 `check_bundles` 与 `check_portability` 接进 `check_all`（**7 组**），
+于是 CI 通过 `check_all` 自动覆盖它们；`release_check` 也新增此门。
