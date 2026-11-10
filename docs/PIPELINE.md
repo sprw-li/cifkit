@@ -571,3 +571,28 @@ label 调了 `os.path.abspath`。这种文件在容器/集群上直接不可用�
 
 `runs/check_software.json` 因此同时包含 `counts`（本机）与 `cloud_counts`（云端），
 `cloud` 段每条都带证据路径。
+
+### 8.23 打包验证（round 35，`scripts/check_package.py`）
+
+以前"打包"只存在于 CI 定义里，本机从没构建过。现在一条命令走完闭环：
+
+```
+pip wheel . --no-deps --no-build-isolation -w runs/dist
+pip install --no-deps --no-index --target runs/dist_target runs/dist/cifkit-0.1.0-*.whl
+# 换一个工作目录、PYTHONPATH 指向 dist_target，再从"安装副本"导入
+```
+
+**首次运行就抓到一个真问题**：`pyproject.toml` 的 `package-data` 只声明了 `data/**/*`，
+**漏了 `cifkit/schemas/*.json`** —— 安装后 `cifkit.contract` 与 `--dump` 会因找不到 schema 失败。
+补上后复验：
+
+| 检查 | 结果 |
+|---|---|
+| wheel | 70 文件 / 237 KB，含 4 个 schema + 6 个拓扑参考 |
+| 导入副本 | `loaded_from=runs/dist_target/cifkit`、`is_target_copy=true`、`API_VERSION=1.0` |
+| 服务 | `service.handle({"op":"capabilities"})` → ok |
+| CLI | `python -m cifkit formats` 正常 |
+| 拓扑数据 | 6 个参考网络**全部 verify 通过**（证明 package-data 真的进了包） |
+
+门禁：`release_check --package`（opt-in）+ `tests/test_packaging.py`（5 条，含
+"schema 必须声明为 package-data"的回归测试）。

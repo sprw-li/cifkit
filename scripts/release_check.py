@@ -74,6 +74,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="skip the full pytest suite")
     ap.add_argument("--allow-dirty", action="store_true")
+    ap.add_argument("--package", action="store_true",
+                    help="构建 wheel 并在干净目录里安装/导入/跑 CLI（较慢）")
     ap.add_argument("--perf", action="store_true",
                     help="额外跑性能回归门禁（与 runs/perf_baseline.json 比较，较慢）")
     ap.add_argument("--json", default=str(ROOT / "runs" / "release_check.json"))
@@ -186,6 +188,23 @@ def main() -> int:
                f"failed={summary.get('failed')} (as of {live.get('checked_at')})",
                warning=bool(summary.get("failed")))
         report["sources_live"] = summary
+
+    if args.package:
+        package = run([PY, str(ROOT / "scripts" / "check_package.py")], ROOT, timeout=1800)
+        package_path = ROOT / "runs" / "check_package.json"
+        if package_path.is_file():
+            package_report = json.loads(package_path.read_text(encoding="utf-8"))
+            probe = package_report.get("probe") or {}
+            record("package: wheel builds, installs and imports",
+                   bool(package_report.get("ok")),
+                   f"{package_report.get('wheel_files')} files, "
+                   f"schemas={len(package_report.get('packaged_schemas', []))}, "
+                   f"nets={len(package_report.get('packaged_nets', []))}, "
+                   f"topology={package_report.get('topology')}")
+            report["package"] = {"ok": package_report.get("ok"), "probe": probe}
+        else:
+            record("package: wheel builds, installs and imports", False,
+                   f"check_package exit {package.returncode} without a report")
 
     if args.perf:
         perf_cmd = [PY, str(ROOT / "scripts" / "perf_gate.py"), "--check"]

@@ -27,7 +27,7 @@ cifkit = "cifkit.cli:main"
 include = ["cifkit*"]
 
 [tool.setuptools.package-data]
-cifkit = ["data/**/*"]
+cifkit = ["data/**/*", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

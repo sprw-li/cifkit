@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 12 ✅（已修/已覆盖） / 65 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 77 条局限 = 13 ✅（已修/已覆盖） / 64 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -18,7 +18,7 @@
 | F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
 | G | 性能 / 并发 / 稳定性 | 7 | 1 | 6 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
-| I | 环境 / 网络 / 依赖获取 | 5 | 0 | 5 | 0 |
+| I | 环境 / 网络 / 依赖获取 | 5 | 1 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
 | L | 许可 / 商用合规 | 16 | 4 | 12 | 0 |
 
@@ -137,7 +137,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| H6 | **打包/发布未验证**：`python -m build` 与 wheel 安装只在 CI 里跑过定义、本机未执行（无 build 工具/无 PyPI 流程） | 🟡 | 发行物可能有打包缺陷（package-data、入口点） | CI 的 build job 会 `pip install dist/*.whl` 并 import 四个子模块 | .github/workflows/ci.yml |
+| H6 | 打包/发布：**已在本机实跑验证**——`pip wheel` 构建出 70 文件的 wheel（237 KB），用 `pip install --no-deps --target` 装进干净目录后**从安装副本导入**（`is_target_copy=true`）、CLI 可跑、4 个 contract schema 与 6 个拓扑参考都在包内且全部 verify 通过 | ✅ | 仍缺的是 PyPI 上传与多平台测试（CI 定义已有） | `scripts/check_package.py`（构建→安装→导入→CLI→拓扑，写 runs/check_package.json）；`release_check --package`；`tests/test_packaging.py`（5 条，含 package-data 声明回归） |
 | I1 | 不提供 POTCAR/UPF/skf/力场/basis（许可与体积） | 🟡 | 用户必须自备 | bundle `missing` 明确列出 | docs/EXPORT |
 | I2 | 数据许可：CoRE CC-BY-4.0；COD 公有领域；MP/AFLOW 条款；QMOF 派生自 CoRE/CSD | 🟡 | 再分发前需核对 | SOURCES/pipeline 记录 DOI/license | docs/SOURCES |
 | I3 | 本环境网络受限：figshare 不稳、rcsr.anu.edu.au 不可达 | 🟡 | QMOF/RCSR 在线验证受限 | 本地镜像/缓存优先 | docs/SOURCES |
