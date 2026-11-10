@@ -596,3 +596,25 @@ pip install --no-deps --no-index --target runs/dist_target runs/dist/cifkit-0.1.
 
 门禁：`release_check --package`（opt-in）+ `tests/test_packaging.py`（5 条，含
 "schema 必须声明为 package-data"的回归测试）。
+
+### 8.24 并发实测：batch 与 dataset（round 36）
+
+**batch（`cifkit batch --jobs N`）**——8 个真实 pipeline 作业，两次独立运行：
+
+| jobs | 用时 | 加速 | 效率 |
+|---|---|---|---|
+| 1 | 147-149 s | 1.00× | 1.00 |
+| 2 | 90 s | 1.66× | 0.83 |
+| 4 | 51-72 s | 2.05-2.93× | 0.51-0.73 |
+| 8 | 39-48 s | **3.11-3.85×** | 0.39-0.48 |
+| 16 | 53 s | 2.78× | 0.17 |
+
+**结论**：扩展是真的但次线性；**16 反而比 8 慢**（过订阅）。推荐 `--jobs 4`（效率高）或 8（吞吐最高）。
+
+**dataset（新增 `--jobs`）**——40 run 语料、`rdf=True`：jobs=1/2/4/8 → 13.7/14.9/13.8/12.9 s
+（**0.92-1.06×，无加速**）。原因是 GIL：pymatgen 解析 + 纯 Python 特征都在同一解释器里。
+`--jobs` 保留的价值是**语义正确**（顺序保持、在飞窗口 jobs×2、`max_rows_held=1`、
+与串行输出逐字节一致，有测试保证），吞吐要靠**语料分片跑多进程/多机**。
+
+> 所有数字都在共享机器上测得，属于数量级证据，不是承诺；`scripts/bench_batch_scale.py`
+> 与 `.probe/bench_dataset_jobs.py` 可随时复测。

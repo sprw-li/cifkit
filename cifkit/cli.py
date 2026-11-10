@@ -538,6 +538,7 @@ def cmd_dataset(args) -> int:
         copy_structures=not args.no_structures,
         label_key=args.label_key,
         stream=not getattr(args, "no_stream", False),
+        jobs=getattr(args, "jobs", 1),
     )
     if args.json:
         _print_json(result)
@@ -887,6 +888,8 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--label-key", default=None, help="用 manifest/provenance 里的哪个字段作 label（如 topology/doi/source）")
     ds.add_argument("--no-features", action="store_true")
     ds.add_argument("--no-structures", action="store_true")
+    ds.add_argument("--jobs", type=int, default=1,
+                    help="并行处理 run 数（默认 1；顺序保持、在飞窗口有界）")
     ds.add_argument("--json", action="store_true")
     ds.set_defaults(func=cmd_dataset)
 

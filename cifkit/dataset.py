@@ -126,70 +126,103 @@ def _label_from(run: dict[str, Any], key: str | None) -> Any:
     return None
 
 
+def _unique_run_id(run: dict, index: int, used: dict[str, int]) -> str:
+    run_dir = Path(run.get("run_dir", ""))
+    run_id = run_dir.name or f"run{index}"
+    if run_id in used:
+        used[run_id] += 1
+        run_id = f"{run_id}_{used[run_id]}"
+    else:
+        used[run_id] = 1
+    return run_id
+
+
+def _run_row(run: dict, run_id: str, *, features: bool, copy_structures: bool,
+             label_key: str | None, rdf: bool, topology: bool,
+             struct_dir: Path | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Process one run: the single implementation used by both code paths."""
+    if run.get("error"):
+        return {"run_id": run_id, "error": run["error"]}, None
+    struct_path = _structure_path(run)
+    if struct_path is None:
+        return {"run_id": run_id, "error": "no structure artifact in manifest"}, None
+    try:
+        if features:
+            from pymatgen.core import Structure
+
+            structure = Structure.from_file(str(struct_path))
+            row = extract_features(structure, rdf=rdf, topology=topology)
+        else:
+            row = {}
+    except Exception as exc:  # noqa: BLE001
+        return {"run_id": run_id,
+                "error": f"features failed: {type(exc).__name__}: {exc}"}, None
+    record = (run.get("source") or {}).get("record") or {}
+    base: dict[str, Any] = {
+        "run_id": run_id,
+        "source": (run.get("source") or {}).get("source") or record.get("source"),
+        "record_id": record.get("record_id"),
+        "topology_evidence": record.get("topology_evidence"),
+        "structure_file": str(struct_path),
+        "label": _label_from(run, label_key),
+    }
+    base.update(row)
+    # `after` holds keys that the materialised path appends *after* the feature
+    # columns, so the streamed CSV keeps the legacy column order byte-for-byte.
+    after: dict[str, Any] = {}
+    if copy_structures and struct_dir is not None:
+        target = struct_dir / f"{run_id}.cif"
+        try:
+            shutil.copyfile(struct_path, target)
+            base["structure_copy"] = str(target)
+        except Exception as exc:  # noqa: BLE001
+            base["copy_error"] = f"copy failed: {exc}"
+        for key in ("structure_copy", "copy_error"):
+            if key in base:
+                after[key] = base.pop(key)
+    meta = {k: v for k, v in base.items() if k not in row and k not in after}
+    return base, {"run_id": run_id, "features": row, "manifest": run.get("manifest"),
+                  "meta": meta, "after": after}
+
+
 def iter_runs(source: str | Path, *, features: bool = True, copy_structures: bool = True,
               label_key: str | None = None, rdf: bool = True, topology: bool = False,
-              struct_dir: Path | None = None) -> Iterator[tuple[dict[str, Any], dict[str, Any] | None]]:
+              struct_dir: Path | None = None, jobs: int = 1
+              ) -> Iterator[tuple[dict[str, Any], dict[str, Any] | None]]:
     """Yield ``(row, jsonl_object)`` per usable run — the streaming core.
 
     ``jsonl_object`` is ``None`` for failed runs; those come back as a row whose
     ``error`` key is set (and ``run_id``), so the caller can record them and still
     emit a row-count-consistent dataset.
-    """
-    used_ids: dict[str, int] = {}
-    for index, run in enumerate(iter_manifests(source)):
-        run_dir = Path(run.get("run_dir", ""))
-        run_id = run_dir.name or f"run{index}"
-        if run_id in used_ids:
-            used_ids[run_id] += 1
-            run_id = f"{run_id}_{used_ids[run_id]}"
-        else:
-            used_ids[run_id] = 1
-        if run.get("error"):
-            yield {"run_id": run_id, "error": run["error"]}, None
-            continue
-        struct_path = _structure_path(run)
-        if struct_path is None:
-            yield {"run_id": run_id, "error": "no structure artifact in manifest"}, None
-            continue
-        try:
-            if features:
-                from pymatgen.core import Structure
 
-                structure = Structure.from_file(str(struct_path))
-                row = extract_features(structure, rdf=rdf, topology=topology)
-            else:
-                row = {}
-        except Exception as exc:  # noqa: BLE001
-            yield {"run_id": run_id,
-                   "error": f"features failed: {type(exc).__name__}: {exc}"}, None
-            continue
-        record = (run.get("source") or {}).get("record") or {}
-        base: dict[str, Any] = {
-            "run_id": run_id,
-            "source": (run.get("source") or {}).get("source") or record.get("source"),
-            "record_id": record.get("record_id"),
-            "topology_evidence": record.get("topology_evidence"),
-            "structure_file": str(struct_path),
-            "label": _label_from(run, label_key),
-        }
-        base.update(row)
-        # `after` holds keys that the materialised path appends *after* the feature
-        # columns, so the streamed CSV keeps the legacy column order byte-for-byte.
-        after: dict[str, Any] = {}
-        if copy_structures and struct_dir is not None:
-            target = struct_dir / f"{run_id}.cif"
-            try:
-                shutil.copyfile(struct_path, target)
-                base["structure_copy"] = str(target)
-            except Exception as exc:  # noqa: BLE001
-                base["copy_error"] = f"copy failed: {exc}"
-            # keep the legacy column order: these keys come *after* the features
-            for key in ("structure_copy", "copy_error"):
-                if key in base:
-                    after[key] = base.pop(key)
-        meta = {k: v for k, v in base.items() if k not in row and k not in after}
-        yield base, {"run_id": run_id, "features": row, "manifest": run.get("manifest"),
-                     "meta": meta, "after": after}
+    ``jobs > 1`` runs the per-run work (structure parsing + features, both of which
+    release the GIL inside pymatgen/numpy) on a bounded thread pool.  Order is
+    preserved and at most ``jobs * 2`` runs are in flight, so streaming memory
+    bounds still hold.
+    """
+    kwargs = dict(features=features, copy_structures=copy_structures, label_key=label_key,
+                  rdf=rdf, topology=topology, struct_dir=struct_dir)
+    used_ids: dict[str, int] = {}
+
+    if not jobs or jobs <= 1:
+        for index, run in enumerate(iter_manifests(source)):
+            run_id = _unique_run_id(run, index, used_ids)
+            yield _run_row(run, run_id, **kwargs)
+        return
+
+    from collections import deque
+    from concurrent.futures import ThreadPoolExecutor
+
+    window = max(1, int(jobs)) * 2
+    with ThreadPoolExecutor(max_workers=int(jobs)) as pool:
+        pending: deque = deque()
+        for index, run in enumerate(iter_manifests(source)):
+            run_id = _unique_run_id(run, index, used_ids)
+            pending.append(pool.submit(_run_row, run, run_id, **kwargs))
+            if len(pending) >= window:
+                yield pending.popleft().result()
+        while pending:
+            yield pending.popleft().result()
 
 
 def _write_jsonl(path: Path, rows: Iterator[tuple[dict[str, Any], dict[str, Any] | None]],
@@ -259,8 +292,13 @@ def build_dataset(
     rdf: bool = True,
     topology: bool = False,
     stream: bool = True,
+    jobs: int = 1,
 ) -> dict[str, Any]:
-    """Build a dataset from pipeline runs; returns a summary dict."""
+    """Build a dataset from pipeline runs; returns a summary dict.
+
+    ``jobs`` parallelises the per-run parsing/feature work (order preserved,
+    bounded in-flight window); ``jobs=1`` is the classic sequential stream.
+    """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     struct_dir = out / "structures"
@@ -274,7 +312,8 @@ def build_dataset(
         stats: dict[str, Any] = {"errors": [], "failed_rows": [], "n_rows": 0, "max_rows_held": 0}
         rows_gen = iter_runs(source, features=features, copy_structures=copy_structures,
                              label_key=label_key, rdf=rdf, topology=topology,
-                             struct_dir=struct_dir if copy_structures else None)
+                             struct_dir=struct_dir if copy_structures else None,
+                             jobs=jobs)
         _write_jsonl(jsonl_path, rows_gen, stats=stats)
         _csv_from_jsonl(jsonl_path, csv_path)
         summary = {
