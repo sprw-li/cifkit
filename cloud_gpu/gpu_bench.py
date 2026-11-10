@@ -57,73 +57,88 @@ def build_inputs(size: int, device, dtype):
 
 def bench_device(torch, index: int, size: int, warmup: int, iters: int,
                  l2_flush_mb: int) -> dict:
-    """Throughput of one device (same method as the single-GPU path)."""
-    device = torch.device(f"cuda:{index}")
-    props = torch.cuda.get_device_properties(index)
-    a, b = build_inputs(size, device, torch.float32)
-    c = torch.empty(size, size, device=device, dtype=torch.float32)
-    for _ in range(warmup):
-        torch.mm(a, b, out=c)
-    torch.cuda.synchronize()
-    cache = torch.empty(l2_flush_mb * 1024 * 1024 // 4, dtype=torch.int32, device=device)
-    events = [(torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True))
-              for _ in range(iters)]
-    for start, stop in events:
-        cache.zero_()
-        start.record()
-        torch.mm(a, b, out=c)
-        stop.record()
-    torch.cuda.synchronize()
-    samples = sorted(start.elapsed_time(stop) / 1000.0 for start, stop in events)
-    median = statistics.median(samples)
-    del a, b, c, cache
-    torch.cuda.empty_cache()
+    """Throughput of one device.
+
+    Round 31 defect fixed: CUDA events record on the **current** device, so
+    benchmarking cuda:1 without ``torch.cuda.device(1)`` timed device 0 while the
+    matmul ran on device 1 — the result was ~10x too fast with 82% variance.
+    """
+    with torch.cuda.device(index):
+        device = torch.device(f"cuda:{index}")
+        props = torch.cuda.get_device_properties(index)
+        a, b = build_inputs(size, device, torch.float32)
+        c = torch.empty(size, size, device=device, dtype=torch.float32)
+        for _ in range(warmup):
+            torch.mm(a, b, out=c)
+        torch.cuda.synchronize(index)
+        cache = torch.empty(l2_flush_mb * 1024 * 1024 // 4, dtype=torch.int32, device=device)
+        events = [(torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True))
+                  for _ in range(iters)]
+        for start_event, stop_event in events:
+            cache.zero_()
+            start_event.record()
+            torch.mm(a, b, out=c)
+            stop_event.record()
+        torch.cuda.synchronize(index)
+        samples = sorted(start_event.elapsed_time(stop_event) / 1000.0
+                         for start_event, stop_event in events)
+        median = statistics.median(samples)
+        del a, b, c, cache
+        torch.cuda.empty_cache()
     return {"index": index, "name": props.name, "sm_count": props.multi_processor_count,
             "median_s": median, "gflops": 2.0 * size ** 3 / median / 1e9,
             "n": len(samples), "cv": statistics.pstdev(samples) / median if median else None}
 
 
 def concurrent_aggregate(torch, size: int, warmup: int, iters: int) -> dict | None:
-    """All visible GPUs computing *at the same time* (threads, one per device).
+    """All visible GPUs computing **at the same time** (threads, one per device).
 
-    This is the honest "many GPUs at once" measurement: aggregate GFLOPS across
-    devices, reported next to the per-device numbers so scaling efficiency is
-    visible instead of asserted.
+    Events are created *inside* each device's context, and each thread times its
+    own loop; the wall clock around all threads gives the aggregate, so scaling
+    efficiency (aggregate vs sum of single-device numbers) is visible.
     """
     import threading
 
     count = torch.cuda.device_count()
     if count < 2:
         return None
-    tensors = {}
+    state = {}
     for index in range(count):
-        device = torch.device(f"cuda:{index}")
-        a, b = build_inputs(max(512, size // 2), device, torch.float32)
-        c = torch.empty_like(a)
-        for _ in range(warmup):
-            torch.mm(a, b, out=c)
-        tensors[index] = (device, a, b, c)
-    for index in range(count):
-        torch.cuda.synchronize(index)
-
-    def worker(index: int, repeats: int) -> None:
-        device, a, b, c = tensors[index]
-        with torch.cuda.device(device):
-            for _ in range(repeats):
+        with torch.cuda.device(index):
+            device = torch.device(f"cuda:{index}")
+            a, b = build_inputs(size, device, torch.float32)
+            c = torch.empty(size, size, device=device, dtype=torch.float32)
+            for _ in range(warmup):
                 torch.mm(a, b, out=c)
-            torch.cuda.synchronize()
+            torch.cuda.synchronize(index)
+            state[index] = {"device": device, "a": a, "b": b, "c": c,
+                            "elapsed": None}
 
-    threads = [threading.Thread(target=worker, args=(i, iters)) for i in range(count)]
-    started = time.perf_counter()
+    def worker(index: int) -> None:
+        with torch.cuda.device(index):
+            info = state[index]
+            started = time.perf_counter()
+            for _ in range(iters):
+                torch.mm(info["a"], info["b"], out=info["c"])
+            torch.cuda.synchronize(index)
+            info["elapsed"] = time.perf_counter() - started
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(count)]
+    wall_started = time.perf_counter()
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    elapsed = time.perf_counter() - started
-    small = max(512, size // 2)
-    return {"devices": count, "seconds": elapsed,
-            "aggregate_gflops": count * iters * 2.0 * small ** 3 / elapsed / 1e9,
-            "per_device_gflops": count * iters * 2.0 * small ** 3 / elapsed / 1e9 / count}
+    wall = time.perf_counter() - wall_started
+    per_device_gflops = [2.0 * size ** 3 * iters / info["elapsed"] / 1e9
+                         for info in state.values() if info["elapsed"]]
+    aggregate = 2.0 * size ** 3 * iters * count / wall / 1e9
+    return {"devices": count, "wall_s": wall, "iters": iters,
+            "aggregate_gflops": aggregate,
+            "per_device_gflops": per_device_gflops,
+            "mean_device_gflops": statistics.mean(per_device_gflops),
+            "scaling_efficiency": (aggregate / (statistics.mean(per_device_gflops) * count))
+            if per_device_gflops else None}
 
 
 def main() -> int:
@@ -289,8 +304,7 @@ def main() -> int:
     report["device_count"] = device_count
     if args.all_devices or device_count > 1:
         def multi() -> dict:
-            per_device = [bench_device(torch, i, max(1024, args.size // 2),
-                                       args.warmup, max(3, args.iters // 2),
+            per_device = [bench_device(torch, i, args.size, args.warmup, args.iters,
                                        args.l2_flush_mb)
                           for i in range(device_count)]
             aggregate = concurrent_aggregate(torch, args.size, args.warmup, args.iters)
