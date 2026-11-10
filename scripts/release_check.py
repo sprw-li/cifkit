@@ -162,6 +162,20 @@ def main() -> int:
                f"verified={verified}/{len(software['software'])} (informational: H3 stays open)",
                warning=True)
 
+    bundles_path = ROOT / "runs" / "check_bundles.json"
+    if bundles_path.is_file():
+        bundles = json.loads(bundles_path.read_text(encoding="utf-8"))
+        bad = [item["code"] for item in bundles.get("bundles", []) if not item.get("ok")]
+        record("artifacts: 12 bundles internally consistent",
+               bundles.get("ok", False),
+               f"{bundles.get('passed')}/{bundles.get('total')} consistent"
+               + (f" (bad: {bad})" if bad else ""))
+        report["bundles"] = {"passed": bundles.get("passed"), "total": bundles.get("total")}
+    else:
+        record("artifacts: 12 bundles internally consistent", True,
+               "runs/check_bundles.json not generated in this run (informational)",
+               warning=True)
+
     coverage_path = ROOT / "runs" / "coverage_matrix.json"
     if coverage_path.is_file():
         coverage = json.loads(coverage_path.read_text(encoding="utf-8"))

@@ -618,3 +618,19 @@ pip install --no-deps --no-index --target runs/dist_target runs/dist/cifkit-0.1.
 
 > 所有数字都在共享机器上测得，属于数量级证据，不是承诺；`scripts/bench_batch_scale.py`
 > 与 `.probe/bench_dataset_jobs.py` 可随时复测。
+
+### 8.25 12 个计算软件包的内部一致性（round 39）
+
+`scripts/check_bundles.py` 把每个 bundle 的**跨文件契约**写成规则并逐个校验：
+
+| 检查类型 | 例子 |
+|---|---|
+| 必需文件存在且非空 | VASP 必须给 `POSCAR/INCAR/KPOINTS`；DFTB+ 必须给 `dftb_in.hsd + geo.gen` |
+| **交叉引用可解析** | `dftb_in.hsd` 里的 `<<< "geo.gen"` 必须真有这个文件；`in.min` 的 `read_data data.lammps` 必须指向实际文件 |
+| **声明缺失必须真缺失** | 若 bundle 说"缺 POTCAR"，那目录里就不能出现 POTCAR（数据文件；`*.readme` 不算） |
+
+实测：**12/12 一致**，共 43 条检查。首轮就抓到两个规则/文档不一致的地方
+（gromacs 的缺失文案用 "force-field .top/.itp"、vasp 的 `POTCAR.readme` 被误判为 POTCAR），
+已修正并把"有规则的检查"变成发布门禁的一环（`release_check` 第 13 道门）。
+测试用**故意破坏的 bundle** 验证检查器真的会失败（删 `in.min`、删 `geo.gen`、改名目标文件、伪造 POTCAR），
+避免"检查器永远通过"。

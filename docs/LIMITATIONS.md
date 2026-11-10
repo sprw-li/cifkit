@@ -84,7 +84,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供 | 🟡 | 不能"直接算" | bundle 带 `missing` 清单 + README；不谎称可运行 | docs/EXPORT §6 |
+| E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供；且这 12 个 bundle 的**跨文件契约现在被门禁校验**（必需文件、交叉引用、声明缺失必须真缺失，12/12 一致、43 条检查） | 🟡 | 模板仍不可直接运行（数据由用户提供），但**包内部不再自相矛盾**；检查器用故意破坏的包做过负例测试 | `scripts/check_bundles.py`、`cifkit/export/bundle_check.py`、`tests/test_bundle_check.py`（18 条）、`release_check` 第 13 道门 |
 | E2 | 第三方独立回读 **25/31**；5 个模板格式（abacus/cp2k/dftb/orca/siesta）**没有任何第三方读取器**：实测 ASE 的 `siesta`/`dftb`/`abacus`/`orca`/`cp2k` 模块都读不了我们的文件（`runs/probe_template_readers.json`） | 🟡 | 模板只能靠**自研严格解析**（不是独立回读）；png 用魔数 | 已把模板检查从「关键字存在」升级为**结构化解析**（`cifkit/export/template_check.py`：解析坐标块/原子数/元素集/晶胞，dftb 走 hsd+geo.gen 成对校验）；**这一步当场抓到一个真 bug**（ABACUS 每个物种块写了全部原子：16 原子出 48 行，已修 + 回归测试） | `runs/probe_template_readers.json`、`tests/test_template_check.py`、`tests/test_abacus_export.py`、`scripts/verify_formats.py`（31/31 ok，模板 reader 标 `strict-parse (in-house)`） |
 | E3 | 模板参数是默认值（ENCUT=520、2×2×2 k 点等），未做收敛测试 | 🟡 | 计算前必须自己收敛 | INCAR/KPOINTS/README 标注 | docs/EXPORT |
 | E4 | PDB/SDF/MOL 不表达周期性；GRO 只有 3 位小数；LAMMPS data 为 atom_style atomic | 🟡 | 不能直接用于周期体系/带电体系 | 用 extxyz/vasp/cif；LAMMPS 需补力场/电荷 | docs/EXPORT |
