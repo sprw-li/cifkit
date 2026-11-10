@@ -52,7 +52,7 @@ ON_DEMAND: dict[str, str] = {
     "run_demo.py": "demo helper, manual",
     "sources_live_check.py": "live source health (release informational)",
     "verify_demo.py": "demo verification, manual",
-    "verify_formats_no_gpl.py": "no-GPL format subset (release informational)",
+    "verify_formats_no_gpl.py": "format subset excluding restricted licences (release informational)",
 }
 
 

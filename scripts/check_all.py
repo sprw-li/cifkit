@@ -224,6 +224,9 @@ def main() -> int:
     checks.append(("check_bundles", *run(
         "bundles", [str(PY), str(ROOT / "scripts" / "check_bundles.py")], timeout=900)))
 
+    checks.append(("check_ci", *run(
+        "ci", [str(PY), str(ROOT / "scripts" / "check_ci.py")], timeout=600)))
+
     checks.append(("check_portability", *run(
         "portability", [str(PY), str(ROOT / "scripts" / "check_portability.py")], timeout=900)))
 

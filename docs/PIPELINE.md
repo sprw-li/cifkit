@@ -653,3 +653,8 @@ CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/ch
 
 顺带把 `check_bundles` 与 `check_portability` 接进 `check_all`（**7 组**），
 于是 CI 通过 `check_all` 自动覆盖它们；`release_check` 也新增此门。
+
+> round 41：`check_all` 现在 **8 组**（新增 `check_ci`，让 CI 定义漂移检查也进入日常健康检查）；
+> 同一轮还修正了一处**我自己制造的**许可扫描告警：在 `check_ci.py` 的 on-demand 理由字符串里写了受限许可关键词，
+> `sca_scan --strict` 正确地把「源码里出现该词」判为 copyleft 提及 —— 改成中性措辞后恢复 0 actionable。
+> 门禁抓到作者本人，正是它该有的行为。
