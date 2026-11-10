@@ -72,18 +72,27 @@ def _read_ase(path: Path, fmt: str) -> int:
     return len(ase.io.read(str(path), format=fmt))
 
 
-def _check_template(path: Path, fmt: str) -> tuple[bool, str]:
-    """Structural check for template inputs: required keywords present."""
+def _check_template(path: Path, fmt: str) -> tuple[bool, str, int | None]:
+    """Strict in-house parse of a template export.
+
+    Round 38: the previous check only looked for keywords, so a truncated
+    coordinate block would still pass.  ``cifkit.export.template_check`` parses
+    the actual structure blocks and validates the atom count / element set / cell.
+    No independent reader exists for these formats (see
+    ``runs/probe_template_readers.json``), so this is honest in-house verification,
+    not a third-party read-back.
+    """
+    from cifkit.export.template_check import check_template
+
+    companion: dict[str, str] = {}
+    if fmt == "dftb":
+        gen = path.parent / "geo.gen"
+        if gen.is_file():
+            companion["geo.gen"] = gen.read_text(encoding="utf-8", errors="replace")
     text = path.read_text(encoding="utf-8", errors="replace")
-    required = {
-        "cp2k": ("&CELL", "&COORD"),
-        "siesta": ("LatticeVectors", "AtomicCoordinates"),
-        "abacus": ("ATOMIC_SPECIES", "ATOMIC_POSITIONS"),
-        "orca": ("* xyz", "!"),
-        "dftb": ("Geometry",),
-    }[fmt]
-    missing = [kw for kw in required if kw not in text]
-    return (not missing), ("ok" if not missing else f"missing {missing}")
+    report = check_template(fmt, text, companion)
+    detail = "ok" if report.ok else "; ".join(report.errors[:3])
+    return report.ok, detail, report.natoms
 
 
 def main() -> int:
@@ -135,6 +144,27 @@ def main() -> int:
             rows.append(row)
             continue
 
+        if fmt == "dftb":
+            # DFTB+'s input is a *pair*: dftb_in.hsd references geo.gen.  Check the
+            # bundle (coordinates live in the sibling gen file), not the single file.
+            bundle_dir = outdir / "dftb_bundle"
+            info = export.write_bundle(structure, "dftb", bundle_dir)
+            hsd_path = bundle_dir / "dftb_in.hsd"
+            gen_path = bundle_dir / "geo.gen"
+            path = hsd_path if hsd_path.is_file() else path
+            ok, detail, parsed = _check_template(path, "dftb")
+            row["parsed_natoms"] = parsed
+            row["reader"] = "strict-parse (in-house, bundle)"
+            row["bytes"] = hsd_path.stat().st_size if hsd_path.is_file() else row.get("bytes")
+            back = parsed if ok else None
+            if not ok:
+                row["error"] = f"template: {detail}"
+            row["natoms_readback"] = back
+            row["ok"] = back == natoms and not row.get("error")
+            row["seconds"] = round(time.time() - t0, 3)
+            rows.append(row)
+            continue
+
         if fmt in PYMATGEN_READERS:
             reader_lib = "pymatgen"
             try:
@@ -150,9 +180,10 @@ def main() -> int:
                 back = None
                 row["error"] = f"read({reader_lib}): {type(exc).__name__}: {exc}"
         elif fmt in TEMPLATES:
-            reader_lib = "structural-check"
-            ok, detail = _check_template(path, fmt)
-            back = natoms if ok else None
+            reader_lib = "strict-parse (in-house)"
+            ok, detail, parsed = _check_template(path, fmt)
+            back = parsed if ok else None
+            row["parsed_natoms"] = parsed
             if not ok:
                 row["error"] = f"template: {detail}"
         elif fmt in SPECIAL:

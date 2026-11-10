@@ -185,3 +185,18 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 3. 回读：在 `_readback_natoms` 加回读（ASE/pymatgen）；模板类在 `_verify` 里检查关键段落。
 4. 测试：`tests/test_export_ext.py` 会自动遍历 `supported_formats()`，无需逐格式加用例（模板类要可回读或关键字齐全）。
 5. 文档：更新本文件的能力矩阵。
+
+## 模板格式的自研严格解析（round 38）
+
+5 个模板格式（`abacus`/`cp2k`/`dftb`/`orca`/`siesta`）没有第三方读取器可用
+（ASE 对应模块实测读不了我们的文件，见 `runs/probe_template_readers.json`）。
+因此它们由 `cifkit/export/template_check.py` 做**结构化解析**，断言：
+
+- **原子数**（逐个坐标行计数，不信任声明值）；
+- **元素集**（与结构对比；SIESTA 用物种索引）；
+- **晶胞**（cp2k/siesta/abacus 的 cell 块必须是 3 行）；
+- dftb 必须是 **`dftb_in.hsd` + `geo.gen` 成对**校验（坐标在 gen 里）。
+
+`scripts/verify_formats.py` 用注 `strict-parse (in-house)` 标记它不是独立回读。
+**这套解析当场抓到一个真 bug**：ABACUS 导出把全部原子写进了每个物种块
+（16 原子文件出现 48 行坐标），已修复并由 `tests/test_abacus_export.py` 锁定。

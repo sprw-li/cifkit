@@ -551,10 +551,15 @@ def _write_abacus(structure: Structure, path: Path, title: str | None) -> None:
         lines.append("  " + " ".join(f"{float(v):.10f}" for v in vec))
     lines += ["", "ATOMIC_POSITIONS", "Cartesian", ""]
     for el in species:
+        # ABACUS expects each species block to contain ONLY that species' atoms.
+        # Round 38: the strict template parser caught this writing every atom for
+        # every species (48 rows instead of 16 on a 16-atom cell).
+        members = [cart for site, cart in zip(structure, structure.cart_coords)
+                   if element_symbol(site) == el]
         lines.append(el)
         lines.append("0.0")
-        lines.append(str(sum(1 for site in structure if element_symbol(site) == el)))
-        for site, cart in zip(structure, structure.cart_coords):
+        lines.append(str(len(members)))
+        for cart in members:
             lines.append(f"  {cart[0]:18.10f} {cart[1]:18.10f} {cart[2]:18.10f} 0 0 0")
         lines.append("")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
