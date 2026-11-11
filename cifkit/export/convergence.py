@@ -57,17 +57,31 @@ SWEEPS: dict[str, dict] = {
     },
 }
 
-#: output dialects -> final-energy regex (first match wins)
+#: output dialects -> final-energy regex.  Patterns are tried in order and the
+#: **last** match of the first matching pattern wins: SCF codes print the energy
+#: once per iteration, and only the final one is the run's energy.
+_NUMBER = r"(-?\d+(?:\.\d+)?(?:[eEdD][+-]?\d+)?)"
 ENERGY_PATTERNS = (
-    re.compile(r"Total DFT energy\s*=\s*(-?\d+\.\d+)"),
-    re.compile(r"Total PSPW energy\s*=\s*(-?\d+\.\d+)"),
-    re.compile(r"Total energy\s*=\s*(-?\d+\.\d+)"),
-    re.compile(r"^!\s+total energy\s*=\s*(-?\d+\.\d+)\s*Ry", re.M),
-    re.compile(r"energy\s+without entropy\s*=\s*(-?\d+\.\d+)"),
-    re.compile(r"ENERGY\|\s+Total energy\s*=\s*(-?\d+\.\d+)"),
-    re.compile(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)"),
-    re.compile(r"Total times.*?\n", re.S),      # marker only; energy parsed elsewhere
+    # NWChem (plane-wave / pspw and DFT); Fortran style, ':' separator
+    re.compile(r"Total PSPW energy\s*[:=]\s*" + _NUMBER),
+    re.compile(r"Total DFT energy\s*[:=]\s*" + _NUMBER),
+    re.compile(r"^\s*total\s+energy\s*[:=]\s*" + _NUMBER, re.M),
+    # VASP
+    re.compile(r"energy\s+without entropy\s*=\s*" + _NUMBER),
+    re.compile(r"^\s*!\s+total energy\s*=\s*" + _NUMBER + r"\s*(?:Ry|eV)?", re.M),
+    # Quantum ESPRESSO / CP2K / ORCA / generic
+    re.compile(r"^!\s+total energy\s*=\s*" + _NUMBER, re.M),
+    re.compile(r"ENERGY\|\s+Total energy\s*=\s*" + _NUMBER),
+    re.compile(r"FINAL SINGLE POINT ENERGY\s+" + _NUMBER),
+    re.compile(r"Total energy\s*[:=]\s*" + _NUMBER),
 )
+
+
+def _as_float(text: str) -> float | None:
+    try:
+        return float(text.replace("D", "E").replace("d", "e"))
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass
@@ -125,14 +139,19 @@ def sweep(code: str, text: str, values: list[float] | None = None) -> list[tuple
 
 
 def parse_energy(output: str) -> float | None:
-    """Extract the final energy from a code's output (any supported dialect)."""
+    """Extract the **final** energy from a code's output (any supported dialect).
+
+    Returns ``None`` when nothing matches.  The last match wins, because SCF codes
+    print the energy every iteration.
+    """
     for pattern in ENERGY_PATTERNS:
-        match = pattern.search(output)
-        if match and match.groups():
-            try:
-                return float(match.group(1))
-            except (TypeError, ValueError):
-                continue
+        found = None
+        for match in pattern.finditer(output):
+            value = _as_float(match.group(1))
+            if value is not None:
+                found = value
+        if found is not None:
+            return found
     return None
 
 

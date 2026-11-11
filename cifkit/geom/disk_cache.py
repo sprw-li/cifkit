@@ -23,10 +23,40 @@ from typing import Any
 
 from cifkit.locks import atomic_write_text, file_lock
 
+#: bump whenever the on-disk *format* changes: older entries are then ignored and
+#: removed, because serving them would silently change the returned types/values.
+CACHE_VERSION = 2
+
 #: counters are process-local observability only (tests / 'slab cache info')
 _STATS = {"disk_hits": 0, "disk_misses": 0, "disk_writes": 0, "disk_corrupt": 0,
           "disk_disabled": 0}
 
+
+
+_TUPLE_MARKER = "__cifkit_tuple__"
+
+
+def _encode(value: Any) -> Any:
+    """JSON-safe copy that preserves tuples (lists must stay lists)."""
+    if isinstance(value, tuple):
+        return {_TUPLE_MARKER: [_encode(item) for item in value]}
+    if isinstance(value, list):
+        return [_encode(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _encode(item) for key, item in value.items()}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _decode(value: Any) -> Any:
+    if isinstance(value, dict):
+        if list(value.keys()) == [_TUPLE_MARKER]:
+            return tuple(_decode(item) for item in value[_TUPLE_MARKER])
+        return {key: _decode(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode(item) for item in value]
+    return value
 
 def enabled() -> bool:
     return os.environ.get("CIFKIT_SLAB_DISK_CACHE", "1").strip().lower() not in (
@@ -69,6 +99,9 @@ def lookup(key: tuple[Any, ...]) -> tuple[Any, dict[str, Any]] | None:
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("cache_version") != CACHE_VERSION:
+            raise ValueError(f"cache version {payload.get('cache_version')!r} "
+                             f"!= {CACHE_VERSION}")
         stored = payload.get("digest")
         if stored is not None and stored != _digest(key):
             raise ValueError("key mismatch")
@@ -79,7 +112,8 @@ def lookup(key: tuple[Any, ...]) -> tuple[Any, dict[str, Any]] | None:
         from pymatgen.core import Structure
 
         structure = Structure.from_str(payload["cif"], fmt="cif")
-        info = dict(payload.get("info") or {})
+        decoded = _decode(payload.get("info") or {})
+        info = dict(decoded) if isinstance(decoded, dict) else {}
     except Exception:  # noqa: BLE001 - a bad cache entry is a miss, never an error
         _STATS["disk_corrupt"] += 1
         with contextlib.suppress(OSError):
@@ -97,8 +131,9 @@ def store(key: tuple[Any, ...], structure: Any, info: dict[str, Any]) -> bool:
         from pymatgen.io.cif import CifWriter
 
         text = str(CifWriter(structure, symprec=None))
-        payload = json.dumps({"digest": _digest(key), "key": list(key), "info": info,
-                              "cif": text}, ensure_ascii=False, default=str)
+        payload = json.dumps({"cache_version": CACHE_VERSION, "digest": _digest(key),
+                              "key": _encode(key), "info": _encode(info), "cif": text},
+                             ensure_ascii=False, default=str)
         path = _entry_path(key)
         with file_lock(path.with_suffix(".lock"), timeout=30):
             atomic_write_text(path, payload)

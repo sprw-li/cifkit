@@ -127,3 +127,50 @@ def test_cache_is_shared_across_processes(tmp_path, structure):
     payload = json.loads(first.stdout.strip().splitlines()[-1])
     assert payload["cache"] == "disk", payload
     assert payload["natoms"] > 0
+
+def test_disk_hit_preserves_value_types(structure):
+    """A disk hit must return the same types as a computed slab (tuples stay tuples)."""
+    from cifkit.geom.surface import clear_slab_cache, make_slab
+
+    clear_slab_cache()
+    _, computed = make_slab(structure, (1, 1, 1), reps=(2, 2, 1), slab_thickness=8.0)
+    clear_slab_cache()
+    _, cached = make_slab(structure, (1, 1, 1), reps=(2, 2, 1), slab_thickness=8.0)
+    assert cached["cache"] == "disk"
+    for key, value in computed.items():
+        assert type(cached[key]) is type(value), (key, cached[key], value)
+    assert cached.get("reps") == (2, 2, 1)
+    assert cached.get("hkl") == [1, 1, 1], "lists must stay lists"
+
+def test_entries_from_an_older_format_are_ignored(structure):
+    """A format change must invalidate: serving an old entry changes the contract."""
+    import json
+
+    from cifkit.geom import disk_cache
+    from cifkit.geom.surface import clear_slab_cache, make_slab
+
+    clear_slab_cache()
+    make_slab(structure, (1, 0, 1), slab_thickness=8.0)
+    entry = next(disk_cache.cache_dir().glob("*.json"))
+    payload = json.loads(entry.read_text(encoding="utf-8"))
+    payload["cache_version"] = 1                     # pretend an older release wrote it
+    payload["info"] = {"reps": [2, 2, 1]}            # ...unmarked list
+    entry.write_text(json.dumps(payload), encoding="utf-8")
+
+    clear_slab_cache()
+    _, info = make_slab(structure, (1, 0, 1), slab_thickness=8.0)
+    assert info["cache"] == "miss"
+    assert json.loads(entry.read_text(encoding="utf-8"))["cache_version"] == disk_cache.CACHE_VERSION
+
+
+def test_written_entries_carry_the_current_version(structure):
+    import json
+
+    from cifkit.geom import disk_cache
+    from cifkit.geom.surface import clear_slab_cache, make_slab
+
+    clear_slab_cache()
+    make_slab(structure, (1, 1, 0), slab_thickness=8.0)
+    entry = next(disk_cache.cache_dir().glob("*.json"))
+    payload = json.loads(entry.read_text(encoding="utf-8"))
+    assert payload["cache_version"] == disk_cache.CACHE_VERSION

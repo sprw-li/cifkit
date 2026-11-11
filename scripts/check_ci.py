@@ -34,6 +34,7 @@ RUNNABLE = ("scripts/check_eol.py", "scripts/sca_scan.py", "scripts/adversarial_
 ON_DEMAND: dict[str, str] = {
     "analyse_convergence.py": "analyses a fetched convergence job (needs cloud artifacts)",
     "audit_dataset_coverage.py": "one-off dataset audit (needs the CoRE cache)",
+    "collect_convergence.py": "collects a per-cutoff cloud sweep into one report",
     "bench_api.py": "benchmark, manual (machine-dependent)",
     "bench_batch_scale.py": "benchmark, manual (machine-dependent)",
     "bench_large_structure.py": "benchmark, manual (needs the large MOF)",

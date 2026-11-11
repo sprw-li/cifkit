@@ -149,3 +149,41 @@ def test_cloud_line_format_is_parseable():
     assert match.group(1) == "40" and match.group(3) == "ok"
     bad = pattern.search("CONVERGENCE value=40 energy=nan status=no-energy seconds=22.4")
     assert bad and bad.group(2) == "nan"
+
+NWCHEM_PSPW_OUTPUT = """\
+===============================  Energy Calculation  ===========================
+ iter.           Energy         DeltaE       DeltaRho
+    1    -0.1076404459E+03
+total orbital energy:  -0.3162791516E+02 (   -0.10543E+01/electron)
+hartree   energy    :   0.2232207638E+03 (    0.74407E+01/electron)
+exc-corr  energy    :  -0.2809657456E+02 (   -0.93655E+00/electron)
+ion-ion   energy    :   0.1388116803E+03 (    0.86757E+01/ion)
+Total PSPW energy     :  -0.1076404459E+03
+    2    -0.1112953510E+03
+total     energy    :  -0.1112953510E+03 (   -0.69560E+01/ion)
+Total PSPW energy     :  -0.1112953510E+03
+Total times  cpu: 1020.8s     wall: 1031.8s
+"""
+
+
+def test_nwchem_fortran_energy_is_parsed():
+    assert parse_energy(NWCHEM_PSPW_OUTPUT) == -111.2953510
+
+
+def test_the_last_energy_wins_not_the_first():
+    """SCF codes print the energy every iteration: only the final one counts."""
+    first_is_wrong = parse_energy(NWCHEM_PSPW_OUTPUT)
+    assert first_is_wrong != -107.6404459
+    assert first_is_wrong == -111.2953510
+
+
+def test_nwchem_real_output_from_the_convergence_job():
+    """Line taken verbatim from cloud job ec5ef67c (cutoff 20)."""
+    line = "Total PSPW energy     :  -0.1076404459E+03\nTotal PSPW energy     :  -0.1112953510E+03\n"
+    assert parse_energy(line) == -111.2953510
+
+
+def test_fortran_exponents_and_case_variants():
+    assert parse_energy("Total DFT energy = -1.2345E+02\n") == -123.45
+    assert parse_energy("total     energy    :  -0.1112953510E+03\n") == -111.2953510
+    assert parse_energy("Total PSPW energy : -1.5d+02\n") == -150.0
