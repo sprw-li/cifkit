@@ -61,15 +61,25 @@ SPECIAL = {"png"}
 
 
 def _read_pymatgen(path: Path) -> int:
+    return len(_read_pymatgen_structure(path))
+
+
+def _read_pymatgen_structure(path: Path):
+    """Read with pymatgen and return the structure itself (used for geometry checks)."""
     from pymatgen.core import Structure
 
-    return len(Structure.from_file(str(path)))
+    return Structure.from_file(str(path))
 
 
 def _read_ase(path: Path, fmt: str) -> int:
+    return len(_read_ase_object(path, fmt))
+
+
+def _read_ase_object(path: Path, fmt: str):
+    """Read with ASE and return the Atoms object (used for geometry checks)."""
     import ase.io
 
-    return len(ase.io.read(str(path), format=fmt))
+    return ase.io.read(str(path), format=fmt)
 
 
 def _check_template(path: Path, fmt: str) -> tuple[bool, str, int | None]:
@@ -201,6 +211,25 @@ def main() -> int:
         row["natoms_readback"] = back
         row["ok"] = back == natoms and not row.get("error")
         row["seconds"] = round(time.time() - t0, 3)
+
+        # round 44: a matching atom count is not enough - compare the geometry
+        if row["ok"] and reader_lib in ("pymatgen", "ase"):
+            from cifkit.export.geometry_check import compare
+
+            try:
+                if reader_lib == "pymatgen":
+                    back_structure = _read_pymatgen_structure(path)
+                else:
+                    back_structure = _read_ase_object(path, ASE_READERS[fmt])
+                verdict = compare(structure, back_structure, fmt)
+            except Exception as exc:  # noqa: BLE001
+                verdict = None
+                row["geometry_error"] = f"{type(exc).__name__}: {exc}"
+            if verdict is not None:
+                row["geometry"] = verdict.as_dict()
+                if not verdict.ok:
+                    row["ok"] = False
+                    row["error"] = f"geometry: {verdict.detail}"
         rows.append(row)
 
     bundles: list[dict] = []
@@ -217,6 +246,13 @@ def main() -> int:
 
     ok_formats = [r for r in rows if r["ok"]]
     third_party = [r for r in rows if r["reader"] in ("pymatgen", "ase")]
+    geometry_checked = [row for row in rows if row.get("geometry")]
+    geometry_failures = [row["format"] for row in geometry_checked
+                         if not row["geometry"]["ok"]]
+    worst = max((row["geometry"]["max_deviation_A"] or 0.0 for row in geometry_checked),
+                default=None)
+    print(f"geometry checked: {len(geometry_checked)} formats, "
+          f"failures={geometry_failures}, worst deviation={worst}")
     report = {
         "structure": str(structure_path),
         "natoms": natoms,
@@ -229,6 +265,9 @@ def main() -> int:
         "n_bundles": len(bundles),
         "bundles_ok": all(b["all_present"] and b["readme"] for b in bundles) if bundles else None,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "n_geometry_checked": len(geometry_checked),
+        "geometry_failures": geometry_failures,
+        "worst_deviation_A": worst,
         "note": (
             "第三方回读 = 用与写出器不同的库（pymatgen/ASE）读回并比对原子数。"
             "**回读一致 ≠ 目标软件接受**：这只说明另一个库能解析出同样多的原子，"

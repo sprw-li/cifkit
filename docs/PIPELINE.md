@@ -691,3 +691,23 @@ CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/ch
 
 **去重（F5）**：`build_dataset(dedupe=...)` / `cifkit dataset --dedupe KEY` —— 保留首次出现、
 失败 run 永不去掉、流式/物化一致、内存只占键集合；summary 增 `dedupe` 与 `n_deduped`。
+### 8.29 导出保真度：从「原子数」到「几何」（round 44）
+
+以前 25 个第三方回读只断言 `len(readback) == len(structure)`——**晶胞错了、坐标错了、元素换错了都能通过**。
+现在 `scripts/verify_formats.py` 对每个能读回的格式做**几何比对**（`cifkit/export/geometry_check.py`）：
+
+| 情形 | 判据 |
+|---|---|
+| 回读出的晶胞**与源晶胞一致** | `StructureMatcher.get_rms_dist` 的 max displacement ≤ 容差（顺序无关） |
+| 回读**没有晶胞**（xyz/mol/sdf/turbomole/lammps：ASE 会造包围盒） | **排序配对距离指纹**逐项比较（晶胞无关的几何签名） |
+
+实测（138 原子 ZIF-8）：**25/25 通过**，其中 20 个精确到 **≤1e-6 Å**；
+最松的是 `gromacs` **3.2e-3 Å**（对应 .gro 的 3 位小数）与 `pdb` 3.5e-4 Å。
+
+实现中修掉两个自身错误（都由更严格的判据暴露）：
+① 误用 `StructureMatcher.get_mappings`（`int + None` 崩溃）→ 改用 `get_rms_dist`；
+② 一度以「有晶胞」决定是否做周期比对，于是 ASE 造的**假晶胞**让 xyz/mol/sdf/turbomole/lammps 全部误报失败
+——现在只有**与源晶胞匹配**才走周期路径，否则退回距离指纹。
+
+测试 `tests/test_export_fidelity.py`（8 条）刻意验证**反向情形**：位移 0.5 Å、换晶胞、换元素都必须判失败，
+合成的假晶胞不得触发周期匹配。
