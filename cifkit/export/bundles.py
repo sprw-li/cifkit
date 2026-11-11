@@ -128,10 +128,13 @@ def write_bundle(
     """Write a computation-software input bundle; returns file list + missing items."""
     from cifkit.export.disorder_guard import guard_ordered
 
+    from cifkit.export.format_limits import guard_atom_limit
+
     # same contract as write_structure (round 55): the *guard* error, not the
     # library's opaque ValueError, must be what a caller sees
     for fmt_name in _bundle_ordered_formats(str(code or "").strip().lower()):
         guard_ordered(fmt_name, structure)
+        guard_atom_limit(fmt_name, structure)
 
     key = str(code or "").strip().lower()
     if key not in BUNDLE_INFO:
@@ -199,29 +202,39 @@ Check that the POTCAR species lines match the POSCAR title/species order.""")
         _w("lammps", "data.lammps")
         # LAMMPS comments use '#'.  A ';' is not a comment: it is an *unknown command*
         # and aborts the run (measured 2026-11-11, job b0b85bc0).  Never use ';' here.
-        _txt("in.min", """# LAMMPS minimisation / zero-potential check (cifkit)
-# The data file has masses and atom types but NO force field: pick one and
-# uncomment the matching pair_style/pair_coeff lines below.
+        #
+        # The DEFAULT is lj/cut with placeholder parameters, because `pair_style zero`
+        # evaluates no forces at all (measured 2026-11-11, job 060f75f5: "Iterations,
+        # force evaluations = 1 0").  Placeholder LJ does real work - 200 minimisation
+        # steps / 200 force evaluations on these cells - but it is NOT a fitted force
+        # field, so a production study must replace the parameters.
+        _txt("in.min", """# LAMMPS minimisation (cifkit)
+# The data file has masses and atom types but NO force field.  The pair_coeff below
+# is a PLACEHOLDER (epsilon 0.0103 eV, sigma 3.4 A, cutoff 10 A): it makes LAMMPS
+# evaluate real forces so the geometry relaxes, but it is not a fitted force field.
+# Replace it with UFF/DREIDING/EAM (see the options at the bottom) for real chemistry.
 units           metal
 atom_style      atomic
 boundary        p p p
 read_data       data.lammps
+pair_style      lj/cut 10.0
+pair_coeff      * * 0.0103 3.4
+neighbor        2.0 bin
 
-# --- option A: do nothing but check the geometry (no interactions) -------------
-pair_style      zero 10.0
-pair_coeff      * *
+# --- option A: geometry-only check (NO force evaluation; for file validation) ---
+# pair_style    zero 10.0
+# pair_coeff    * *
 
-# --- option B: generic Lennard-Jones placeholder (edit epsilon/sigma per pair) --
-# pair_style    lj/cut 10.0
-# pair_coeff    * * 0.010 3.0   # epsilon (eV), sigma (A) - NOT a fitted FF
-
-# --- option C: a real force field (needs its own files) ------------------------
+# --- option B: a real force field (needs its own files) ------------------------
 # pair_style    eam/alloy
 # pair_coeff    * * <potential>.eam.alloy <elements...>
+# pair_style    uff          # if your LAMMPS build has it (the Debian package does not)
+# pair_coeff    * * <element per type>
 
 thermo          10
+thermo_style    custom step pe etotal press
 min_style       cg
-minimize        1e-6 1e-8 100 1000
+minimize        1e-6 1e-8 200 2000
 """)
         _txt("in.readme", """`data.lammps` carries coordinates, atom types and masses (written by cifkit);
 the force field does not exist yet - that is the user's choice.  `in.min` shows

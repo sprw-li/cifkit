@@ -810,6 +810,12 @@ def write_structure(
     """
     from cifkit.export.disorder_guard import guard_ordered
 
+    from cifkit.export.format_limits import guard_atom_limit
+
+    # round 56: .struct/.mol/.sdf have hard structural limits; refuse *before* writing
+    # instead of producing a file that silently loses atoms
+    guard_atom_limit(fmt, structure)
+
     # round 55: fail with a *typed* error instead of the opaque ValueError that ASE
     # ("Atoms only supports ordered structures") or pymatgen ("partial occupancies
     # cannot be converted into POSCAR") raises deep inside the writer

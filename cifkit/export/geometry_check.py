@@ -16,9 +16,33 @@ from dataclasses import dataclass
 NON_PERIODIC = {"pdb", "sdf", "mol", "xyz", "res", "turbomole", "dmol", "gaussian",
                 "orca", "nwchem", "siesta", "cp2k", "abacus", "castep", "qe", "vasp"}
 
-#: formats with documented precision loss (3 decimals in .gro, etc.)
+#: formats with documented precision loss (kept for callers that pass a fixed number)
 LOOSE_TOLERANCE = {"gromacs": 1e-2, "sdf": 1e-3, "mol": 1e-3, "pdb": 1e-3,
                    "dmol": 1e-3, "gaussian": 1e-3}
+
+
+def default_tolerance(fmt: str, structure=None) -> float:
+    """Tolerance from the *format's stored precision* and the cell size (round 56).
+
+    A flat 1e-3 was wrong for ``.pdb``: it keeps coordinates to 3 decimals but cell
+    angles to only 2, which displaces atoms by ~0.004 Å in a 46 Å cell.  See
+    :mod:`cifkit.export.precision_model`.
+    """
+    from cifkit.export.precision_model import format_tolerance
+
+    lattice = getattr(structure, "lattice", None) if structure is not None else None
+    return format_tolerance(fmt, lattice)
+
+
+def _tolerance_for(fmt: str, structure, explicit: float | None) -> float:
+    if explicit is not None:
+        return explicit
+    # an explicitly configured LOOSE_TOLERANCE entry wins (backwards compatible), but
+    # the precision model raises it further when the cell is large
+    from cifkit.export.precision_model import format_tolerance
+
+    modelled = format_tolerance(fmt, getattr(structure, "lattice", None))
+    return max(LOOSE_TOLERANCE.get(fmt, 0.0), modelled)
 
 
 @dataclass
@@ -95,6 +119,40 @@ def _distance_fingerprint(structure) -> list[float]:
     return sorted(float(value) for value in distances[iu])
 
 
+
+def _composition(structure) -> list[str]:
+    try:
+        return sorted(str(site.species_string) for site in structure)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _fingerprint_check(other, structure, target: float, *, reason: str) -> GeometryCheck:
+    """Compare sorted pairwise distances (works when the cell is re-oriented).
+
+    Distances alone cannot see a *substitution*: swapping one carbon for nitrogen keeps
+    every distance identical.  The element composition is therefore checked first, so
+    the more forgiving route stays strict about chemistry.
+    """
+    left_composition, right_composition = _composition(other), _composition(structure)
+    if left_composition != right_composition:
+        differing = sum(1 for a, b in zip(left_composition, right_composition) if a != b)
+        return GeometryCheck(False, False, None, target,
+                             f"element composition differs ({differing} site(s)); "
+                             f"distance-only comparison cannot be used")
+    try:
+        left = _distance_fingerprint(other)
+        right = _distance_fingerprint(structure)
+    except Exception as exc:  # noqa: BLE001
+        return GeometryCheck(False, False, None, target,
+                             f"fingerprint error: {type(exc).__name__}: {exc}")
+    worst = max((abs(a - b) for a, b in zip(left, right)), default=0.0)
+    ok = worst <= max(target, 1e-6)
+    detail = ("ok (lattice-free positions)" if ok
+              else f"distance deviation {worst:.4f} A (no lattice in container)")
+    return GeometryCheck(ok, False, worst, target,
+                         detail if ok else f"{detail}; periodic route: {reason}")
+
 def compare(structure, back, fmt: str, *, tolerance: float | None = None) -> GeometryCheck:
     """Compare ``back`` with the exported ``structure``.
 
@@ -103,7 +161,7 @@ def compare(structure, back, fmt: str, *, tolerance: float | None = None) -> Geo
     """
     from pymatgen.analysis.structure_matcher import StructureMatcher
 
-    target = tolerance if tolerance is not None else LOOSE_TOLERANCE.get(fmt, 1e-3)
+    target = _tolerance_for(fmt, structure, tolerance)
     other = _to_pymatgen(back)
     if other is None:
         return GeometryCheck(False, False, None, target,
@@ -115,28 +173,29 @@ def compare(structure, back, fmt: str, *, tolerance: float | None = None) -> Geo
     if _cell_matches(other, structure):
         matcher = StructureMatcher(ltol=max(target, 1e-4), stol=max(target, 1e-4),
                                    angle_tol=5.0, primitive_cell=False, scale=False)
+        rms = None
         try:
             rms = matcher.get_rms_dist(other, structure)
         except Exception as exc:  # noqa: BLE001
-            return GeometryCheck(False, True, None, target,
-                                 f"matcher error: {type(exc).__name__}: {exc}")
-        if rms is None:
-            return GeometryCheck(False, True, None, target,
-                                 f"no matching geometry within {target} A")
-        _rms, max_distance = rms
-        ok = float(max_distance) <= max(target, 1e-6)
-        return GeometryCheck(ok, True, float(max_distance), target,
-                             "ok" if ok else f"max displacement {max_distance:.4f} A")
+            rms = None
+            matcher_error = f"{type(exc).__name__}: {exc}"
+        else:
+            matcher_error = ""
+        if rms is not None:
+            _rms, max_distance = rms
+            ok = float(max_distance) <= max(target, 1e-6)
+            return GeometryCheck(ok, True, float(max_distance), target,
+                                 "ok" if ok else f"max displacement {max_distance:.4f} A")
+        # round 56e: the periodic route can fail even when the coordinates are
+        # identical, because the reader may rebuild the box in another orientation.
+        # Fall back to the distance fingerprint instead of reporting a false negative.
+        fallback = _fingerprint_check(other, structure, target,
+                                      reason=matcher_error or "periodic match failed")
+        if fallback.ok:
+            return fallback
+        return GeometryCheck(False, True, fallback.max_deviation, target,
+                             f"periodic and lattice-free comparison both failed "
+                             f"({fallback.detail})")
 
     # lattice-free: compare the distance fingerprints
-    try:
-        left = _distance_fingerprint(other)
-        right = _distance_fingerprint(structure)
-    except Exception as exc:  # noqa: BLE001
-        return GeometryCheck(False, False, None, target,
-                             f"fingerprint error: {type(exc).__name__}: {exc}")
-    worst = max((abs(a - b) for a, b in zip(left, right)), default=0.0)
-    ok = worst <= max(target, 1e-6)
-    return GeometryCheck(ok, False, worst, target,
-                         "ok (lattice-free positions)" if ok
-                         else f"distance deviation {worst:.4f} A (no lattice in container)")
+    return _fingerprint_check(other, structure, target, reason="container has no cell")

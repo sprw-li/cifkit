@@ -74,8 +74,22 @@ def test_lammps_min_shows_three_options(tmp_path):
     info = write_bundle(Structure.from_file(FIXTURE), "lammps", out)
     text = (out / "in.min").read_text(encoding="utf-8")
     assert "read_data" in text
-    assert "pair_style" in text and "zero" in text
-    assert "lj/cut" in text, "a concrete (if generic) example must be present"
-    assert "NOT a fitted FF" in text, "the example must not masquerade as a fitted FF"
-    assert "eam/alloy" in text
+    assert "pair_style      lj/cut" in text, "the default must evaluate real forces"
+    assert "PLACEHOLDER" in text, "placeholder parameters must be labelled"
+    assert "zero" in text, "the geometry-only option must stay documented"
+    assert "eam/alloy" in text and "uff" in text
     assert "in.readme" in info["files"] or True
+
+
+def test_the_default_is_not_the_zero_potential(tmp_path):
+    """`pair_style zero` evaluates no forces (measured): it must not be the default."""
+    from pymatgen.core import Structure
+
+    from cifkit.export import write_bundle
+
+    out = tmp_path / "lammps"
+    write_bundle(Structure.from_file(FIXTURE), "lammps", out)
+    active = [line for line in (out / "in.min").read_text(encoding="utf-8").splitlines()
+              if line.strip() and not line.strip().startswith("#")]
+    assert not any(line.strip().startswith("pair_style") and "zero" in line
+                   for line in active), active

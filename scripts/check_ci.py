@@ -57,6 +57,7 @@ ON_DEMAND: dict[str, str] = {
     "run_convergence.py": "convergence study: needs the target code installed (or a cloud job)",
     "run_demo.py": "demo helper, manual",
     "sources_live_check.py": "live source health (release informational)",
+    "disorder_pipeline_check.py": "disorder-resolution corpus check (needs the CoRE bulk corpus)",
     "verify_demo.py": "demo verification, manual",
     "verify_formats_no_gpl.py": "format subset excluding restricted licences (release informational)",
 }

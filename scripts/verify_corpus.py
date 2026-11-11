@@ -65,6 +65,7 @@ def check_one(path_str: str) -> dict:
         from cifkit.export import supported_bundles, supported_formats, write_bundle, write_structure
         from cifkit.export.bundle_check import check_bundle
         from cifkit.export.disorder_guard import DisorderedStructureError
+        from cifkit.export.format_limits import FormatLimitError
         from cifkit.export.geometry_check import compare
         from cifkit.export.verify_formats_map import ASE_READERS, PYMATGEN_READERS
 
@@ -110,6 +111,8 @@ def check_one(path_str: str) -> dict:
                     # defect - the corpus reports it as 'unsupported', separately
                     # from real failures
                     row["unsupported"] = "partial occupancies"
+                except FormatLimitError as exc:
+                    row["unsupported"] = f"atom limit {exc.limit}"
                 except Exception as exc:  # noqa: BLE001
                     row["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"{fmt}: {row['error']}")
@@ -127,6 +130,8 @@ def check_one(path_str: str) -> dict:
                         result["errors"].append(f"bundle {code}: {verdict['errors'][:2]}")
                 except DisorderedStructureError:
                     entry["unsupported"] = "partial occupancies"
+                except FormatLimitError as exc:
+                    entry["unsupported"] = f"atom limit {exc.limit}"
                 except Exception as exc:  # noqa: BLE001
                     entry["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"bundle {code}: {entry['error']}")
@@ -158,6 +163,8 @@ def check_one(path_str: str) -> dict:
                 except DisorderedStructureError:
                     # the underlying format cannot express partial occupancies
                     entry["unsupported"] = "partial occupancies"
+                except FormatLimitError as exc:
+                    entry["unsupported"] = f"atom limit {exc.limit}"
                 except Exception as exc:  # noqa: BLE001
                     entry["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"template {fmt}: {entry['error']}")

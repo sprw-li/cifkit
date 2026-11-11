@@ -96,3 +96,16 @@ def test_report_records_the_geometry_verdict():
     tight = [row for row in checked
              if (row["geometry"]["max_deviation_A"] or 1) < 1e-6]
     assert len(tight) >= 15, f"only {len(tight)} formats matched to 1e-6 A"
+
+def test_lattice_free_route_also_rejects_a_substitution(structure):
+    """Distances cannot see a C->N swap; the composition check must."""
+    import ase
+
+    other = structure.copy()
+    symbols = [site.species_string for site in other]
+    symbols[0] = "N" if symbols[0] != "N" else "C"
+    other.replace(0, symbols[0])
+    atoms = ase.Atoms(symbols=symbols, positions=other.cart_coords)
+    verdict = compare(structure, atoms, "xyz")
+    assert not verdict.ok
+    assert "composition" in verdict.detail
