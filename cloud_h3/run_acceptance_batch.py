@@ -73,6 +73,27 @@ def install(packages: list[str]) -> bool:
     return proc.returncode == 0
 
 
+
+def _input_atom_count(path: Path) -> int | None:
+    """Atom count recorded in the shipped coordinate file (gro: line 2; lammps: header)."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    if path.suffix == ".gro" and len(lines) > 1:
+        try:
+            return int(lines[1].strip())
+        except ValueError:
+            return None
+    for line in lines[:40]:
+        if line.strip().endswith("atoms"):
+            try:
+                return int(line.split()[0])
+            except (ValueError, IndexError):
+                return None
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--code", required=True, choices=sorted(CASES))
@@ -149,22 +170,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-def _input_atom_count(path: Path) -> int | None:
-    """Atom count recorded in the shipped coordinate file (gro: line 2; lammps: header)."""
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return None
-    if path.suffix == ".gro" and len(lines) > 1:
-        try:
-            return int(lines[1].strip())
-        except ValueError:
-            return None
-    for line in lines[:40]:
-        if line.strip().endswith("atoms"):
-            try:
-                return int(line.split()[0])
-            except (ValueError, IndexError):
-                return None
-    return None

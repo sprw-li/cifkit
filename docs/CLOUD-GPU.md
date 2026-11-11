@@ -218,3 +218,33 @@ Cannot start the screen reader because it cannot connect to the Desktop.
 **教训**：包名/版本号不能当身份证明，必须**真的运行一次**并看它的输出。
 量子化学 ORCA 需要用户自备二进制（无 apt 包）。该案例保留在
 `cloud_h3/run_code_acceptance.py --code orca-debian-package`，以免下次再踩。
+
+### 5.10 高批量接受矩阵：9/9 唯一用例，且**原子数对得上**（round 55）
+
+把"模板能被真实软件接受"从**一个结构**扩到**一批结构**：一次作业装一次代码、跑完该代码的
+全部用例（`cloud_h3/run_acceptance_batch.py`），再用 `scripts/collect_acceptance.py`
+汇总成矩阵（同一用例跑过多次时**去重**并优先采用有定量证据的那次）。
+
+| 代码 | 通过 | 原子数（报告/文件） |
+|---|---|---|
+| gromacs | 4/4 | mof5_hfree 82/82, terephthalic_acid_hfree 16/16, uio66_hfree 86/86, zif8_cr_sod 138/138 |
+| lammps | 5/5 | hkust1_hfree 132/132, mof5_hfree 82/82, terephthalic_acid_hfree 16/16, uio66_hfree 86/86, zif8_cr_sod 138/138 |
+
+**关键点：证据是定量的，不是"看到 banner"**——GROMACS 的判据是输出里的
+`Read N atoms`，LAMMPS 的是 `Nlocal`，都与我们写进文件里的原子数逐一比对
+（132/132、82/82、16/16、86/86、138/138）。涉及结构：hkust1_hfree, mof5_hfree, terephthalic_acid_hfree, uio66_hfree, zif8_cr_sod。
+
+两个真实教训（都属于"别急着下结论"）：
+
+1. **`exit 0` 但标记不匹配**：第一轮 GROMACS 四个用例全是 `no-normal-marker`，
+   看上去像"被拒绝"；读日志才发现 `gmx editconf` 打印的是 `gmx editconf, 2023.3` 而不是
+   `GROMACS version`，而它**确实读进了 16 个原子**。修正标记后 4/4 accepted。
+   ——**先读容器日志，再解释结果**。
+2. **`apt-get` 超时**：LAMMPS 复跑的作业失败，原因是
+   `apt-get install lammps` 2400 s 超时（首轮只需 244 s）。这是**基础设施瞬时失败**，
+   不是模板缺陷；已有 5/5 的证据在盘上，所以**不重复消耗光子**去重跑，
+   而是复用日志并补上定量比对。
+
+还修掉一个自己的 bug：脚本末尾的 `if __name__ == "__main__"` 会**先执行** `main()`，
+而我新加的辅助函数被追加到文件末尾 → 容器里 `NameError`，**连续两次作业级失败**。
+这类错误本地 `python -c` 跑一下就能发现——现已补测试覆盖（`tests/test_acceptance_batch_logic.py`）。
