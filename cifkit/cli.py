@@ -539,13 +539,14 @@ def cmd_dataset(args) -> int:
         label_key=args.label_key,
         stream=not getattr(args, "no_stream", False),
         jobs=getattr(args, "jobs", 1),
+        dedupe=getattr(args, "dedupe", None),
     )
     if args.json:
         _print_json(result)
     else:
         print(f"dataset: {outdir}")
         for key in ("mode", "n_runs", "n_ok", "n_failed", "csv", "jsonl", "structures",
-                    "max_rows_held"):
+                    "max_rows_held", "dedupe", "n_deduped"):
             if key in result:
                 print(f"  {key}: {result[key]}")
     return 0 if result.get("n_failed", 0) == 0 else 1
@@ -890,6 +891,10 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--no-structures", action="store_true")
     ds.add_argument("--jobs", type=int, default=1,
                     help="并行处理 run 数（默认 1；顺序保持、在飞窗口有界）")
+    ds.add_argument("--dedupe", default=None,
+                    choices=["structure_sha256", "structure_file", "formula",
+                             "reduced_formula", "label"],
+                    help="按该键去重（保留首次出现；失败 run 永不被去掉）")
     ds.add_argument("--json", action="store_true")
     ds.set_defaults(func=cmd_dataset)
 

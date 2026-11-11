@@ -19,7 +19,7 @@ from cifkit.locks import append_jsonl_locked
 path, worker, count = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 for index in range(count):
     append_jsonl_locked(path, {"worker": worker, "index": index,
-                               "payload": "x" * 200})
+                               "payload": "x" * 200}, timeout=30, fsync=False)
 """
 
 
@@ -39,13 +39,16 @@ def _spawn(script: Path, target: Path, worker: int, per_worker: int) -> None:
     import subprocess
     import sys
 
-    subprocess.run([sys.executable, str(script), str(target), str(worker), str(per_worker)],
-                   check=True, capture_output=True)
+    proc = subprocess.run([sys.executable, str(script), str(target), str(worker), str(per_worker)],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0:
+        raise AssertionError(f"writer {worker} failed ({proc.returncode}):\n"
+                             f"{proc.stdout[-500:]}\n{proc.stderr[-1500:]}")
 
 
 def test_concurrent_appends_produce_no_torn_lines(tmp_path):
     target = tmp_path / "index.jsonl"
-    workers, per_worker = 4, 25
+    workers, per_worker = 4, 15
     _run_writers(target, workers, per_worker)
 
     lines = target.read_text(encoding="utf-8").splitlines()

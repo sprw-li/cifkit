@@ -37,7 +37,7 @@ from typing import Any, Iterator
 from cifkit.features import extract_features
 
 __all__ = ["build_dataset", "load_runs", "iter_manifests", "iter_runs",
-           "iter_jsonl", "count_jsonl"]
+           "iter_jsonl", "count_jsonl", "dedupe_rows", "DEDUPE_KEYS"]
 
 _STRUCT_CANDIDATES = ("standardized.cif", "raw.cif", "structure.cif", "repaired.cif", "structure.vasp")
 
@@ -115,6 +115,57 @@ def _structure_path(run: dict[str, Any]) -> Path | None:
             return candidate
     return None
 
+
+
+#: accepted ``dedupe`` keys -> how the value is obtained from a finished row
+DEDUPE_KEYS = ("structure_sha256", "structure_file", "formula", "reduced_formula", "label")
+
+
+def _dedupe_value(row: dict, key: str) -> str | None:
+    """Return the value to dedupe on, or ``None`` when the row has no such key."""
+    if key == "structure_sha256":
+        path = row.get("structure_file")
+        if not path:
+            return None
+        try:
+            return _sha256(Path(str(path)))
+        except OSError:
+            return None
+    if key == "label":
+        value = row.get("label")
+    elif key in ("formula", "reduced_formula", "structure_file"):
+        value = row.get(key)
+    else:
+        raise ValueError(f"unknown dedupe key {key!r}; choose from {DEDUPE_KEYS}")
+    return None if value in (None, "") else str(value)
+
+
+def dedupe_rows(rows: Iterator[tuple[dict[str, Any], dict[str, Any] | None]],
+                key: str, stats: dict[str, Any]
+                ) -> Iterator[tuple[dict[str, Any], dict[str, Any] | None]]:
+    """Yield only the first row per ``key``; records how many were dropped.
+
+    Memory: one string per unique key (not per row) - documented, not hidden.
+    Failed runs (rows carrying ``error``) are never deduplicated away.
+    """
+    seen: set[str] = set()
+    stats.setdefault("dedupe_key", key)
+    stats.setdefault("n_deduped", 0)
+    stats.setdefault("dedupe_keys_seen", 0)
+    for row, payload in rows:
+        if row.get("error"):
+            yield row, payload
+            continue
+        value = _dedupe_value(row, key)
+        if value is None:
+            yield row, payload
+            continue
+        if value in seen:
+            stats["n_deduped"] += 1
+            continue
+        seen.add(value)
+        stats["dedupe_keys_seen"] = len(seen)
+        yield row, payload
 
 def _label_from(run: dict[str, Any], key: str | None) -> Any:
     if not key:
@@ -293,11 +344,16 @@ def build_dataset(
     topology: bool = False,
     stream: bool = True,
     jobs: int = 1,
+    dedupe: str | None = None,
 ) -> dict[str, Any]:
     """Build a dataset from pipeline runs; returns a summary dict.
 
     ``jobs`` parallelises the per-run parsing/feature work (order preserved,
     bounded in-flight window); ``jobs=1`` is the classic sequential stream.
+
+    ``dedupe`` keeps only the first run per key (``structure_sha256``,
+    ``structure_file``, ``formula``, ``reduced_formula`` or ``label``) and records
+    ``n_deduped`` in the summary; failed runs are never dropped.
     """
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
@@ -314,6 +370,8 @@ def build_dataset(
                              label_key=label_key, rdf=rdf, topology=topology,
                              struct_dir=struct_dir if copy_structures else None,
                              jobs=jobs)
+        if dedupe:
+            rows_gen = dedupe_rows(rows_gen, dedupe, stats)
         _write_jsonl(jsonl_path, rows_gen, stats=stats)
         _csv_from_jsonl(jsonl_path, csv_path)
         summary = {
@@ -330,6 +388,8 @@ def build_dataset(
             "csv_sha256": _sha256(csv_path) if csv_path.is_file() else None,
             "feature_version": "cifkit-features/v1",
             "max_rows_held": stats["max_rows_held"],
+            "dedupe": stats.get("dedupe_key"),
+            "n_deduped": stats.get("n_deduped", 0),
             "built_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         }
         (out / "dataset_manifest.json").write_text(

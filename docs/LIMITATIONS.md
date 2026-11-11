@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 17 ✅（已修/已覆盖） / 60 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 77 条局限 = 19 ✅（已修/已覆盖） / 58 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -15,8 +15,8 @@
 | C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
-| F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
-| G | 性能 / 并发 / 稳定性 | 7 | 5 | 2 | 0 |
+| F | 特征 / 数据集 | 6 | 3 | 3 | 0 |
+| G | 性能 / 并发 / 稳定性 | 7 | 6 | 1 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 1 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
@@ -100,7 +100,7 @@
 | F2 | 特征全为几何/组成/对称性描述符，无 DFT 能量/带隙/电荷 | 🟡 | 不能直接当标签 | 用 `--label-key` 从 manifest 取，或自行 join | docs/FEATURES |
 | F3 | 配位数按距离判据，不读化学价/自旋 | 🟡 | 氧化态/磁性不在特征里 | 结合外部数据 | docs/FEATURES |
 | F4 | `rings` 已覆盖无金属框架（完整键图回退） | ✅ | 节点数上限 >600 原子跳过并标 `truncated` | 金属框架仍走 underlying net（`ring_basis=metal-net`） | `cifkit.topology.ring_statistics`；diamond 6 元环=16/胞实测 |
-| F5 | dataset 只汇总已有 manifest，无去重/清洗/标签计算 | 🟡 | 数据集质量取决于 runs | 上游用 pipeline/batch 控制质量 | docs/FEATURES |
+| F5 | dataset 新增 **`--dedupe KEY`**（`structure_sha256`/`structure_file`/`formula`/`reduced_formula`/`label`）：保留首次出现、**失败 run 永不被去掉**、流式与物化两种模式一致、内存只占「键集合」而非行；summary 增 `dedupe`/`n_deduped` 字段 | ✅ | 仍无更复杂的清洗（电荷/自旋一致性、留一法去重、跨源同一结构判定） | `cifkit/dataset.py::dedupe_rows`、`cifkit/cli.py --dedupe`、`tests/test_dataset_dedupe.py`（6 条） |
 | F6 | 数据集**已流式**（manifest 惰性遍历 + 行不驻留 + 分页读取），并在 2000 run 语料上量化：峰值内存 **3.55× 更低**（RDF 变体 4.34×），代价是墙钟 0.85×（多读一遍 JSONL） | ✅ | 极端语料（百万 run、超大行）仍未测 | `build_dataset(stream=True)`（默认）、`iter_manifests`、`api.dataset_rows` 分页；CSV 哈希与流式/传统一致 | docs/PERFORMANCE.md §10.5；tests/test_dataset.py |
 
 ## G. 性能 / 并发 / 稳定性
@@ -113,7 +113,7 @@
 | G2 | slab 缓存是**进程内** LRU（24 条），跨进程不共享 | 🟡 | 多进程重复计算 | 单进程内批量复用 | docs/PERFORMANCE |
 | G3 | `library/index.jsonl` 的并发追加**已加跨进程锁**：`append_jsonl_locked()` 在 `file_lock` 内写入并 `fsync`，崩溃不会留下半行；读者仍可能看到写入中的一行，契约是「崩溃不产生半行」+ `iter` 跳过不可解析行 | ✅ | 无锁读者不是线程安全的（已写清楚） | `cifkit/locks.py::append_jsonl_locked`、`cifkit/provenance.py`；`tests/test_concurrent_index.py`（**真起 4 个进程 × 25 次追加**，断言 100 行、行行可解析、无半行、锁已释放） |
 | G4 | 文件锁覆盖范围：**CoRE 索引构建**用锁；**`library/index.jsonl` 追加**现在也用锁（round 42）；其余缓存文件（数据集清单、格式校验报告等）靠**原子写**（同目录 temp + `os.replace`），并发读者可能读到旧内容但**不会读到半个文件** | ✅ | 语义已明确写出：「写者原子、读者无锁」——需要强一致的场景请显式加锁 | `cifkit/locks.py`（`file_lock`/`atomic_write_text`/`atomic_write_json`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（含 stale 锁回收、锁互斥） |
-| G5 | 未做真实 SIGKILL 中途崩溃的完整恢复测试（只有锁 stale 恢复） | 🟡 | 崩溃后需重跑 | 重跑幂等 | docs/ROBUSTNESS |
+| G5 | 崩溃恢复**已做真实进程杀死测试**：SIGKILL 追加者后索引**只剩完整行**（逐行可解析、结尾必有换行）；SIGKILL 原子写者后目标文件**是完整的旧/新一代、绝无截断**，且不留临时文件；崩溃后重跑幂等（读者按 run_id 去重） | ✅ | 测试覆盖文件级契约，不是全流程混沌测试 | `tests/test_crash_recovery.py`（3 条，真起子进程并强杀）、`tests/test_lock_liveness.py`（5 条） |
 | G6 | 行尾（EOL）会破坏按字节 sha256 钉住的文件 | ✅ | 修复前**任何干净 clone 都会红**（nets 参考哈希 FAIL、verify_demo 7/8、check_all 6/7） | `.gitattributes` 统一 `eol=lf`；`runs/**` 标 `-text`；已实测 clone 通过 | `.gitattributes`；REVIEW-ROUND11-OPT P1-b |
 
 ## H. 技能 / 路由 / 测试覆盖

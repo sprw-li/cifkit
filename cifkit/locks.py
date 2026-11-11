@@ -16,6 +16,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Iterator
@@ -24,6 +25,65 @@ from typing import Any, Iterator
 class LockTimeout(RuntimeError):
     """Raised when a lock cannot be acquired within the timeout."""
 
+
+
+def _pid_alive(pid: int) -> bool:
+    """Best-effort liveness check for a recorded lock owner (cross-platform).
+
+    Conservative by design: ``True`` means "assume alive, keep waiting".  Only an
+    unambiguous "no such process" returns ``False`` — stealing a lock from a live
+    owner is worse than waiting, because it lets two writers run at once.
+    """
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        ERROR_INVALID_PARAMETER = 87
+        ERROR_ACCESS_DENIED = 5
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            err = kernel32.GetLastError()
+            if err == ERROR_INVALID_PARAMETER:
+                return False                     # that PID does not exist
+            if err == ERROR_ACCESS_DENIED:
+                return True                      # exists, we simply cannot query it
+            return True                          # ambiguous -> stay conservative
+        exit_code = ctypes.c_ulong()
+        ok = bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)))
+        kernel32.CloseHandle(handle)
+        if not ok:
+            return True
+        return exit_code.value == 259            # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True                              # exists but not ours
+    except OSError:
+        return True                              # ambiguous -> conservative
+    return True
+
+
+def _lock_is_stale(lock: Path, stale: float) -> bool:
+    """A lock is stale when it is old **or** its owner is gone."""
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except OSError:
+        return False
+    if age > stale:
+        return True
+    try:
+        body = lock.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    match = re.search(r"pid=(\d+)", body)
+    if match and not _pid_alive(int(match.group(1))):
+        return True
+    return False
 
 @contextlib.contextmanager
 def file_lock(
@@ -44,12 +104,8 @@ def file_lock(
             os.write(handle, f"pid={os.getpid()} ts={time.time():.3f}".encode())
             break
         except FileExistsError:
-            try:
-                age = time.time() - lock.stat().st_mtime
-            except OSError:
-                age = 0.0
-            if age > stale:
-                # crashed writer: best-effort stale-lock removal and retry
+            if _lock_is_stale(lock, stale):
+                # owner crashed (SIGKILL) or the lock is ancient: reclaim and retry
                 with contextlib.suppress(OSError):
                     lock.unlink()
                 continue
