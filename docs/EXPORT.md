@@ -200,3 +200,10 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 `scripts/verify_formats.py` 用注 `strict-parse (in-house)` 标记它不是独立回读。
 **这套解析当场抓到一个真 bug**：ABACUS 导出把全部原子写进了每个物种块
 （16 原子文件出现 48 行坐标），已修复并由 `tests/test_abacus_export.py` 锁定。
+
+## 力场骨架（round 42）
+
+`gromacs` bundle 现在额外输出 **`topol.top` 骨架**：原子列表（含元素质量）、`[ bonds ]`
+（来自 cifkit 的键感知）、`[ defaults ]/[ atomtypes ]/[ moleculetype ]/[ atoms ]/[ system ]/[ molecules ]`
+全部 section 齐全；**ATOM TYPES 与 CHARGES 是占位值**，`TOP.readme` 明确要求替换。
+`lammps` 的 `in.min` 给出三种力场起点（几何检查 / 通用 LJ 占位（标注非拟合力场）/ 真实 FF）。

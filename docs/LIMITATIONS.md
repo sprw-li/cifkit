@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 15 ✅（已修/已覆盖） / 62 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 77 条局限 = 17 ✅（已修/已覆盖） / 60 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -16,7 +16,7 @@
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 2 | 4 | 0 |
-| G | 性能 / 并发 / 稳定性 | 7 | 3 | 4 | 0 |
+| G | 性能 / 并发 / 稳定性 | 7 | 5 | 2 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 1 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
@@ -87,7 +87,7 @@
 | E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供；且这 12 个 bundle 的**跨文件契约现在被门禁校验**（必需文件、交叉引用、声明缺失必须真缺失，12/12 一致、43 条检查） | 🟡 | 模板仍不可直接运行（数据由用户提供），但**包内部不再自相矛盾**；检查器用故意破坏的包做过负例测试 | `scripts/check_bundles.py`、`cifkit/export/bundle_check.py`、`tests/test_bundle_check.py`（18 条）、`release_check` 第 13 道门 |
 | E2 | 第三方独立回读 **25/31**；5 个模板格式（abacus/cp2k/dftb/orca/siesta）**没有任何第三方读取器**：实测 ASE 的 `siesta`/`dftb`/`abacus`/`orca`/`cp2k` 模块都读不了我们的文件（`runs/probe_template_readers.json`） | 🟡 | 模板只能靠**自研严格解析**（不是独立回读）；png 用魔数 | 已把模板检查从「关键字存在」升级为**结构化解析**（`cifkit/export/template_check.py`：解析坐标块/原子数/元素集/晶胞，dftb 走 hsd+geo.gen 成对校验）；**这一步当场抓到一个真 bug**（ABACUS 每个物种块写了全部原子：16 原子出 48 行，已修 + 回归测试） | `runs/probe_template_readers.json`、`tests/test_template_check.py`、`tests/test_abacus_export.py`、`scripts/verify_formats.py`（31/31 ok，模板 reader 标 `strict-parse (in-house)`） |
 | E3 | 模板参数是默认值（ENCUT=520、2×2×2 k 点等），未做收敛测试 | 🟡 | 计算前必须自己收敛 | INCAR/KPOINTS/README 标注 | docs/EXPORT |
-| E4 | PDB/SDF/MOL 不表达周期性；GRO 只有 3 位小数；LAMMPS data 为 atom_style atomic | 🟡 | 不能直接用于周期体系/带电体系 | 用 extxyz/vasp/cif；LAMMPS 需补力场/电荷 | docs/EXPORT |
+| E4 | PDB/SDF/MOL 不表达周期性（不变）；GRO 3 位小数（不变）；**LAMMPS 现在带完整 `Masses` + `in.min` 三种力场选项**（`zero` 几何检查 / 通用 LJ 占位（明确标注不是拟合力场）/ 真实 FF 示例）；**GROMACS 现在带 `topol.top` 骨架**（每个原子含元素质量、`[ bonds ]` 来自 cifkit 的键感知、所有必需 section 齐全），但 **[ atomtypes ]/[ atoms ] 的电荷与 LJ 参数是占位值** | 🟡 | 力场无法从 CIF 推导——骨架把「写拓扑」的工作量降到「填参数」 | `cifkit/export/bundles.py::_gromacs_topology`、`tests/test_ff_skeletons.py`（6 条：section 齐全、原子数/质量、键引用合法、占位已标注、readme 说明、LAMMPS 三选项）；bundle 门禁规则同步更新 |
 | E5 | Gaussian/ORCA 模板默认电荷 0、多重度 1 | 🟡 | 开壳层/离子体系需改 | 模板注释提示 | docs/EXPORT |
 | E6 | `cube`/`png` 之外的体积数据格式未实现（cube 需要 3D 数据数组） | 🟡 | 不能导出 volumetric cube | png 预览已支持；cube 文档标未实现 | docs/EXPORT §6 |
 
@@ -111,8 +111,8 @@
 | F7 | dataset 现在**有 `--jobs`**（`build_dataset(jobs=N)` / `cifkit dataset --jobs N`，顺序保持、在飞窗口 jobs×2、`max_rows_held` 仍为 1，测试保证 jsonl/csv 与串行逐字节一致）；但**实测无加速**：40 run 语料 jobs=1/2/4/8 → 13.7/14.9/13.8/12.9 s（0.92-1.06×），瓶颈是 GIL（pymatgen 解析 + 纯 Python 特征） | ✅ | 并行**正确但无效**，要吞吐请按语料分片起多个进程（或多机 fan-out） | `runs/bench_dataset_jobs.json`、`tests/test_dataset_jobs.py`（4 条：一致性/流式界/失败行/默认值） |
 | G1 | batch 并发扩展性**已实测**（8 个真实 pipeline 作业，两次独立运行）：jobs=1 约 147-149 s；jobs=2 **1.66×**；jobs=4 **2.05-2.93×**（效率 0.51-0.73）；jobs=8 **3.11-3.85×**（效率 0.39-0.48）；**jobs=16 反而更慢（2.78×）**——过订阅 | ✅ | 数字来自共享机器，是数量级证据；建议 `--jobs 4`（效率高）或 8（吞吐最高），不要 16 | `scripts/bench_batch_scale.py`（可复测，写 runs/bench_batch_scale*.json） |
 | G2 | slab 缓存是**进程内** LRU（24 条），跨进程不共享 | 🟡 | 多进程重复计算 | 单进程内批量复用 | docs/PERFORMANCE |
-| G3 | `library/index.jsonl` 并发追加无跨进程行锁（只保证不产生半行） | 🟡 | 极端并发顺序不定 | 避免多进程同时 --ingest | docs/ROBUSTNESS |
-| G4 | 文件锁只保护 CoRE 索引构建；其它缓存文件靠原子写 | 🟡 | 读者可能读到旧值 | 重跑/原子替换 | docs/ROBUSTNESS |
+| G3 | `library/index.jsonl` 的并发追加**已加跨进程锁**：`append_jsonl_locked()` 在 `file_lock` 内写入并 `fsync`，崩溃不会留下半行；读者仍可能看到写入中的一行，契约是「崩溃不产生半行」+ `iter` 跳过不可解析行 | ✅ | 无锁读者不是线程安全的（已写清楚） | `cifkit/locks.py::append_jsonl_locked`、`cifkit/provenance.py`；`tests/test_concurrent_index.py`（**真起 4 个进程 × 25 次追加**，断言 100 行、行行可解析、无半行、锁已释放） |
+| G4 | 文件锁覆盖范围：**CoRE 索引构建**用锁；**`library/index.jsonl` 追加**现在也用锁（round 42）；其余缓存文件（数据集清单、格式校验报告等）靠**原子写**（同目录 temp + `os.replace`），并发读者可能读到旧内容但**不会读到半个文件** | ✅ | 语义已明确写出：「写者原子、读者无锁」——需要强一致的场景请显式加锁 | `cifkit/locks.py`（`file_lock`/`atomic_write_text`/`atomic_write_json`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（含 stale 锁回收、锁互斥） |
 | G5 | 未做真实 SIGKILL 中途崩溃的完整恢复测试（只有锁 stale 恢复） | 🟡 | 崩溃后需重跑 | 重跑幂等 | docs/ROBUSTNESS |
 | G6 | 行尾（EOL）会破坏按字节 sha256 钉住的文件 | ✅ | 修复前**任何干净 clone 都会红**（nets 参考哈希 FAIL、verify_demo 7/8、check_all 6/7） | `.gitattributes` 统一 `eol=lf`；`runs/**` 标 `-text`；已实测 clone 通过 | `.gitattributes`；REVIEW-ROUND11-OPT P1-b |
 

@@ -40,8 +40,12 @@ BUNDLE_INFO: dict[str, dict[str, Any]] = {
         "template": True,
     },
     "gromacs": {
-        "description": "GROMACS .gro coordinates + .mdp + topology notes",
-        "missing": ["force-field .top/.itp", "box/charge equilibration"],
+        "description": "GROMACS .gro coordinates + .mdp + .top skeleton (placeholder FF)",
+        "missing": [
+            "force-field atom types/charges (the shipped .top lists real atoms and "
+            "bonds but its types/charges are PLACEHOLDERS)",
+            "box/charge equilibration",
+        ],
         "template": True,
     },
     "gaussian": {
@@ -186,22 +190,39 @@ Check that the POTCAR species lines match the POSCAR title/species order.""")
         _w("cp2k", "cp2k.inp")
     elif key == "lammps":
         _w("lammps", "data.lammps")
-        _txt("in.min", """# LAMMPS minimization template (cifkit) — choose a force field!
-units metal
-atom_style atomic
-boundary p p p
-read_data data.lammps
-# mass 1 65.38   # add masses if the data file has none
-# pair_style ... / pair_coeff ...
-# kspace_style ewald 1e-6   # for charged systems
-neighbor 2.0 bin
-thermo 100
-thermo_style custom step pe etotal press temp
-min_style cg
-minimize 1e-8 1e-10 10000 100000
+        _txt("in.min", """; LAMMPS minimisation / zero-potential check (cifkit)
+; The data file has masses and atom types but NO force field: pick one and
+; uncomment the matching pair_style/pair_coeff lines below.
+units           metal
+atom_style      atomic
+boundary        p p p
+read_data       data.lammps
+
+; --- option A: do nothing but check the geometry (no interactions) -------------
+pair_style      zero 10.0
+pair_coeff      * *
+
+; --- option B: generic Lennard-Jones placeholder (edit epsilon/sigma per pair) --
+; pair_style    lj/cut 10.0
+; pair_coeff    * * 0.010 3.0   # epsilon (eV), sigma (A) - NOT a fitted FF
+
+; --- option C: a real force field (needs its own files) ------------------------
+; pair_style    eam/alloy
+; pair_coeff    * * <potential>.eam.alloy <elements...>
+
+thermo          10
+min_style       cg
+minimize        1e-6 1e-8 100 1000
 """)
+        _txt("in.readme", """`data.lammps` carries coordinates, atom types and masses (written by cifkit);
+the force field does not exist yet - that is the user's choice.  `in.min` shows
+three options: `zero` (geometry-only), a generic LJ placeholder, or a real FF.
+For a periodic MOF the usual starting points are UFF/DREIDING (via a converter)
+or an EAM/alloy potential for the metal nodes.""")
     elif key == "gromacs":
         _w("gromacs", "conf.gro")
+        _w("xyz", "coords.xyz")
+        _txt("topol.top", _gromacs_topology(structure, title))
         _txt("md.mdp", """; GROMACS .mdp template (cifkit) — EM/eq/run; adjust force field & T/P
 integrator = steep
 emtol = 1000.0
@@ -213,9 +234,11 @@ rcoulomb = 1.0
 rvdw = 1.0
 pbc = xyz
 """)
-        _txt("TOP.readme", """The .top/.itp force-field topology is NOT generated (needs a force field and
-bond perception). Build it with your preferred FF (e.g. GAFF/OPLS/UFF) and
-include conf.gro as the starting coordinates.""")
+        _txt("TOP.readme", """`topol.top` is a SKELETON: it lists every atom (with element masses), the bonds
+cifkit perceived, and all required sections, but the [ atomtypes ]/[ atoms ]
+charges and Lennard-Jones parameters are PLACEHOLDERS - no force field can be
+derived from a CIF.  Replace them with your FF (UFF/DREIDING via a converter, or
+a MOF-specific force field) before running GROMACS.""")
     elif key == "gaussian":
         _w("gaussian", "mol.gjf")
     elif key == "orca":
@@ -246,6 +269,96 @@ include conf.gro as the starting coordinates.""")
         "missing": list(BUNDLE_INFO[key]["missing"]),
         "note": "输入模板 + 几何；POTCAR/UPF/skf/basis 等未提供，未在目标软件中真实运行。",
     }
+
+
+
+def _gromacs_topology(structure: Structure, title: str | None) -> str:
+    """A GROMACS ``.top`` skeleton with real atoms/bonds and placeholder types.
+
+    Round 42 (limitation E4): the bundle used to ship only ``conf.gro``, so the
+    GROMACS user had to rebuild the whole topology.  cifkit already perceives bonds,
+    so the *connectivity* can be handed over; what cannot be derived are force-field
+    atom types, charges and parameters - those stay explicit ``TODO`` placeholders.
+    """
+    from cifkit.repair.bonds import perceive_bonds
+
+    symbols = [element_symbol(site) for site in structure]
+    masses = {}
+    for site in structure:
+        symbol = element_symbol(site)
+        masses.setdefault(symbol, _atomic_mass(symbol))
+    order = sorted(masses)
+    # atom types: one placeholder per element (never a silent guess)
+    type_index = {symbol: index + 1 for index, symbol in enumerate(order)}
+
+    bonds: set[tuple[int, int]] = set()
+    try:
+        graph = perceive_bonds(structure)
+        # BondGraph exposes ``adj`` / ``unique_bonds``; use whichever is present so
+        # a future rename cannot silently produce an empty bond list.
+        unique = getattr(graph, "unique_bonds", None)
+        if callable(unique):
+            unique = unique()
+        if unique is None:
+            unique = []
+            for items in (getattr(graph, "adj", {}) or {}).values():
+                unique.extend(items)
+        for bond in unique:
+            i, j = int(getattr(bond, "i")), int(getattr(bond, "j"))
+            if i != j:
+                bonds.add((min(i, j) + 1, max(i, j) + 1))
+    except Exception:  # noqa: BLE001 - topology is optional, never fatal
+        bonds = set()
+
+    lines = [
+        f"; GROMACS topology skeleton written by cifkit: {_comment(structure, title)}",
+        "; The ATOM TYPES and CHARGES below are PLACEHOLDERS (0 charge, type = 1,2,3...).",
+        "; Assign a real force field (e.g. UFF/DREIDING via a converter, or a MOF FF)",
+        "; before production, and set [ atomtypes ] to match it.",
+        "",
+        "[ defaults ]",
+        "; nbfunc  comb-rule  gen-pairs  fudgeLJ  fudgeQQ",
+        "1         2           yes        0.5      0.5",
+        "",
+        "[ atomtypes ]",
+        "; name  at.num  mass  charge  ptype  sigma  epsilon   <- placeholders!",
+    ]
+    for symbol in order:
+        number = _atomic_number(symbol)
+        lines.append(f"  {symbol:4s} {number:4d} {masses[symbol]:8.3f} 0.0 A 0.30 0.40")
+    lines += ["", "[ moleculetype ]", "; name  nrexcl", f"{_formula(structure):12s} 3", ""]
+    lines.append("[ atoms ]")
+    lines.append("; nr  type  resnr  residue  atom  cgnr  charge  mass")
+    for index, site in enumerate(structure, start=1):
+        symbol = element_symbol(site)
+        lines.append(f"{index:5d} {type_index[symbol]:5d} 1      MOL      {symbol}{index:<4d} "
+                     f"{index:5d} 0.0 {masses[symbol]:8.3f}")
+    lines += ["", "[ bonds ]", "; ai  aj  funct"]
+    for i, j in sorted(bonds):
+        lines.append(f"{i:5d} {j:5d} 1")
+    if not bonds:
+        lines.append("; (no bonds perceived - add them from your own chemistry)")
+    lines += ["", "[ system ]", _formula(structure), "", "[ molecules ]",
+              "; name  count", f"{_formula(structure):12s} 1", ""]
+    return "\n".join(lines)
+
+
+def _atomic_mass(symbol: str) -> float:
+    from pymatgen.core import Element
+
+    try:
+        return float(Element(symbol).atomic_mass)
+    except Exception:  # noqa: BLE001
+        return 1.0
+
+
+def _atomic_number(symbol: str) -> int:
+    from pymatgen.core import Element
+
+    try:
+        return int(Element(symbol).Z)
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 __all__ = ["BUNDLE_INFO", "supported_bundles", "write_bundle"]

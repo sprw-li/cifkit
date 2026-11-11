@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from cifkit.cache import project_root
+from cifkit.locks import append_jsonl_locked
 from cifkit.types import RunResult, StructureRecord, TaskSpec
 
 #: packages whose *versions are recorded in every manifest*.  Only packages cifkit
@@ -150,8 +151,8 @@ def ingest(result: RunResult, manifest: dict[str, Any] | None = None) -> dict[st
     }
     write_json(entry_dir / "metadata.json", meta)
     index_path = lib / "index.jsonl"
-    with index_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
+    # Round 42 (G3): concurrent `--ingest` runs must not interleave lines.
+    append_jsonl_locked(index_path, meta)
     return {"library_entry": str(entry_dir), "index": str(index_path)}
 
 

@@ -83,3 +83,36 @@ def atomic_write_text(path: str | Path, text: str, *, encoding: str = "utf-8") -
 
 def atomic_write_json(path: str | Path, data: Any, *, ensure_ascii: bool = False) -> Path:
     return atomic_write_text(path, json.dumps(data, ensure_ascii=ensure_ascii, separators=(",", ":")))
+
+def append_jsonl_locked(
+    path: str | Path,
+    data: Any,
+    *,
+    timeout: float = 60.0,
+    stale: float = 180.0,
+    fsync: bool = True,
+    ensure_ascii: bool = False,
+) -> Path:
+    """Append one JSON object as a line, holding a lock across the write.
+
+    Round 42 (limitation G3): ``library/index.jsonl`` was appended without any
+    cross-process coordination, so two concurrent ``--ingest`` runs could interleave
+    (a reader could even observe a half-written line).  Locking around the write and
+    ``fsync``-ing makes the append atomic *as observed by other lock users*, and the
+    newline is written in the same call so a torn line cannot survive a crash.
+
+    Readers that do not take the lock can still see a partial line mid-write; the
+    documented contract is "no half-lines survive a crash", not "lock-free readers
+    are safe".  ``iter_index`` in :mod:`cifkit.provenance` skips unparsable lines so
+    a lock-free reader degrades to skipping rather than crashing.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(data, ensure_ascii=ensure_ascii) + "\n"
+    with file_lock(target.with_name(f"{target.name}.lock"), timeout=timeout, stale=stale):
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+            handle.flush()
+            if fsync:
+                os.fsync(handle.fileno())
+    return target

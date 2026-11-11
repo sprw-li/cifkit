@@ -658,3 +658,16 @@ CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/ch
 > 同一轮还修正了一处**我自己制造的**许可扫描告警：在 `check_ci.py` 的 on-demand 理由字符串里写了受限许可关键词，
 > `sca_scan --strict` 正确地把「源码里出现该词」判为 copyleft 提及 —— 改成中性措辞后恢复 0 actionable。
 > 门禁抓到作者本人，正是它该有的行为。
+
+### 8.27 并发写入与力场骨架（round 42）
+
+**跨进程追加锁**（G3）：`library/index.jsonl` 以前裸 `open("a")`，两个并发 `--ingest` 可能交错。
+现在统一走 `cifkit/locks.py::append_jsonl_locked()`：持 `file_lock` 写入 + `fsync`，
+**崩溃不留半行**；测试**真起 4 个进程**各追加 25 条，断言 100 行、行行可解析、无半行、锁已释放。
+
+**力场骨架**（E4）：CIF 推不出力场，但**能推出拓扑**——
+- GROMACS `topol.top`：每个原子（含元素质量）+ `[ bonds ]`（来自 cifkit 的键感知）+ 全部必需 section，
+  而 `[ atomtypes ]`/`[ atoms ]` 的电荷与 LJ 参数是**明确标注的占位值**；配套 `TOP.readme` 说明要替换什么。
+- LAMMPS `in.min`：给出三条路（`zero` 几何检查 / 通用 LJ 占位并标注"**不是拟合力场**" / 真实 FF 示例），
+  `data.lammps` 带完整 `Masses`。
+- bundle 门禁规则同步更新（gromacs 现要求 `topol.top` 存在，且"缺失"文案必须提到 atom types）。

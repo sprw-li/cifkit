@@ -40,8 +40,9 @@ RULES: dict[str, dict] = {
                "missing_must_mention": ["INPUT"]},
     "aims": {"required": ["geometry.in", "control.readme"],
              "missing_must_mention": ["control.in"]},
-    "gromacs": {"required": ["conf.gro", "md.mdp", "TOP.readme"],
-                "missing_must_mention": ["force-field"]},
+    "gromacs": {"required": ["conf.gro", "md.mdp", "topol.top", "TOP.readme"],
+                # the shipped .top is a skeleton; the *force field* is still missing
+                "missing_must_mention": ["atom types"]},
     "gaussian": {"required": ["mol.gjf"],
                  "missing_must_mention": ["basis"]},
 }
