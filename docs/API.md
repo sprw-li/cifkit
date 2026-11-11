@@ -164,3 +164,14 @@ service.stats_snapshot()               # requests/ok/errors/rejected/timeouts
 服务为每个请求创建 `CancellationToken`，超时刻调用 `cancel("timeout")`，
 worker 在下一个 `checkpoint()` 停下（已接入 `features_many`）。
 正在执行的那一个最小工作单元无法被强杀——这是 CPython 的限制，不是实现偷懒。
+
+## 流式导出（round 52）
+
+```
+GET /stream/dataset_rows?dir=<dataset_dir>&offset=0&limit=100000
+    → 200, Content-Type: application/x-ndjson, Transfer-Encoding: chunked
+```
+
+每行一个 JSON 对象（无外层包装）。`cifkit.api.iter_dataset_rows(...)` 是同一个实现，
+平台也可直接当生成器用：逐行读 `dataset.jsonl`，内存有界；客户端断开时服务端停止拉取。
+该路由**同样经过 Policy 检查**（`read_roots` 沙箱、租户、上限），越界返回 403。

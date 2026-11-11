@@ -135,8 +135,12 @@ def health() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # optional: zero-dependency HTTP server (for local integration tests / demos)
 # ---------------------------------------------------------------------------
-def make_handler():  # pragma: no cover - exercised through tests via serve()
+def make_handler(policy=None):  # pragma: no cover - exercised through tests via serve()
     from http.server import BaseHTTPRequestHandler
+
+    from cifkit.platform import Policy, check_params
+
+    active_policy = policy or Policy()
 
     class _Handler(BaseHTTPRequestHandler):
         server_version = "cifkit-service"
@@ -149,11 +153,71 @@ def make_handler():  # pragma: no cover - exercised through tests via serve()
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_chunked(self, chunks) -> None:
+            """Stream ``chunks`` as NDJSON (round 52, J4) with chunked encoding."""
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            sent = 0
+            try:
+                for chunk in chunks:
+                    body = chunk.encode("utf-8")
+                    self.wfile.write(f"{len(body):X}\r\n".encode("ascii") + body + b"\r\n")
+                    sent += 1
+                self.wfile.write(b"0\r\n\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                # the client hung up: stop pulling rows (this is what streaming is for)
+                pass
         def do_GET(self) -> None:  # noqa: N802 - stdlib API
-            if self.path.rstrip("/") in ("", "/health"):
+            from urllib.parse import parse_qs, urlparse
+
+            parsed = urlparse(self.path)
+            route = parsed.path.rstrip("/") or "/"
+            if route in ("", "/health"):
                 self._send(health())
-            else:
-                self._send({"ok": False, "error": {"code": "not-found", "message": "use POST /rpc"}}, 404)
+                return
+            if route == "/stream/dataset_rows":
+                from cifkit.api import stream_dataset_rows_ndjson
+
+                query = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+                params = {"dataset_dir": query.get("dir") or query.get("dataset_dir"),
+                          "offset": int(query.get("offset", 0) or 0),
+                          "limit": int(query["limit"]) if query.get("limit") else None,
+                          "with_features": str(query.get("with_features", "")).lower()
+                          in ("1", "true", "yes")}
+                if not params["dataset_dir"]:
+                    self._send({"ok": False, "error": {"code": "invalid-request",
+                                                       "message": "dir is required"}}, 400)
+                    return
+                try:
+                    # the *same* policy checks as /rpc: a streaming route must not be a
+                    # sandbox bypass (path resolution, tenant rules, size limits)
+                    checked = check_params("dataset_rows", {
+                        "dataset_dir": params["dataset_dir"],
+                        "offset": params["offset"],
+                        "limit": params["limit"] or 1_000_000,
+                        "with_features": params["with_features"]}, active_policy)
+                except Exception as exc:  # noqa: BLE001 - report, never leak a traceback
+                    code = getattr(exc, "code", "error")
+                    status = 403 if code == "forbidden-path" else 400
+                    self._send({"ok": False, "error": {"code": code, "message": str(exc)}},
+                               status)
+                    return
+                params["dataset_dir"] = checked.get("dataset_dir", params["dataset_dir"])
+                try:
+                    chunks = stream_dataset_rows_ndjson(
+                        dataset_dir=params["dataset_dir"], offset=params["offset"],
+                        limit=params["limit"], with_features=params["with_features"])
+                    self._send_chunked(chunks)
+                except Exception as exc:  # noqa: BLE001
+                    code = getattr(exc, "code", "error")
+                    self._send({"ok": False, "error": {"code": code, "message": str(exc)}},
+                               404 if code == "not-found" else 400)
+                return
+            self._send({"ok": False, "error": {"code": "not-found", "message": "use POST /rpc"}},
+                       404)
 
         def do_POST(self) -> None:  # noqa: N802 - stdlib API
             if self.path.rstrip("/") != "/rpc":
@@ -176,12 +240,17 @@ def make_handler():  # pragma: no cover - exercised through tests via serve()
     return _Handler
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765, *, background: bool = False):
-    """Start the stdlib HTTP server.  ``background=True`` returns ``(server, thread)``."""
+def serve(host: str = "127.0.0.1", port: int = 8765, *, background: bool = False,
+          policy=None):
+    """Start the stdlib HTTP server.  ``background=True`` returns ``(server, thread)``.
+
+    ``policy`` is applied to the streaming route as well (round 52), so
+    ``/stream/dataset_rows`` cannot read outside the sandbox.
+    """
     from http.server import ThreadingHTTPServer
     import threading
 
-    server = ThreadingHTTPServer((host, int(port)), make_handler())
+    server = ThreadingHTTPServer((host, int(port)), make_handler(policy))
     if not background:
         server.serve_forever()
         return server

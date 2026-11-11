@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 20 ✅（已修/已覆盖） / 57 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 77 条局限 = 21 ✅（已修/已覆盖） / 56 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -151,7 +151,7 @@
 | J1 | **提供** `authorizer=` 钩子与 per-tenant `Policy`，但**不含**鉴权实现（无 JWT/OAuth/密钥库） | 🟡 | 平台仍需自己做认证与授权决策 | `GuardedService(policy, authorizer=...)`；`request["auth"]` 走信封层，不进入 op 契约 | cifkit/platform.py；tests/test_platform.py |
 | J2 | 超时从「尽力而为」升级为**协作式取消**：新增 `cifkit/cancel.py`（线程安全的 `CancellationToken` + 线程本地 `checkpoint()`），`GuardedService` 每个请求持一个 token，**超时即 `token.cancel("timeout")`**；`features_many`（含 `jobs<=1` 的顺序路径）在每个 item 前后调用 checkpoint，被取消时抛 `Cancelled` 而不是把整批跑完 | 🟡 | 仍**杀不掉**正在算的那一个 item（CPython 无法安全终止线程）；只有显式调 checkpoint 的循环可取消，未加 checkpoint 的重计算仍跑完 | `cifkit/cancel.py`、`cifkit/platform.py::GuardedService._run`、`cifkit/features.py::features_many`、`tests/test_cancellation.py`（11 条，含「取消后批处理真的提前停止」与「超时后 worker 未跑完循环」） |
 | J3 | `handle()` 吞掉异常（防 traceback 外泄） | 🟡 | 线上排障只能看日志 | 复现时直接调 `api.*` 拿真实异常 | `cifkit/service.py` |
-| J4 | 已有**分页**（`dataset_rows` 只读 offset+limit 行；`features_many` 支持 offset/limit + total），但**无流式响应/HTTP chunked** | 🟡 | 极大响应仍需一次性 JSON | 平台按页拉取；`columns=` 投影减小体积 | cifkit/api.py；tests/test_pagination.py |
+| J4 | 分页早就有（只读 offset+limit 行）；**现在还有真正的流式响应**：`cifkit.api.iter_dataset_rows`（生成器，逐行读 JSONL，内存有界）与 `GET /stream/dataset_rows?dir=…&offset=&limit=`，用 **`Transfer-Encoding: chunked`** 输出 `application/x-ndjson`，客户端断开即停止拉取；**流式路由复用 `/rpc` 的策略检查**（路径沙箱/租户/上限），不是沙箱后门 | ✅ | 只对 `dataset_rows` 做流式；其它 op 仍是单次 JSON 响应 | `cifkit/api.py::iter_dataset_rows`/`stream_dataset_rows_ndjson`、`cifkit/service.py`（`/stream/dataset_rows`）、`tests/test_streaming_rows.py`（10 条，含**逐行计数证明只为 2 行页读 3 行**、沙箱拒绝、`Content-Type` 断言） |
 | J5 | 有背压与并发上限（`max_concurrency` + `queue_size` -> 503 `busy`），**现在有实测压力曲线**（`scripts/load_service.py`，闭环客户端 + 真结构 `validate`）：并发 1/2/4/8 时吞吐 **~16.5 rps 几乎不变**（1.0 / 0.996 / 0.913 / 0.897），p50 从 58 ms 线性涨到 268 ms；把 `queue_size` 收到 4 后在并发 16 处**出现拒绝膝点**（790,718 次 `busy`） | 🟡 | 数字是**本机、单进程、GIL 限制**下的，不是集群容量；拒绝过快反而抢走已接纳请求的 CPU（并发 16 时成功吞吐掉到 4.5 rps），说明队列长度需要按客户端重试策略调 | `scripts/load_service.py`、`runs/service_load.json`、`runs/service_load_saturated.json`、`tests/test_service_load.py`（7 条，含 CPU-bound stub 证明线程不会凭空造吞吐） |
 | J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
 | J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |

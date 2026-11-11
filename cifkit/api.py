@@ -24,7 +24,7 @@ import base64
 import json
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 #: contract version of this module's request/response shapes
 API_VERSION = "1.0"
@@ -361,15 +361,16 @@ def dataset(*, runs_dir: str | Path, outdir: str | Path, features_enabled: bool 
                          rdf=rdf, topology=topology, stream=stream)
 
 
-def dataset_rows(*, dataset_dir: str | Path, offset: int = 0, limit: int = 100,
-                 columns: Iterable[str] | None = None, with_features: bool = False,
-                 include_manifest: bool = False) -> dict[str, Any]:
-    """Paginate a built dataset's ``dataset.jsonl`` **without loading it all**.
 
-    Reads only up to ``offset + limit`` lines, so a multi-million-row dataset can
-    be paged with bounded memory (limitation J4).
+def iter_dataset_rows(*, dataset_dir: str | Path, offset: int = 0, limit: int | None = None,
+                      columns: Iterable[str] | None = None, with_features: bool = False,
+                      include_manifest: bool = False) -> Iterator[dict[str, Any]]:
+    """Yield dataset rows lazily (bounded memory); the base of paging *and* streaming.
+
+    A ``limit`` of ``None`` means "to the end".  Only rows inside
+    ``[offset, offset + limit)`` are built, and the JSONL file is read line by line.
     """
-    from cifkit.dataset import count_jsonl, iter_jsonl
+    from cifkit.dataset import iter_jsonl
 
     base = Path(dataset_dir)
     jsonl = base if base.is_file() else base / "dataset.jsonl"
@@ -377,39 +378,62 @@ def dataset_rows(*, dataset_dir: str | Path, offset: int = 0, limit: int = 100,
         raise NotFound(f"dataset.jsonl not found under {base}")
     if int(offset) < 0:
         raise InvalidRequest("offset must be >= 0")
-    if int(limit) <= 0:
+    if limit is not None and int(limit) <= 0:
         raise InvalidRequest("limit must be positive")
     wanted = {str(c) for c in columns} if columns else None
-    rows: list[dict[str, Any]] = []
-    index = 0
-    stop = int(offset) + int(limit)
-    for obj in iter_jsonl(jsonl):
-        if index >= stop:
+    start = int(offset)
+    stop = None if limit is None else start + int(limit)
+    for index, obj in enumerate(iter_jsonl(jsonl)):
+        if stop is not None and index >= stop:
             break
-        if index >= int(offset):
-            row: dict[str, Any] = {"run_id": obj.get("run_id")}
-            meta = obj.get("meta") or {}
-            row.update({k: v for k, v in meta.items() if k != "run_id"})
-            if until_meta := obj.get("after"):
-                row.update(until_meta)
-            if obj.get("error") and not obj.get("features"):
-                row["error"] = obj["error"]
-            if with_features:
-                row.update(obj.get("features") or {})
-            elif obj.get("features"):
-                row["feature_version"] = (obj["features"] or {}).get("feature_version")
-            if include_manifest:
-                row["manifest"] = obj.get("manifest")
-            if wanted is not None:
-                row = {k: v for k, v in row.items() if k in wanted or k == "run_id"}
-            rows.append(row)
-        index += 1
-    total = count_jsonl(jsonl)
-    return {"dataset_dir": str(base), "rows": rows, "total": total,
-            "offset": int(offset), "limit": int(limit),
-            "has_more": int(offset) + len(rows) < total,
-            "columns": sorted({k for row in rows for k in row})}
+        if index < start:
+            continue
+        row: dict[str, Any] = {"run_id": obj.get("run_id")}
+        meta = obj.get("meta") or {}
+        row.update({k: v for k, v in meta.items() if k != "run_id"})
+        if until_meta := obj.get("after"):
+            row.update(until_meta)
+        if obj.get("error") and not obj.get("features"):
+            row["error"] = obj["error"]
+        if with_features:
+            row.update(obj.get("features") or {})
+        elif obj.get("features"):
+            row["feature_version"] = (obj["features"] or {}).get("feature_version")
+        if include_manifest:
+            row["manifest"] = obj.get("manifest")
+        if wanted is not None:
+            row = {key: value for key, value in row.items() if key in wanted}
+        yield row
 
+
+def stream_dataset_rows_ndjson(**kwargs: Any) -> Iterator[str]:
+    """One JSON object per line (no wrapper), for ``application/x-ndjson``."""
+    for row in iter_dataset_rows(**kwargs):
+        yield json.dumps(row, ensure_ascii=False, default=str) + "\n"
+
+def dataset_rows(*, dataset_dir: str | Path, offset: int = 0, limit: int = 100,
+                 columns: Iterable[str] | None = None, with_features: bool = False,
+                 include_manifest: bool = False) -> dict[str, Any]:
+    """Paginate a built dataset's ``dataset.jsonl`` **without loading it all**.
+
+    Thin wrapper over :func:`iter_dataset_rows`, so paging and streaming share one
+    implementation (limitation J4).
+    """
+    from cifkit.dataset import count_jsonl
+
+    base = Path(dataset_dir)
+    jsonl = base if base.is_file() else base / "dataset.jsonl"
+    rows = list(iter_dataset_rows(dataset_dir=dataset_dir, offset=offset, limit=limit,
+                                 columns=columns, with_features=with_features,
+                                 include_manifest=include_manifest))
+    ok = sum(1 for row in rows if not row.get("error"))
+    total = count_jsonl(jsonl)
+    start_index = int(offset or 0)
+    end_index = start_index + len(rows)
+    return {"ok": ok == len(rows), "n_inputs": len(rows), "n_ok": ok,
+            "n_failed": len(rows) - ok, "rows": rows,
+            "total": total, "offset": start_index, "limit": limit,
+            "has_more": end_index < total}
 
 def topology(*, path: str | Path | None = None, structure: Any = None, cif_text: str | None = None,
              net: str | None = None) -> dict[str, Any]:

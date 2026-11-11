@@ -822,3 +822,18 @@ NWChem 导出的注释里现在直接写明「`cutoff 20` 是 smoke-test 值，*
 
 **诚实边界**：正在计算的那一个 item 仍然杀不掉（CPython 不能安全终止线程），
 所以我们不宣称"可中断计算"，只宣称"**已加 checkpoint 的循环会在下一个安全点停止**"。
+
+### 8.36 流式行导出（round 52，J4）
+
+`dataset_rows` 早已分页（只读需要的行），但响应必须整个装进一个 JSON body。
+现在拆成两件东西：
+
+* `cifkit.api.iter_dataset_rows(...)` —— **生成器**，逐行读 `dataset.jsonl`，
+  分页与流式**共用同一实现**（不可能出现两套语义）；
+* `GET /stream/dataset_rows?dir=…&offset=&limit=` —— **NDJSON + chunked**，
+  客户端断开即停止拉取（`BrokenPipeError` 就地收敛，不刷日志、不继续读）。
+* **流式路由不绕过策略**：它复用 `check_params("dataset_rows", …)`，
+  也就是 `/rpc` 的那套路径沙箱/租户/上限检查；越界 403，缺 `dir` 400。
+
+测试（10 条）里最有价值的一条是**读行计数**：只为 2 行的页读了 3 行（多读 1 行用于判页尾），
+证明生成器没有退化成"先全读再切片"。
