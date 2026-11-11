@@ -768,7 +768,14 @@ QE `ecutwfc`、CP2K `CUTOFF`）、解析各家能量方言、并按严格定义�
 测试用**真子进程**验证跨进程命中（这才是 G2 的意义），另外覆盖参数不同不串号、坏条目被忽略并重写、
 可用环境变量关闭。
 
-### 8.33 第一张真实收敛表：模板默认值不够（round 48）
+### 8.33 第一张真实收敛表：模板默认值不够（round 48；round 51 更正）
+
+> **round 51 更正**：新增 60/80 Ha 两点后发现它们**崩溃**（`out of heap memory`，exit 255），
+> 而批次作业状态仍是 `succeeded`。因此 `output_completed()` 现在要求**正常结束标记**，
+> 收集器把这两点标记为作废（报告 = **3 有效 + 2 作废**）。上面的 20/30/40 三点均有 `Total times`，仍然有效。
+> 60/80 的**非单调**（+34.7 meV/atom 反弹）正是崩溃导致的假象——这也说明"能解析出数字"离"能当证据"很远。
+
+#### 8.33 第一张真实收敛表：模板默认值不够（round 48）
 
 三个云端作业（NWChem 7.2.2，16 原子周期胞，`c2_m8_cpu`，各自 15-31 分钟、9/13/21 光子）产出：
 
@@ -800,3 +807,18 @@ QE `ecutwfc`、CP2K `CUTOFF`）、解析各家能量方言、并按严格定义�
 **模板默认值的实测警告**：既然测出 cutoff 20→30 差 582 meV/atom、30→40 仍差 53 meV/atom，
 NWChem 导出的注释里现在直接写明「`cutoff 20` 是 smoke-test 值，**不是收敛值**」，
 并附上实测数字（`tests/test_nwchem_memory_guidance.py` 锁住这段警告不被删掉）。
+
+### 8.35 协作式取消（round 50，J2）
+
+`cifkit/cancel.py` 提供 `CancellationToken`（线程安全、一次性、带原因）与**线程本地** `checkpoint()`：
+库代码不必把 token 一路传参，只在循环里调 `checkpoint()` 即可。
+
+- `GuardedService` 每个请求建一个 token，在 worker 线程里 `use_token(...)` 安装；
+  **超时的那一刻 `token.cancel("timeout")`**，于是 worker 在下一个 checkpoint 停下，
+  而不是把整批任务跑完（错误文案也从 "best-effort" 改成 **"cooperative"**——说什么做什么）。
+- `features_many` 的两个分支都加了 checkpoint。**顺序分支（`jobs<=1`）最初被漏掉**——
+  这是最常用的路径，被测试当场抓出：`jobs=1` 时取消完全无效。
+- 测试里还用真 op 名（契约会在 dispatch 前校验 op 名）打桩，验证「超时后 worker 没跑完循环」。
+
+**诚实边界**：正在计算的那一个 item 仍然杀不掉（CPython 不能安全终止线程），
+所以我们不宣称"可中断计算"，只宣称"**已加 checkpoint 的循环会在下一个安全点停止**"。

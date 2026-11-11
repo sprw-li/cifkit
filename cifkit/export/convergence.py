@@ -138,6 +138,46 @@ def sweep(code: str, text: str, values: list[float] | None = None) -> list[tuple
     return out
 
 
+
+#: markers that mean the code did NOT finish normally (per dialect)
+FAILURE_MARKERS = (
+    "MPI_ABORT",
+    "out of heap memory",
+    "out of memory",
+    "segmentation fault",
+    "buffer overflow detected",
+    "SCF did not converge",
+    "failed to converge",
+    "ERROR: ",
+)
+
+#: markers that a completed run prints at the end (any one is enough)
+COMPLETION_MARKERS = (
+    "Total times",
+    "Thank you very much for using",
+    "PROGRAM ENDED AT",
+    "JOB DONE",
+    "Final energy",
+    "Total elapsed time",
+    "=== END OF",
+)
+
+
+def output_completed(output: str) -> tuple[bool, str]:
+    """Did the run finish normally?  Returns ``(ok, reason)``.
+
+    An aborted run still prints energies (NWChem prints the last SCF energy before
+    dying), so "we parsed a number" is **not** evidence that the calculation ran.
+    """
+    text = output or ""
+    for marker in FAILURE_MARKERS:
+        if marker in text:
+            return False, f"failure marker: {marker!r}"
+    for marker in COMPLETION_MARKERS:
+        if marker in text:
+            return True, f"completion marker: {marker!r}"
+    return False, "no completion marker (run may have been killed)"
+
 def parse_energy(output: str) -> float | None:
     """Extract the **final** energy from a code's output (any supported dialect).
 
@@ -210,5 +250,6 @@ def render_markdown(report: ConvergenceReport, *, title: str | None = None) -> s
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["SWEEPS", "Sample", "ConvergenceReport", "sweep", "parse_energy", "analyse",
-           "render_markdown"]
+__all__ = ["SWEEPS", "FAILURE_MARKERS", "COMPLETION_MARKERS", "Sample",
+           "ConvergenceReport", "sweep", "parse_energy", "analyse",
+           "render_markdown", "output_completed"]

@@ -65,3 +65,9 @@ def test_export_warns_that_the_default_cutoff_is_not_converged(nwchem_text):
     assert "582 meV/atom" in nwchem_text
     assert "53 meV/atom" in nwchem_text
     assert "MEASURED" in nwchem_text
+
+def test_export_warns_about_the_heap_limit_at_high_cutoff(nwchem_text):
+    """60 Hartree aborted under a 4.9 GiB directive: both knobs must move together."""
+    assert "out of heap" in nwchem_text
+    assert "4.9 GiB" in nwchem_text
+    assert "Total times" in nwchem_text, "users must verify the run actually finished"

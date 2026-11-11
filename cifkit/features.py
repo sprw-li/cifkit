@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import math
 from concurrent.futures import ThreadPoolExecutor
+
+from cifkit.cancel import checkpoint as _cancel_checkpoint
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -267,7 +269,13 @@ def features_many(
 
     workers = max(1, int(jobs))
     if workers <= 1 or len(path_list) <= 1:
-        return [_one(p) for p in path_list]
+        # round 50 (J2): the sequential path is the common one, so it must be
+        # cancellable too (a cancelled request should stop, not finish the batch).
+        rows: list[dict[str, Any]] = []
+        for path in path_list:
+            _cancel_checkpoint()
+            rows.append(_one(path))
+        return rows
 
     mode = (executor or "auto").lower()
     if mode == "auto":
@@ -287,4 +295,15 @@ def features_many(
         except Exception:  # noqa: BLE001 - restricted environments: fall back to threads
             pass
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(_one, path_list))
+        # round 50 (J2): cancellable walk instead of pool.map, so a timed-out request
+        # stops *submitting* new items.  Items already running finish (a thread cannot
+        # be killed); the point is that the batch does not continue to completion.
+        futures = []
+        rows: list[dict[str, Any]] = []
+        for path in path_list:
+            _cancel_checkpoint()
+            futures.append(pool.submit(_one, path))
+        for future in futures:
+            _cancel_checkpoint()
+            rows.append(future.result())
+        return rows

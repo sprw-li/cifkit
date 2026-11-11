@@ -194,3 +194,13 @@ FP32 达到 **63.6%**、FP16 **83%**、带宽 **77%** —— 数量级与比例�
 - `--concurrency` 很高时 CLI 的限流行为。
 
 这些都需要在光子充足后按同一套脚本复跑，报告结构已经就绪。
+
+### 5.8 重要教训：**批次作业状态 ≠ 计算状态**（round 51）
+
+60/80 Ha 的收敛作业在平台上都是 **`succeeded`**，但容器里两个 NWChem 计算实际是
+**`MPI_ABORT ... out of heap memory`、exit 255**——因为结算看的是启动器脚本的退出码（0）。
+
+**规则**：云端证据必须**同时**满足 ① 作业终态成功、② 输出里有**正常结束标记**
+（NWChem 的 `Total times`）、③ 没有失败标记（`MPI_ABORT`/`out of heap memory`/`buffer overflow`）。
+只满足 ① 的结论一律不采信。`cifkit.export.convergence.output_completed()` 负责这一判据，
+`tests/test_output_completion.py` 锁住它。

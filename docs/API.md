@@ -157,3 +157,10 @@ service.stats_snapshot()               # requests/ok/errors/rejected/timeouts
 - 无流式响应（大结果一次性 JSON）；无分页；
 - `handle()` 会捕获所有异常（避免 traceback 外泄），**调试时需要看日志/直接调 `api.*`**；
 - 未做压力/并发压测，也未做多租户隔离测试。
+
+## 超时与取消（round 50）
+
+`Policy(timeout_s=...)` 超时后返回 504 `timeout`，**并同时取消 worker**：
+服务为每个请求创建 `CancellationToken`，超时刻调用 `cancel("timeout")`，
+worker 在下一个 `checkpoint()` 停下（已接入 `features_many`）。
+正在执行的那一个最小工作单元无法被强杀——这是 CPython 的限制，不是实现偷懒。

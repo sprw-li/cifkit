@@ -34,6 +34,8 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+
+from cifkit.cancel import CancellationToken, use_token
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
@@ -326,18 +328,29 @@ class GuardedService:
     def _run(self, op: Any, params: dict[str, Any], policy: Policy, started: float) -> dict[str, Any]:
         payload = {"op": op, "params": params}
         handler = self._handler()
+        token = CancellationToken()
+
+        def _call() -> dict[str, Any]:
+            # the token is thread-local, so it must be installed *inside* the worker
+            with use_token(token):
+                return handler(payload)
+
         if policy.timeout_s is None:
-            response = handler(payload)
+            response = _call()
         else:
-            future = self._pool().submit(handler, payload)
+            future = self._pool().submit(_call)
             try:
                 response = future.result(timeout=float(policy.timeout_s))
             except FutureTimeout:
                 self._bump("timeouts")
+                # round 50 (J2): signal the worker so it stops at its next checkpoint
+                # instead of running the whole batch in the background.
+                token.cancel("timeout")
                 future.cancel()
                 return self._error(op, Timeout(
                     f"operation exceeded timeout_s={policy.timeout_s} "
-                    "(best-effort: the worker thread may still finish in the background)"), started)
+                    "(cooperative: the worker stops at its next cancellation "
+                    "checkpoint)"), started)
         if response.get("ok"):
             self._bump("ok")
         else:

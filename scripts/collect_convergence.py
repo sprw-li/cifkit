@@ -33,7 +33,8 @@ def main() -> int:
     ap.add_argument("--markdown", default=None)
     args = ap.parse_args()
 
-    from cifkit.export.convergence import Sample, analyse, parse_energy, render_markdown
+    from cifkit.export.convergence import (Sample, analyse, output_completed,
+                                           parse_energy, render_markdown)
 
     samples: list[Sample] = []
     sources: list[str] = []
@@ -51,11 +52,18 @@ def main() -> int:
                 except ValueError:
                     value = None
             text = output.read_text(encoding="utf-8", errors="replace")
+            completed, why = output_completed(text)
             energy = parse_energy(text)
-            status = "ok" if energy is not None else "no-energy"
+            # round 51: an aborted run prints energies too — drop the number and keep
+            # the reason, otherwise a crash looks like physics.
+            if not completed:
+                energy = None
+                status = f"aborted ({why})"
+            else:
+                status = "ok" if energy is not None else "no-energy"
             if value is None:
                 continue
-            samples.append(Sample(value=value, energy=energy, ok=energy is not None,
+            samples.append(Sample(value=value, energy=energy, ok=status == "ok",
                                   detail=f"status={status} from {job_dir.name}/{output.parent.name}"))
             try:
                 sources.append(str(output.resolve().relative_to(ROOT)))
@@ -77,8 +85,11 @@ def main() -> int:
     markdown = Path(args.markdown or out.with_suffix(".md"))
     markdown.write_text(render_markdown(report, title=f"{args.code} cutoff (cloud sweep)"),
                         encoding="utf-8")
+    invalid = [sample for sample in samples if not sample.ok]
+    payload["n_invalid"] = len(invalid)
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"samples={len(samples)} usable={sum(1 for s in samples if s.ok)} "
-          f"converged_at={report.converged_at}")
+          f"invalid={len(invalid)} converged_at={report.converged_at}")
     print(report.note)
     for sample in report.samples:
         print(f"  cutoff {sample.value:g}: {sample.energy} ({sample.detail})")

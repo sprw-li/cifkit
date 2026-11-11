@@ -54,6 +54,7 @@ def memory_directive(fraction: float = 0.6) -> str:
                     break
     except OSError:
         pass
+    fraction = float(os.environ.get("MEMORY_FRACTION", fraction))
     total = max(1024, int(total_mb * fraction))
     stack = max(200, total // 12)
     heap = max(512, int((total - stack) * 0.45))

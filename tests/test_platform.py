@@ -164,7 +164,11 @@ def test_timeout_is_enforced_and_reported():
     assert response["http_status"] == 504
     assert elapsed < 1.9, f"timeout returned after {elapsed:.2f}s despite timeout_s=0.5"
     assert started.is_set(), "the worker should have started the operation"
-    assert "best-effort" in response["error"]["message"]
+    # round 50 (J2): the wording changed from "best-effort" to "cooperative", because a
+    # timed-out request now also *cancels* the worker (it stops at its next
+    # cancellation checkpoint) instead of merely abandoning it.
+    assert "cooperative" in response["error"]["message"]
+    assert "cancellation checkpoint" in response["error"]["message"]
 
 
 def test_backpressure_rejects_when_saturated():
