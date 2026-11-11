@@ -837,3 +837,27 @@ NWChem 导出的注释里现在直接写明「`cutoff 20` 是 smoke-test 值，*
 
 测试（10 条）里最有价值的一条是**读行计数**：只为 2 行的页读了 3 行（多读 1 行用于判页尾），
 证明生成器没有退化成"先全读再切片"。
+
+### 8.37 真实二进制接受测试：一次真 bug 与三个 blocked（round 53，H3c）
+
+新增 `cloud_h3/run_code_acceptance.py`：装代码 -> 跑**我们发布的输入原样** -> 要求出现该代码的
+**正常结束标记** -> 写出 `acceptance_result.json`（含 markers、exit、route、scope）。
+`scripts/check_software.py` 汇总成三级证据（verified / accepted / blocked）。
+
+| 代码 | 级别 | 依据 |
+|---|---|---|
+| NWChem | **verified** | 我们模板完整跑完（`Total times`，1032 s） |
+| LAMMPS | **accepted** | 发布的 `in.min` 原样跑完 `minimize`，`Total wall time`、exit 0（`pair_style zero`，无势场） |
+| GROMACS | accepted | `editconf` 接受 `conf.gro` |
+| ABINIT | **blocked** | 打包 9.10 拒绝运行：`This version of ABINIT is not supported anymore` |
+| CP2K | blocked | 镜像无包（`Candidate: (none)`） |
+| QE | blocked | 上游 SIGABRT（标准 H2O 输入同样崩） |
+| ORCA（量子化学） | blocked | **Debian 的 `orca` 包是 GNOME 屏幕阅读器**（输出 "Cannot start the screen reader"） |
+
+**这次测试抓到两个真缺陷**（同类：注释符）：`in.min` 用 `;` 注释 -> LAMMPS 报
+`ERROR: Unknown command: ; ...`；`cp2k.inp` 用 `#` 注释 -> CP2K 不认 `#`。
+两者都已修，并新增**每种代码只认一种注释符**的门禁规则
+（`cifkit/export/bundle_check.py::COMMENT_STYLE`），该规则随后一次性扫出这两处。
+
+**教训**：包名与版本号不构成身份证明（`orca 46.1` 是屏幕阅读器版本），必须真的跑一次看输出；
+「作业/进程成功」也不等于「计算完成」（round 51）。

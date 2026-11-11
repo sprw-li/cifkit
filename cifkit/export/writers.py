@@ -289,9 +289,11 @@ def _write_cp2k(structure: Structure, path: Path, title: str | None) -> None:
     abc = " ".join(f"{float(v):.10f}" for v in lat.abc)
     angles = " ".join(f"{float(v):.6f}" for v in lat.angles)
     lines = [
-        f"# {_comment(structure, title)}",
-        "# Minimal CP2K input skeleton written by cifkit; add BASIS_SET / POTENTIAL /",
-        "# &KIND sections (or an &KIND per element) before running a real calculation.",
+        # CP2K comments are '!': a '#' line is an unknown section and aborts the run
+        # (the same defect the LAMMPS acceptance job found in in.min, 2026-11-11).
+        f"! {_comment(structure, title)}",
+        "! Minimal CP2K input skeleton written by cifkit; add BASIS_SET / POTENTIAL /",
+        "! &KIND sections (or an &KIND per element) before running a real calculation.",
         "&FORCE_EVAL",
         "  METHOD Quickstep",
         "  &SUBSYS",

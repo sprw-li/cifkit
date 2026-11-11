@@ -48,6 +48,22 @@ RULES: dict[str, dict] = {
 }
 
 #: what the declared-missing check looks for, per abstract token
+
+#: per bundle: the *only* comment character that file dialect understands, and the
+#: files it applies to.  A wrong comment char is an "unknown command" in several of
+#: these codes (LAMMPS aborts on ';'), so this is checked, not assumed.
+COMMENT_STYLE: dict[str, tuple[str, tuple[str, ...]]] = {
+    "lammps": ("#", ("data.lammps", "in.min")),
+    "gromacs": (";", ("conf.gro", "md.mdp", "topol.top")),
+    "cp2k": ("!", ("cp2k.inp",)),
+    "nwchem": ("#", ("mol.nw",)),
+    "siesta": ("#", ("structure.fdf",)),
+    "abacus": ("#", ("STRU",)),
+    "aims": ("#", ("geometry.in",)),
+    "dftb": ("#", ("dftb_in.hsd", "geo.gen")),
+    "qe": ("!", ("pw.in",)),
+}
+
 ABSENT_SUFFIXES = {
     "POTCAR": ("POTCAR",),
     "UPF": (".UPF", ".upf"),
@@ -111,6 +127,26 @@ def check_bundle(code: str, directory: Path, declared_missing: list[str]) -> dic
                        and any(path.name.endswith(s) or s in path.name for s in suffixes)]
             record(f"{token} really absent", not present,
                    f"unexpectedly shipped: {present}")
+
+    # 4) comment characters: the wrong one is a syntax error in most of these codes
+    style = COMMENT_STYLE.get(code)
+    if style:
+        char, files = style
+        wrong = ";" if char == "#" else "#"
+        for name in files:
+            path = directory / name
+            if not path.is_file():
+                continue
+            offenders = []
+            for number, line in enumerate(path.read_text(encoding="utf-8",
+                                                       errors="replace").splitlines(), 1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith(wrong):
+                    offenders.append(number)
+            record(f"comments in {name} use {char!r}", not offenders,
+                   f"lines starting with {wrong!r}: {offenders[:5]}")
 
     return {"code": code, "ok": not errors, "checks": checks, "errors": errors}
 

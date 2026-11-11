@@ -298,11 +298,23 @@ def classify_cloud_evidence(root: Path) -> dict:
     if not root.is_dir():
         return result
 
+    #: display names, so "LAMMPS"/"lammps"/"GROMACS" cannot end up as separate rows
+    DISPLAY = {
+        "lammps": "LAMMPS", "gromacs": "GROMACS", "nwchem": "NWChem",
+        "abinit": "ABINIT", "cp2k": "CP2K", "quantum espresso": "Quantum ESPRESSO",
+        "orca (chemistry)": "ORCA (chemistry)", "nwchem (cifkit template)": "NWChem (cifkit template)",
+    }
+
     def record(code: str, level: str, evidence: Path, detail: str) -> None:
-        current = result.get(code)
+        key = DISPLAY.get(str(code).strip().lower(), str(code).strip())
+        current = result.get(key)
         rank = {"verified": 3, "accepted": 2, "blocked": 1}
         if current is None or rank[level] > rank[current["level"]]:
-            result[code] = {"level": level, "evidence": str(evidence), "detail": detail}
+            result[key] = {"level": level, "evidence": str(evidence), "detail": detail}
+        elif level == current["level"]:
+            # keep both details: the same level from two runs is useful context
+            if detail not in current["detail"]:
+                current["detail"] = f"{current['detail']}; {detail}"
 
     def newest(pattern: str) -> list[Path]:
         paths = [p for p in root.glob(pattern) if p.is_file()]
@@ -342,6 +354,40 @@ def classify_cloud_evidence(root: Path) -> dict:
             record(case.get("code", "?"), level, path,
                    f"input {case.get('input')} exit {case.get('exit')} "
                    f"(calculation_completed={completed})")
+
+
+    # round 53: real-binary acceptance runs (cloud_h3/run_code_acceptance.py).
+    # A normal end marker means the code *accepted our shipped file*; the codes that
+    # cannot run at all (screen-reader 'orca', EOL abinit) are recorded as blocked
+    # with the reason instead of being silently absent.
+    BLOCKED_CODES = {
+        "orca-debian-package": ("ORCA (chemistry)",
+                                "Debian's 'orca' package is the GNOME screen reader"),
+        "abinit": ("ABINIT", "the packaged 9.10 binary refuses to run (EOL build)"),
+    }
+    for path in sorted(list(root.glob("accept_*/acceptance_result.json")) +
+                       list(root.glob("artifacts_*/acceptance_result.json")),
+                       key=lambda item: item.stat().st_mtime):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        code = str(payload.get("code") or "?")
+        status = payload.get("status")
+        if status == "accepted":
+            # 'accepted' is the honest level for geometry-only runs (no force field):
+            # the file is *accepted* by the code, but no physical quantity was computed
+            detail = (f"binary {payload.get('binary')} exit {payload.get('exit')} "
+                      f"marker {payload.get('normal_marker')!r} "
+                      f"({payload.get('route')})")
+            if code == "lammps":
+                detail += " [pair_style zero: geometry check, no force field]"
+            record(code, "accepted", path, detail)
+        elif status in ("failed-marker", "no-normal-marker"):
+            mapped = BLOCKED_CODES.get(code)
+            if mapped:
+                record(mapped[0], "blocked", path,
+                       f"{mapped[1]} (evidence: {payload.get('failure_marker') or status})")
 
     for path in newest("artifacts_*/qe_minimal.json"):
         try:

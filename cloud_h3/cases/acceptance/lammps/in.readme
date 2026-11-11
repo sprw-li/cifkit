@@ -1,0 +1,5 @@
+`data.lammps` carries coordinates, atom types and masses (written by cifkit);
+the force field does not exist yet - that is the user's choice.  `in.min` shows
+three options: `zero` (geometry-only), a generic LJ placeholder, or a real FF.
+For a periodic MOF the usual starting points are UFF/DREIDING (via a converter)
+or an EAM/alloy potential for the metal nodes.

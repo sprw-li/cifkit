@@ -204,3 +204,17 @@ FP32 达到 **63.6%**、FP16 **83%**、带宽 **77%** —— 数量级与比例�
 （NWChem 的 `Total times`）、③ 没有失败标记（`MPI_ABORT`/`out of heap memory`/`buffer overflow`）。
 只满足 ① 的结论一律不采信。`cifkit.export.convergence.output_completed()` 负责这一判据，
 `tests/test_output_completion.py` 锁住它。
+
+### 5.9 命名陷阱：Debian 的 `orca` 包**不是**量子化学 ORCA（round 53）
+
+`apt-cache policy orca` 给出 `46.1-1ubuntu1`——看起来像 ORCA 的版本号，实际是
+**GNOME 屏幕阅读器 Orca**（版本号确实是 46.x）。容器里跑 `orca orca.inp` 的输出是：
+
+```
+The following are not valid: orca.inp
+Cannot start the screen reader because it cannot connect to the Desktop.
+```
+
+**教训**：包名/版本号不能当身份证明，必须**真的运行一次**并看它的输出。
+量子化学 ORCA 需要用户自备二进制（无 apt 包）。该案例保留在
+`cloud_h3/run_code_acceptance.py --code orca-debian-package`，以免下次再踩。

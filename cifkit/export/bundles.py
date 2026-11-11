@@ -190,25 +190,27 @@ Check that the POTCAR species lines match the POSCAR title/species order.""")
         _w("cp2k", "cp2k.inp")
     elif key == "lammps":
         _w("lammps", "data.lammps")
-        _txt("in.min", """; LAMMPS minimisation / zero-potential check (cifkit)
-; The data file has masses and atom types but NO force field: pick one and
-; uncomment the matching pair_style/pair_coeff lines below.
+        # LAMMPS comments use '#'.  A ';' is not a comment: it is an *unknown command*
+        # and aborts the run (measured 2026-11-11, job b0b85bc0).  Never use ';' here.
+        _txt("in.min", """# LAMMPS minimisation / zero-potential check (cifkit)
+# The data file has masses and atom types but NO force field: pick one and
+# uncomment the matching pair_style/pair_coeff lines below.
 units           metal
 atom_style      atomic
 boundary        p p p
 read_data       data.lammps
 
-; --- option A: do nothing but check the geometry (no interactions) -------------
+# --- option A: do nothing but check the geometry (no interactions) -------------
 pair_style      zero 10.0
 pair_coeff      * *
 
-; --- option B: generic Lennard-Jones placeholder (edit epsilon/sigma per pair) --
-; pair_style    lj/cut 10.0
-; pair_coeff    * * 0.010 3.0   # epsilon (eV), sigma (A) - NOT a fitted FF
+# --- option B: generic Lennard-Jones placeholder (edit epsilon/sigma per pair) --
+# pair_style    lj/cut 10.0
+# pair_coeff    * * 0.010 3.0   # epsilon (eV), sigma (A) - NOT a fitted FF
 
-; --- option C: a real force field (needs its own files) ------------------------
-; pair_style    eam/alloy
-; pair_coeff    * * <potential>.eam.alloy <elements...>
+# --- option C: a real force field (needs its own files) ------------------------
+# pair_style    eam/alloy
+# pair_coeff    * * <potential>.eam.alloy <elements...>
 
 thermo          10
 min_style       cg
