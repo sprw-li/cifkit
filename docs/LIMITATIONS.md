@@ -152,7 +152,7 @@
 | J2 | 超时是**尽力而为**（线程超时返回 504，但无法安全终止已在跑的计算） | 🟡 | 超时后 worker 可能仍在后台跑完 | `Policy(timeout_s=...)` → 504 `timeout`；需要硬杀用 `executor="process"` | cifkit/platform.py；tests/test_platform.py |
 | J3 | `handle()` 吞掉异常（防 traceback 外泄） | 🟡 | 线上排障只能看日志 | 复现时直接调 `api.*` 拿真实异常 | `cifkit/service.py` |
 | J4 | 已有**分页**（`dataset_rows` 只读 offset+limit 行；`features_many` 支持 offset/limit + total），但**无流式响应/HTTP chunked** | 🟡 | 极大响应仍需一次性 JSON | 平台按页拉取；`columns=` 投影减小体积 | cifkit/api.py；tests/test_pagination.py |
-| J5 | 有**背压与并发上限**（`max_concurrency` + `queue_size` → 503 `busy`），但仍无压力曲线 | 🟡 | 真实吞吐/延迟未测 | `GuardedService` 有界准入 + 统计计数；压测仍需平台侧做 | tests/test_platform.py::test_backpressure_rejects_when_saturated |
+| J5 | 有背压与并发上限（`max_concurrency` + `queue_size` -> 503 `busy`），**现在有实测压力曲线**（`scripts/load_service.py`，闭环客户端 + 真结构 `validate`）：并发 1/2/4/8 时吞吐 **~16.5 rps 几乎不变**（1.0 / 0.996 / 0.913 / 0.897），p50 从 58 ms 线性涨到 268 ms；把 `queue_size` 收到 4 后在并发 16 处**出现拒绝膝点**（790,718 次 `busy`） | 🟡 | 数字是**本机、单进程、GIL 限制**下的，不是集群容量；拒绝过快反而抢走已接纳请求的 CPU（并发 16 时成功吞吐掉到 4.5 rps），说明队列长度需要按客户端重试策略调 | `scripts/load_service.py`、`runs/service_load.json`、`runs/service_load_saturated.json`、`tests/test_service_load.py`（7 条，含 CPU-bound stub 证明线程不会凭空造吞吐） |
 | J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
 | J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |
 | J8 | 已有**路径沙箱**（read_roots/write_roots，resolve 后包含性检查，挡 `..` 与逃逸符号链接） | ✅ | 进程内检查（TOCTOU 非绝对；跨盘符按拒绝处理） | `Policy(read_roots=..., write_roots=...)` → 403 `forbidden-path`；另限 `max_bytes`/`max_atoms`/`max_inputs` | cifkit/platform.py；tests/test_platform.py |
@@ -162,7 +162,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| J9 | CPU 密集 op 的并发扩展性差（GIL）：4 worker 吞吐仅约 1.2×，p50 延迟上升约 3× | 🟡 | 该服务适合多小请求，不适合并行大计算 | 重计算放工作队列/进程池；`executor="process"` 仅在长批时可选 | docs/PERFORMANCE.md §10.4 |
+| J9 | CPU 密集 op 的并发扩展性差（GIL）：**实测**4 线程吞吐 0.913x（并发 4 时 p50 从 58 ms 涨到 259 ms）；并发 8 时 0.897x。该服务适合「多而小」的请求，不适合并行大计算 | 🟡 | 重计算应放进程池/工作队列（`GuardedService` 用的是线程池，所以 GIL 是硬顶） | `scripts/load_service.py`、`runs/service_load.json`、`tests/test_perf_gate.py` |
 | J10 | 性能回归门禁存在，但**容差很宽**（时间 0.5×、内存 2.0×）且基线是**单机**的；在共享/高负载机器上无法检测中小幅度的性能退化 | 🟡 | 只能抓数量级回归 | `scripts/perf_gate.py`（多次取中位数 + warm-up + 抖动区间），`release_check --perf` opt-in；基线换机器必须重录 | runs/perf_baseline.json；tests/test_perf_gate.py |
 | K9 | 导出产物**曾**泄露宿主绝对路径（NWChem `permanent_dir`，ASE 默认行为）；已修并有门禁，但同类问题仍可能出在**新增**格式上 | ✅ | 新增格式时门禁会自动扫到 | `scripts/check_portability.py`（31 格式全扫，二进制跳过）+ `tests/test_portability.py`；云端跑作业时发现 | runs/portability.json |
 | H3b | **本仓导出的 NWChem 模板**未在真实软件中跑完 → **已关闭**：Bohrium 作业 `774a6dd5…` 用 cifkit 生成的 16 原子周期胞输入，在 NWChem 7.2.2 里 **exit 0、打印 `Total times`**（cpu 1020.8 s / wall 1031.8 s，作业 succeeded，1064 s / 4 光子） | ✅ | 只证明 NWChem 这一条路径；大体系仍受内存约束（见 H3c） | `runs/cloud_h3/artifacts_ours_v9/our_template_result.json`、`CLOUD-LOG.md`；导出器 `_adapt_nwchem_periodicity()`（模式来自真实程序实验，不是文档猜测） |

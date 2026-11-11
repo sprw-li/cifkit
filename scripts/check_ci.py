@@ -47,6 +47,7 @@ ON_DEMAND: dict[str, str] = {
     "cloud_h3_submit.py": "spends cloud credits; never in CI",
     "coverage_matrix.py": "dataset coverage report (needs the archive)",
     "license_audit.py": "dependencies' licences (network)",
+    "load_service.py": "service load curve (measured on demand; machine-specific)",
     "perf_gate.py": "performance regression gate (opt-in; machine-dependent)",
     "probe_source_limits.py": "talks to public APIs; deliberate manual probe",
     "release_check.py": "the release gate itself (run before publishing)",
