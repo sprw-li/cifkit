@@ -34,6 +34,7 @@ candidate index, a float shift value, or an element symbol (e.g. ``"Zn"``).
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import math
 import time
@@ -274,9 +275,24 @@ def _slab_cache_key(
     )
 
 
+
+def _remember(key: tuple[Any, ...], slab: Structure, info: dict[str, Any]) -> None:
+    """Insert into the bounded in-process LRU (shared by the hit paths)."""
+    if key in _SLAB_CACHE:
+        with contextlib.suppress(ValueError):
+            _SLAB_CACHE_ORDER.remove(key)
+    elif len(_SLAB_CACHE_ORDER) >= _SLAB_CACHE_MAX:
+        oldest = _SLAB_CACHE_ORDER.pop(0)
+        _SLAB_CACHE.pop(oldest, None)
+    _SLAB_CACHE[key] = (slab.copy(), info)
+    _SLAB_CACHE_ORDER.append(key)
+
 def slab_cache_info() -> dict[str, Any]:
-    """Stats for the in-process ``make_slab`` cache (tests / benchmarks)."""
+    """Stats for the ``make_slab`` caches (in-process + on-disk)."""
+    from cifkit.geom import disk_cache
+
     return {
+        "disk": disk_cache.stats(),
         "size": len(_SLAB_CACHE),
         "max": _SLAB_CACHE_MAX,
         "hits": int(_SLAB_CACHE_STATS["hits"]),
@@ -316,6 +332,18 @@ def make_slab(
         _SLAB_CACHE_STATS["hits"] += 1
         slab, info = _SLAB_CACHE[key]
         return slab.copy(), {**info, "cache": "hit"}
+
+    # round 47 (G2): a second layer on disk, so separate processes in a batch do not
+    # recompute identical slabs.  Failures degrade to a miss (never to an error).
+    if key is not None:
+        from cifkit.geom import disk_cache
+
+        found = disk_cache.lookup(key)
+        if found is not None:
+            slab, info = found
+            _SLAB_CACHE_STATS["hits"] += 1
+            _remember(key, slab, info)
+            return slab.copy(), {**info, "cache": "disk"}
     _SLAB_CACHE_STATS["misses"] += 1
     slab, info = _make_slab_uncached(
         structure,
@@ -327,11 +355,10 @@ def make_slab(
         frame=frame,
     )
     if key is not None:
-        if len(_SLAB_CACHE_ORDER) >= _SLAB_CACHE_MAX:
-            oldest = _SLAB_CACHE_ORDER.pop(0)
-            _SLAB_CACHE.pop(oldest, None)
-        _SLAB_CACHE[key] = (slab.copy(), info)
-        _SLAB_CACHE_ORDER.append(key)
+        _remember(key, slab, info)
+        from cifkit.geom import disk_cache
+
+        disk_cache.store(key, slab, info)
         info = {**info, "cache": "miss"}
     return slab, info
 

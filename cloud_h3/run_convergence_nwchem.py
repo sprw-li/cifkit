@@ -17,10 +17,24 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
-CUTOFFS = [float(value) for value in os.environ.get("CUTOFFS", "20,30,40,50,60").split(",")]
+DEFAULT_CUTOFFS = "20,30,40"
+CUTOFFS = [float(value) for value in
+           os.environ.get("CUTOFFS", DEFAULT_CUTOFFS).split(",")]
+
+
+def _parse_argv() -> list[float]:
+    """``--cutoffs 20,30`` overrides ``$CUTOFFS`` (one job per value is safest)."""
+    argv = sys.argv[1:]
+    for index, token in enumerate(argv):
+        if token == "--cutoffs" and index + 1 < len(argv):
+            return [float(value) for value in argv[index + 1].split(",")]
+        if token.startswith("--cutoffs="):
+            return [float(value) for value in token.split("=", 1)[1].split(",")]
+    return CUTOFFS
 
 
 def memory_directive(fraction: float = 0.6) -> str:
@@ -51,6 +65,7 @@ ENERGY = re.compile(r"Total (?:DFT|PSPW)?\s*energy\s*=\s*(-?\d+\.\d+)")
 
 
 def main() -> None:
+    cutoffs = _parse_argv()
     source = DEFAULT_INPUT
     if not source.is_file():
         raise SystemExit(f"input not found: {source}")
@@ -77,7 +92,7 @@ def main() -> None:
         raise SystemExit("nwchem unavailable (not installed and could not install)")
 
     results = []
-    for cutoff in CUTOFFS:
+    for cutoff in cutoffs:
         workdir = Path(f"cut_{cutoff:g}")
         workdir.mkdir(exist_ok=True)
         text = re.sub(r"(?m)^(\s*)cutoff\s+\S+\s*$", rf"\g<1>cutoff {cutoff:g}", template, count=1)
@@ -95,6 +110,8 @@ def main() -> None:
               f"status={status} seconds={time.time() - started:.1f}", flush=True)
         results.append({"value": cutoff, "energy": energy, "status": status,
                         "exit": proc.returncode})
+        # checkpoint after every cutoff: a killed job must still leave evidence
+        Path("convergence_raw.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     Path("convergence_raw.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     print("CONVERGENCE_DONE", len(results))

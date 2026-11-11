@@ -169,3 +169,9 @@ CoRE MOF 2024 里可用的最大 Cr 基 MOF（`SI/NCR/Chen_Manz/am9b13361_si_002
 `features` 无 RDF 0.020 s、RDF 0.127 s、`convert` 0.039 s、`features_many`(6) 0.142 s、
 流式数据集(60 run) 1.90 s / 峰值 1.164 MiB、控制循环 0.172 s。
 它是 **opt-in** 门（`release_check --perf`），不阻塞默认发布流程。
+
+## slab 磁盘缓存（round 47）
+
+进程内 LRU 只帮单进程；批量扫参/多 worker 场景下重复的 slab 会被反复计算。
+现在第二层是磁盘缓存（`_cache/slabs`，可用 `CIFKIT_CACHE` 指定位置），
+跨进程复用，坏条目自动忽略；`CIFKIT_SLAB_DISK_CACHE=0` 关闭。

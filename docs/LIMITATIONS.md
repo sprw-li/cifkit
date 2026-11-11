@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 77 条局限 = 19 ✅（已修/已覆盖） / 58 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 77 条局限 = 20 ✅（已修/已覆盖） / 57 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -16,7 +16,7 @@
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
 | F | 特征 / 数据集 | 6 | 3 | 3 | 0 |
-| G | 性能 / 并发 / 稳定性 | 7 | 6 | 1 | 0 |
+| G | 性能 / 并发 / 稳定性 | 7 | 7 | 0 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 5 | 1 | 4 | 0 |
 | J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
@@ -110,7 +110,7 @@
 |---|---|---|---|---|---|
 | F7 | dataset 现在**有 `--jobs`**（`build_dataset(jobs=N)` / `cifkit dataset --jobs N`，顺序保持、在飞窗口 jobs×2、`max_rows_held` 仍为 1，测试保证 jsonl/csv 与串行逐字节一致）；但**实测无加速**：40 run 语料 jobs=1/2/4/8 → 13.7/14.9/13.8/12.9 s（0.92-1.06×），瓶颈是 GIL（pymatgen 解析 + 纯 Python 特征） | ✅ | 并行**正确但无效**，要吞吐请按语料分片起多个进程（或多机 fan-out） | `runs/bench_dataset_jobs.json`、`tests/test_dataset_jobs.py`（4 条：一致性/流式界/失败行/默认值） |
 | G1 | batch 并发扩展性**已实测**（8 个真实 pipeline 作业，两次独立运行）：jobs=1 约 147-149 s；jobs=2 **1.66×**；jobs=4 **2.05-2.93×**（效率 0.51-0.73）；jobs=8 **3.11-3.85×**（效率 0.39-0.48）；**jobs=16 反而更慢（2.78×）**——过订阅 | ✅ | 数字来自共享机器，是数量级证据；建议 `--jobs 4`（效率高）或 8（吞吐最高），不要 16 | `scripts/bench_batch_scale.py`（可复测，写 runs/bench_batch_scale*.json） |
-| G2 | slab 缓存是**进程内** LRU（24 条），跨进程不共享 | 🟡 | 多进程重复计算 | 单进程内批量复用 | docs/PERFORMANCE |
+| G2 | slab 缓存**已加磁盘层**（G2 关闭）：键 = 结构指纹 + 全部几何参数，存 `<cache>/slabs/<sha1>.json`（原子写 + 锁），跨进程复用；坏条目（缺字段/无法解析/键不符）一律按 **miss** 处理并重算，缓存永不破坏几何；`CIFKIT_SLAB_DISK_CACHE=0` 可关 | ✅ | 条目会累积（无容量上限/淘汰），需要时手工清理 `_cache/slabs` | `cifkit/geom/disk_cache.py`、`cifkit/geom/surface.py::make_slab`（命中顺序：进程内 LRU -> 磁盘 -> 计算）、`tests/test_slab_disk_cache.py`（6 条，含**真起子进程**验证跨进程命中） |
 | G3 | `library/index.jsonl` 的并发追加走跨进程锁（`append_jsonl_locked`，持锁写入 + `fsync`，崩溃不留半行）。**且这把锁被压力测试反复捶过**（并发测试连跑 12 次）并修掉 4 个真实缺陷：① SIGKILL 的持锁者留下新 mtime 的锁 → 改按**属主探活**；② 只探活会被 **PID 复用**骗过 → 锁里记**进程身份 token**（pid+启动时刻）；③ Windows 上别人在读文件时 `unlink` 会失败，而失败被**静默吞掉**→ 产生永久僵尸锁 → 改为重试 + 失败则**记为过期**；④ Windows 的 `O_EXCL` 冲突抛的是 **EACCES 而非 EEXIST**→ 原代码只捕后者，直接崩 | ✅ | 无锁读者仍非线程安全（已写明） | `cifkit/locks.py`（`file_lock`/`_pid_alive`/`_process_token`/`_release`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（4 进程真并发）、`tests/test_lock_liveness.py`（9 条）、`tests/test_crash_recovery.py`（SIGKILL） |
 | G4 | 文件锁覆盖范围：**CoRE 索引构建**用锁；**`library/index.jsonl` 追加**现在也用锁（round 42）；其余缓存文件（数据集清单、格式校验报告等）靠**原子写**（同目录 temp + `os.replace`），并发读者可能读到旧内容但**不会读到半个文件** | ✅ | 语义已明确写出：「写者原子、读者无锁」——需要强一致的场景请显式加锁 | `cifkit/locks.py`（`file_lock`/`atomic_write_text`/`atomic_write_json`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（含 stale 锁回收、锁互斥） |
 | G5 | 崩溃恢复**已做真实进程杀死测试**：SIGKILL 追加者后索引**只剩完整行**（逐行可解析、结尾必有换行）；SIGKILL 原子写者后目标文件**是完整的旧/新一代、绝无截断**，且不留临时文件；崩溃后重跑幂等（读者按 run_id 去重） | ✅ | 测试覆盖文件级契约，不是全流程混沌测试 | `tests/test_crash_recovery.py`（3 条，真起子进程并强杀）、`tests/test_lock_liveness.py`（5 条） |

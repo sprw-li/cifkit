@@ -751,3 +751,19 @@ QE `ecutwfc`、CP2K `CUTOFF`）、解析各家能量方言、并按严格定义�
 
 数字是**本机单进程**的，只作为容量量级与调参依据。测试用 CPU-bound stub 锁住该性质，
 防止有人把 `sleep` 型 stub 测出来的「线性扩展」写进文档。
+
+### 8.32 slab 磁盘缓存（round 47，G2）
+
+`make_slab` 的命中顺序现在是：**进程内 LRU（24 条）→ 磁盘条目 → 计算**。
+磁盘键 = 结构指纹 + `hkl` + 厚度 + 真空 + termination + reps + frame，
+条目是 `<cache>/slabs/<sha1>.json`（含 digest/键/信息/CIF 文本），
+写走 `file_lock` + 原子替换，因此并发进程不会发布半个条目。
+
+**缓存永不破坏几何**：目录不存在、JSON 坏掉、键不符、CIF 解析失败，一律按 miss 处理并重算
+（`disk_corrupt` 计数可见）。`CIFKIT_SLAB_DISK_CACHE=0` 可整体关闭。
+
+实现中修掉一个自己造的 bug：最初用 `list(payload["key"]) != list(key)` 校验键，
+但 **JSON 会把元组变成列表**，于是每个条目都被判成"坏"并删除重算——改为比较规范化文本（digest）。
+
+测试用**真子进程**验证跨进程命中（这才是 G2 的意义），另外覆盖参数不同不串号、坏条目被忽略并重写、
+可用环境变量关闭。
