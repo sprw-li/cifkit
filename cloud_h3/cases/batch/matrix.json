@@ -1,0 +1,128 @@
+[
+  {
+    "code": "lammps",
+    "structure": "terephthalic_acid_hfree",
+    "dir": "cloud_h3\\cases\\batch\\lammps__terephthalic_acid_hfree",
+    "input": "in.min",
+    "natoms": 16,
+    "files": [
+      "data.lammps",
+      "in.min",
+      "in.readme"
+    ]
+  },
+  {
+    "code": "lammps",
+    "structure": "zif8_cr_sod",
+    "dir": "cloud_h3\\cases\\batch\\lammps__zif8_cr_sod",
+    "input": "in.min",
+    "natoms": 138,
+    "files": [
+      "data.lammps",
+      "in.min",
+      "in.readme"
+    ]
+  },
+  {
+    "code": "lammps",
+    "structure": "mof5_hfree",
+    "dir": "cloud_h3\\cases\\batch\\lammps__mof5_hfree",
+    "input": "in.min",
+    "natoms": 82,
+    "files": [
+      "data.lammps",
+      "in.min",
+      "in.readme"
+    ]
+  },
+  {
+    "code": "lammps",
+    "structure": "uio66_hfree",
+    "dir": "cloud_h3\\cases\\batch\\lammps__uio66_hfree",
+    "input": "in.min",
+    "natoms": 86,
+    "files": [
+      "data.lammps",
+      "in.min",
+      "in.readme"
+    ]
+  },
+  {
+    "code": "lammps",
+    "structure": "hkust1_hfree",
+    "dir": "cloud_h3\\cases\\batch\\lammps__hkust1_hfree",
+    "input": "in.min",
+    "natoms": 132,
+    "files": [
+      "data.lammps",
+      "in.min",
+      "in.readme"
+    ]
+  },
+  {
+    "code": "gromacs",
+    "structure": "terephthalic_acid_hfree",
+    "dir": "cloud_h3\\cases\\batch\\gromacs__terephthalic_acid_hfree",
+    "input": "conf.gro",
+    "natoms": 16,
+    "files": [
+      "conf.gro",
+      "coords.xyz",
+      "topol.top",
+      "md.mdp",
+      "TOP.readme"
+    ]
+  },
+  {
+    "code": "gromacs",
+    "structure": "zif8_cr_sod",
+    "dir": "cloud_h3\\cases\\batch\\gromacs__zif8_cr_sod",
+    "input": "conf.gro",
+    "natoms": 138,
+    "files": [
+      "conf.gro",
+      "coords.xyz",
+      "topol.top",
+      "md.mdp",
+      "TOP.readme"
+    ]
+  },
+  {
+    "code": "gromacs",
+    "structure": "mof5_hfree",
+    "dir": "cloud_h3\\cases\\batch\\gromacs__mof5_hfree",
+    "input": "conf.gro",
+    "natoms": 82,
+    "files": [
+      "conf.gro",
+      "coords.xyz",
+      "topol.top",
+      "md.mdp",
+      "TOP.readme"
+    ]
+  },
+  {
+    "code": "gromacs",
+    "structure": "uio66_hfree",
+    "dir": "cloud_h3\\cases\\batch\\gromacs__uio66_hfree",
+    "input": "conf.gro",
+    "natoms": 86,
+    "files": [
+      "conf.gro",
+      "coords.xyz",
+      "topol.top",
+      "md.mdp",
+      "TOP.readme"
+    ]
+  },
+  {
+    "code": "nwchem",
+    "structure": "terephthalic_acid_hfree",
+    "dir": "cloud_h3\\cases\\batch\\nwchem__terephthalic_acid_hfree",
+    "input": "mol.nw",
+    "natoms": 16,
+    "files": [
+      "mol.nw"
+    ]
+  }
+]

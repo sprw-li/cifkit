@@ -801,11 +801,20 @@ def write_structure(
         The absolute-ish path (as ``str``) of the written file.
 
     Raises:
+        DisorderedStructureError: the format cannot express partial occupancies
+            (code ``disordered``); resolve the disorder and export again.
         ValueError: unknown format, bad arguments, or an element without a
             usable QE pseudopotential name.
         RuntimeError: the file could not be written/verified (e.g. read-back
             atom count mismatch), which would indicate a real writer problem.
     """
+    from cifkit.export.disorder_guard import guard_ordered
+
+    # round 55: fail with a *typed* error instead of the opaque ValueError that ASE
+    # ("Atoms only supports ordered structures") or pymatgen ("partial occupancies
+    # cannot be converted into POSCAR") raises deep inside the writer
+    guard_ordered(fmt, structure)
+
     if not isinstance(structure, Structure):
         raise ValueError(f"write_structure: expected a pymatgen Structure, got {type(structure).__name__}")
     if len(structure) == 0:

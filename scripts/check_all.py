@@ -224,6 +224,12 @@ def main() -> int:
     checks.append(("check_bundles", *run(
         "bundles", [str(PY), str(ROOT / "scripts" / "check_bundles.py")], timeout=900)))
 
+    checks.append(("verify_corpus", *run(
+        "corpus", [str(PY), str(ROOT / "scripts" / "verify_corpus.py"), "--limit", "8",
+                   "--jobs", "4",
+                   "--json", str(ROOT / "runs" / "corpus_verification_fast.json")],
+        timeout=1800)))
+
     checks.append(("check_ci", *run(
         "ci", [str(PY), str(ROOT / "scripts" / "check_ci.py")], timeout=600)))
 

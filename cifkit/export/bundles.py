@@ -126,6 +126,13 @@ def write_bundle(
     title: str | None = None,
 ) -> dict[str, Any]:
     """Write a computation-software input bundle; returns file list + missing items."""
+    from cifkit.export.disorder_guard import guard_ordered
+
+    # same contract as write_structure (round 55): the *guard* error, not the
+    # library's opaque ValueError, must be what a caller sees
+    for fmt_name in _bundle_ordered_formats(str(code or "").strip().lower()):
+        guard_ordered(fmt_name, structure)
+
     key = str(code or "").strip().lower()
     if key not in BUNDLE_INFO:
         raise ValueError(f"unsupported bundle {code!r}; available: {', '.join(sorted(BUNDLE_INFO))}")
@@ -364,3 +371,21 @@ def _atomic_number(symbol: str) -> int:
 
 
 __all__ = ["BUNDLE_INFO", "supported_bundles", "write_bundle"]
+
+#: bundle code -> the single-format writer whose ordering requirement applies
+def _bundle_ordered_formats(code: str) -> tuple[str, ...]:
+    """Which format's ordering requirement applies to this bundle's coordinates."""
+    return {
+        "vasp": ("vasp",),
+        "qe": ("qe",),
+        "gromacs": ("gromacs",),
+        "lammps": ("lammps",),
+        "nwchem": ("nwchem",),
+        "aims": ("aims",),
+        "gaussian": ("gaussian",),
+        "dftb": ("gen",),
+        "orca": ("xyz",),
+        "cp2k": (),
+        "siesta": ("siesta",),
+        "abacus": ("abacus",),
+    }.get(code, ())

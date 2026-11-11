@@ -61,6 +61,18 @@ CASES: dict[str, dict] = {
         "normal_markers": ("ORCA TERMINATED NORMALLY", "TOTAL RUN TIME"),
         "failure_markers": ("finished by error", "aborting the run"),
     },
+    # GROMACS: `editconf` is the cheapest operation that *parses* the coordinate file
+    # and rewrites it; it earned the 'accepted' level in the earlier probe.
+    "gromacs": {
+        "packages": ["gromacs"],
+        "input": Path("cases/acceptance/gromacs/conf.gro"),
+        "companions": [Path("cases/acceptance/gromacs/md.mdp"),
+                       Path("cases/acceptance/gromacs/topol.top")],
+        "binary": ("gmx", "gmx_mpi"),
+        "run": ["{binary}", "editconf", "-f", "conf.gro", "-o", "out.gro"],
+        "normal_markers": ("GROMACS version", "Back Off! I just backed up out.gro"),
+        "failure_markers": ("Fatal error", "Error in user input"),
+    },
     "lammps": {
         "packages": ["lammps"],
         "input": Path("cases/acceptance/lammps/in.min"),
@@ -95,9 +107,12 @@ def main() -> int:
     parser.add_argument("--keep-route", action="store_true",
                         help="run the shipped route verbatim (may be very slow)")
     parser.add_argument("--single-point-route", default="! PBE def2-SVP")
+    parser.add_argument("--case-dir", default=None,
+                        help="prepared directory (input + companions); skips the built-in case")
     args = parser.parse_args()
 
     spec = CASES[args.code]
+    case_dir = Path(args.case_dir) if args.case_dir else None
     if not install(spec["packages"]):
         print(f"ACCEPTANCE code={args.code} status=install-failed")
         return 1
@@ -107,7 +122,7 @@ def main() -> int:
         print(f"ACCEPTANCE code={args.code} status=no-binary")
         return 1
 
-    source = spec["input"]
+    source = (case_dir / spec["input"].name) if case_dir else spec["input"]
     if not source.is_file():
         print(f"input missing: {source}")
         return 1
@@ -129,8 +144,10 @@ def main() -> int:
     expected = {"orca": "orca.inp", "orca-debian-package": "orca.inp",
                 "abinit": "abinit.in", "lammps": "in.min"}[args.code]
     (workdir / expected).write_text(text, encoding="utf-8")
-    for companion in spec["companions"]:
-        if companion.is_file():
+    companions = ([path for path in case_dir.iterdir() if path.is_file()]
+                  if case_dir else spec["companions"])
+    for companion in companions:
+        if companion.is_file() and companion.name != source.name:
             shutil.copy2(companion, workdir / companion.name)
 
     command = [part.format(binary=binary) for part in spec["run"]]

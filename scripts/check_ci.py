@@ -52,6 +52,7 @@ ON_DEMAND: dict[str, str] = {
     "perf_gate.py": "performance regression gate (opt-in; machine-dependent)",
     "probe_source_limits.py": "talks to public APIs; deliberate manual probe",
     "release_check.py": "the release gate itself (run before publishing)",
+    "verify_corpus.py": "corpus sweep of the export contract (wired into check_all)",
     "run_convergence.py": "convergence study: needs the target code installed (or a cloud job)",
     "run_demo.py": "demo helper, manual",
     "sources_live_check.py": "live source health (release informational)",

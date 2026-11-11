@@ -207,3 +207,20 @@ pymatgen/ASE 能读的任意结构文件；每个格式写出后都做回读校�
 （来自 cifkit 的键感知）、`[ defaults ]/[ atomtypes ]/[ moleculetype ]/[ atoms ]/[ system ]/[ molecules ]`
 全部 section 齐全；**ATOM TYPES 与 CHARGES 是占位值**，`TOP.readme` 明确要求替换。
 `lammps` 的 `in.min` 给出三种力场起点（几何检查 / 通用 LJ 占位（标注非拟合力场）/ 真实 FF）。
+
+## 无序（部分占据）结构的导出契约（round 55）
+
+ASE/pymatgen 的多数 writer **无法表达部分占据**，而且报错发生在库内部。cifkit 现在**预先检查**：
+
+- `cifkit.export.disorder_guard.structure_is_ordered(structure)` 判断是否有部分占据；
+- 对 23 个只能处理有序结构的格式，直接抛
+  **`DisorderedStructureError`**（`code = "disordered"`，`ValueError` 子类，兼容旧捕获），
+  消息中指出格式名与修复方式（先解无序，例如走管线的 repair 阶段，再导出）；
+- 能表达无序的格式（`cif`、`json`、`cp2k` 等）**行为不变**；
+- **CASTEP 特例**：它不报错，而是把部分占据写成主元素全占据（静默丢信息），因此同样被拒绝。
+
+```
+>>> write_structure(disordered, "x.xyz", fmt="xyz")
+DisorderedStructureError: format 'xyz' cannot express a structure with partial
+occupancies; resolve the disorder first (...) and then export
+```

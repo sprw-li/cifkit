@@ -1,0 +1,5 @@
+`topol.top` is a SKELETON: it lists every atom (with element masses), the bonds
+cifkit perceived, and all required sections, but the [ atomtypes ]/[ atoms ]
+charges and Lennard-Jones parameters are PLACEHOLDERS - no force field can be
+derived from a CIF.  Replace them with your FF (UFF/DREIDING via a converter, or
+a MOF-specific force field) before running GROMACS.
