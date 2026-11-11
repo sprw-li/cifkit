@@ -74,6 +74,25 @@ def main() -> int:
         print(f"no outputs matched {args.pattern}/{args.job_prefix}* in {args.root}")
         return 1
 
+    # a value tried more than once (failed attempt + successful retry): keep the
+    # completed sample, remember what was discarded, never average the two
+    by_value: dict[float, list] = {}
+    for sample in samples:
+        by_value.setdefault(sample.value, []).append(sample)
+    chosen: list = []
+    conflicts: list[dict] = []
+    for value in sorted(by_value):
+        group = by_value[value]
+        usable = [sample for sample in group if sample.ok]
+        if usable:
+            chosen.append(usable[-1])
+            for sample in group:
+                if sample is not usable[-1]:
+                    conflicts.append({"value": value, "discarded": sample.detail})
+        else:
+            chosen.append(group[-1])
+    samples = chosen
+
     report = analyse(args.code, samples, args.threshold, per_atom=args.per_atom)
     payload = report.as_dict()
     payload["when"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -87,6 +106,7 @@ def main() -> int:
                         encoding="utf-8")
     invalid = [sample for sample in samples if not sample.ok]
     payload["n_invalid"] = len(invalid)
+    payload["superseded_attempts"] = conflicts
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"samples={len(samples)} usable={sum(1 for s in samples if s.ok)} "
           f"invalid={len(invalid)} converged_at={report.converged_at}")

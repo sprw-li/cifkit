@@ -100,8 +100,9 @@ def main() -> None:
         target = workdir / "mol.nw"
         target.write_text(text, encoding="utf-8")
         started = time.time()
+        per_run = int(os.environ.get("MAX_SECONDS_PER_RUN", "5400"))
         proc = subprocess.run([binary, target.name], cwd=str(workdir), capture_output=True,
-                              text=True, timeout=5400)
+                              text=True, timeout=per_run)
         blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
         (workdir / "nwchem.out").write_text(blob, encoding="utf-8")
         match = ENERGY.search(blob)
