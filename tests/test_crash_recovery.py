@@ -109,9 +109,11 @@ def test_rerun_after_crash_is_idempotent(tmp_path):
     _kill(proc)
     before = len(target.read_text(encoding="utf-8").splitlines())
 
-    # "re-running" writes the same logical entry under a stable key
-    append_jsonl_locked(target, {"run_id": "demo", "kind": "ingest"})
-    append_jsonl_locked(target, {"run_id": "demo", "kind": "ingest"})
+    # "re-running" writes the same logical entry under a stable key.  The killed
+    # child may have left its lock behind, so a short stale window is used here: the
+    # point of the test is idempotency, not the default 180 s recovery window.
+    append_jsonl_locked(target, {"run_id": "demo", "kind": "ingest"}, timeout=15, stale=5)
+    append_jsonl_locked(target, {"run_id": "demo", "kind": "ingest"}, timeout=15, stale=5)
     lines = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
     assert len(lines) == before + 2
     # the *reader* deduplicates by run_id: last write wins

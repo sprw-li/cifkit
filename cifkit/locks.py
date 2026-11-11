@@ -27,6 +27,55 @@ class LockTimeout(RuntimeError):
 
 
 
+
+
+def _release(lock: Path, *, attempts: int = 5) -> bool:
+    """Best-effort release.  Never leaves an unowned lock file behind (round 45f)."""
+    for attempt in range(attempts):
+        try:
+            lock.unlink()
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            time.sleep(0.02 * (attempt + 1))
+    # Windows can refuse the delete while somebody else holds a read handle; marking
+    # the lock as expired is enough for the next candidate to reclaim it.
+    with contextlib.suppress(OSError):
+        lock.write_text("pid=0 token=0 ts=0", encoding="utf-8")
+        return True
+    return False
+
+def _process_token(pid: int | None = None) -> str | None:
+    """Identify a *process instance*: pid + start time (survives PID reuse)."""
+    pid = os.getpid() if pid is None else pid
+    if os.name == "nt":
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return None
+        created, exited = ctypes.c_ulonglong(), ctypes.c_ulonglong()
+        kernel, user = ctypes.c_ulonglong(), ctypes.c_ulonglong()
+        ok = kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited),
+                                      ctypes.byref(kernel), ctypes.byref(user))
+        kernel32.CloseHandle(handle)
+        if not ok:
+            return None
+        return f"{pid}:{created.value}"
+    stat_path = Path(f"/proc/{pid}/stat")
+    if stat_path.is_file():
+        try:
+            # the comm field may contain spaces/parentheses, so split after the ')'
+            body = stat_path.read_text(encoding="utf-8", errors="replace").rsplit(")", 1)[1]
+            fields = body.split()
+            return f"{pid}:{fields[19]}"        # field 22 = starttime (0-based 19 here)
+        except (OSError, IndexError):
+            return f"{pid}"
+    return f"{pid}"
+
 def _pid_alive(pid: int) -> bool:
     """Best-effort liveness check for a recorded lock owner (cross-platform).
 
@@ -81,8 +130,19 @@ def _lock_is_stale(lock: Path, stale: float) -> bool:
     except OSError:
         return False
     match = re.search(r"pid=(\d+)", body)
-    if match and not _pid_alive(int(match.group(1))):
+    if not match:
+        # empty, half-written or neutralised: nobody can be holding this lock
         return True
+    pid = int(match.group(1))
+    if not _pid_alive(pid):
+        return True
+    # the PID exists - but is it the *same* process that took the lock?  Windows (and
+    # any OS) may recycle a PID within seconds, which would otherwise pin the lock.
+    recorded = re.search(r"token=(\S+)", body)
+    if recorded:
+        current = _process_token(pid)
+        if current is not None and current != recorded.group(1):
+            return True
     return False
 
 @contextlib.contextmanager
@@ -101,9 +161,13 @@ def file_lock(
     while True:
         try:
             handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.write(handle, f"pid={os.getpid()} ts={time.time():.3f}".encode())
+            token = _process_token() or str(os.getpid())
+            os.write(handle, f"pid={os.getpid()} token={token} ts={time.time():.3f}".encode())
             break
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
+            # Windows: an O_EXCL create that collides with a file another process has
+            # open raises EACCES (PermissionError), not EEXIST.  Both mean "somebody
+            # already holds this lock", so they share the wait/reclaim path.
             if _lock_is_stale(lock, stale):
                 # owner crashed (SIGKILL) or the lock is ancient: reclaim and retry
                 with contextlib.suppress(OSError):
@@ -118,8 +182,7 @@ def file_lock(
         if handle is not None:
             with contextlib.suppress(OSError):
                 os.close(handle)
-        with contextlib.suppress(OSError):
-            lock.unlink()
+        _release(lock)
 
 
 def atomic_write_text(path: str | Path, text: str, *, encoding: str = "utf-8") -> Path:

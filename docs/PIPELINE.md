@@ -711,3 +711,22 @@ CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/ch
 
 测试 `tests/test_export_fidelity.py`（8 条）刻意验证**反向情形**：位移 0.5 Å、换晶胞、换元素都必须判失败，
 合成的假晶胞不得触发周期匹配。
+
+### 8.30 收敛性研究机械 + 一把被捶过的锁（round 45）
+
+**收敛机械（E3）**：`cifkit/export/convergence.py` 按代码生成参数扫描（NWChem `cutoff`、VASP `ENCUT`、
+QE `ecutwfc`、CP2K `CUTOFF`）、解析各家能量方言、并按严格定义判定收敛——
+**「从某个取值起，后续每一步的差都 ≤ 阈值」**（早期版本把"局部平坦三元组"的第一个值当收敛点，
+会让一个下一步还差 0.5 eV 的取值被标成"已收敛"，测试抓出后改成尾部定义）。
+本地入口 `scripts/run_convergence.py`，云端入口 `cloud_h3/run_convergence_nwchem.py` + `scripts/analyse_convergence.py`。
+
+**第一次真实云端收敛实验立刻抓到模板缺陷**：5 个 cutoff **全部** `electron_init: out of heap memory 0`
+——这个 NWChem 构建 **heap 默认为 0**，没有 `memory` 指令根本跑不起来（而且 `total = stack + heap + global`
+必须自洽）。据此给 NWChem 导出加了"必需"说明与自洽示例（**只作为注释**，不把机器规格硬编码进可运行输入）。
+证据保留在 `runs/cloud_h3/convergence_failed/`（5/5 失败原文）与
+`runs/convergence/nwchem_failed_attempt.json`（由我们自己的分析器生成，失败的样本序列化成 `null` 而不是 `NaN`）。
+
+**锁（G3）**：并发测试连跑 12 次逼出 4 个真实缺陷——属主已死但 mtime 新（等满 180 s）、**PID 复用**（探活被骗）、
+`unlink` 失败被静默吞掉（僵尸锁）、**Windows 的 `O_EXCL` 冲突是 EACCES 不是 EEXIST**（直接崩）。
+现在锁里记 **进程身份 token（pid + 启动时刻）**，释放失败会重试并把锁标记为过期，EACCES 与 EEXIST 同路处理。
+修完后同样 12 连跑 **0 失败**。

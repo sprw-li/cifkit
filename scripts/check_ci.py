@@ -32,6 +32,7 @@ RUNNABLE = ("scripts/check_eol.py", "scripts/sca_scan.py", "scripts/adversarial_
 
 #: scripts that are deliberately *not* part of CI, with the reason
 ON_DEMAND: dict[str, str] = {
+    "analyse_convergence.py": "analyses a fetched convergence job (needs cloud artifacts)",
     "audit_dataset_coverage.py": "one-off dataset audit (needs the CoRE cache)",
     "bench_api.py": "benchmark, manual (machine-dependent)",
     "bench_batch_scale.py": "benchmark, manual (machine-dependent)",
@@ -49,6 +50,7 @@ ON_DEMAND: dict[str, str] = {
     "perf_gate.py": "performance regression gate (opt-in; machine-dependent)",
     "probe_source_limits.py": "talks to public APIs; deliberate manual probe",
     "release_check.py": "the release gate itself (run before publishing)",
+    "run_convergence.py": "convergence study: needs the target code installed (or a cloud job)",
     "run_demo.py": "demo helper, manual",
     "sources_live_check.py": "live source health (release informational)",
     "verify_demo.py": "demo verification, manual",
