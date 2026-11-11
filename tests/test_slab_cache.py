@@ -12,6 +12,13 @@ from cifkit.geom.surface import clear_slab_cache, slab_cache_info
 DATA = Path(__file__).resolve().parent / "data"
 
 
+@pytest.fixture(autouse=True)
+def in_process_layer_only(monkeypatch):
+    """These tests are about the in-process LRU; the disk layer has its own module."""
+    monkeypatch.setenv("CIFKIT_SLAB_DISK_CACHE", "0")
+    clear_slab_cache()
+
+
 @pytest.fixture()
 def zif8():
     return Structure.from_file(str(DATA / "zif8_cr_sod.cif"))

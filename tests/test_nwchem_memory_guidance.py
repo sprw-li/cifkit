@@ -58,3 +58,10 @@ def test_pspw_pattern_still_present(nwchem_text):
     assert "cutoff 20" in active
     assert "task pspw energy" in active
     assert "task dft" not in active
+
+def test_export_warns_that_the_default_cutoff_is_not_converged(nwchem_text):
+    """Our own measurement: 20 -> 30 Ha moved 582 meV/atom, 30 -> 40 still 53."""
+    assert "NOT a" in nwchem_text and "converged" in nwchem_text
+    assert "582 meV/atom" in nwchem_text
+    assert "53 meV/atom" in nwchem_text
+    assert "MEASURED" in nwchem_text

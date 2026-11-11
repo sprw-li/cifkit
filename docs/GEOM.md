@@ -277,3 +277,20 @@ $env:PYTHONIOENCODING='utf-8'
 - `frame="cell"` 仅作对照，其 (111) 与母体晶体 (111) 不是同一表面（见 4.1）。
 - slab 厚度按 pymatgen 整层取整，可能明显大于 `slab_thickness` 目标（15 → 18.9 Å），报告用实测值。
 - 不处理极性表面/对称化终止（`symmetrize` 未启用）。
+
+## 表面能：`cifkit surface-energy`（round 49）
+
+slab 是**输入结构**，能量来自你的 DFT。两者之间的算术由本命令负责：
+
+```
+cifkit surface-energy --slab-e -100.0 --slab-atoms 32 --area 100.0 \
+    --bulk-per-atom -5.0 --slab-formula "Zn:8,O:8" --bulk-formula "Zn:4,O:4"
+```
+
+- `E_surf = (E_slab − n_slab × e_bulk) / (N_surface × A)`，默认 **2 个表面**（`--one-surface` 可改）；
+- 输出 **eV/Å² / meV/Å² / J/m²**（1 eV/Å² = 16.02176634 J/m²）；
+- **化学计量校验**：slab 组成必须是 bulk 组成的整数倍，否则报错——这是最容易悄悄算错的地方；
+- 两种 bulk 参考写法（每原子能量，或总能+原子数），两者都给且不一致时报错。
+
+⚠️ 两个能量必须来自**同一套泛函/赝势/截断**，且 slab 与 bulk 的**原子级记账一致**；本命令不做弛豫，
+弛豫通常会降低表面能。

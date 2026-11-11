@@ -882,6 +882,22 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--json", action="store_true")
     ft.set_defaults(func=cmd_features)
 
+    se = sub.add_parser("surface-energy",
+                        help="用你的 DFT 能量算表面能（需要 slab 与 bulk 参考）")
+    se.add_argument("--slab-e", type=float, required=True,
+                    help="slab 总能量（eV，与 bulk 同一泛函/赝势/截断）")
+    se.add_argument("--slab-atoms", type=int, required=True, help="slab 原子数")
+    se.add_argument("--area", type=float, required=True, help="表面面积（Å²）")
+    se.add_argument("--bulk-per-atom", type=float, default=None, help="bulk 每原子能量（eV）")
+    se.add_argument("--bulk-e", type=float, default=None, help="bulk 总能量（eV）")
+    se.add_argument("--bulk-atoms", type=int, default=None, help="bulk 原子数")
+    se.add_argument("--slab-formula", default=None,
+                    help="slab 组成，如 'Zn:4,O:4'（用于化学计量校验）")
+    se.add_argument("--bulk-formula", default=None, help="bulk 组成，同上")
+    se.add_argument("--one-surface", action="store_true", help="只算一个表面（默认 2）")
+    se.add_argument("--json", default=None, help="把结果写入该 JSON 文件")
+    se.set_defaults(func=cmd_surface_energy)
+
     ds = sub.add_parser("dataset", help="从 runs/ 或 library/ 汇总结构+特征+标签 → ML 数据集")
     ds.add_argument("--from-runs", default=None, help="扫描 runs/**/manifest.json")
     ds.add_argument("--from-library", default=None, help="扫描 library/index.jsonl")
@@ -967,6 +983,44 @@ def build_parser() -> argparse.ArgumentParser:
     register_usecase_commands(sub)
 
     return p
+
+
+def cmd_surface_energy(args) -> int:
+    """E_surf = (E_slab - n_slab * e_bulk_per_atom) / (N_surfaces * area)."""
+    import json as _json
+
+    from cifkit.surface_energy import render_markdown, surface_energy
+
+    def _formula(text):
+        if not text:
+            return None
+        out: dict[str, int] = {}
+        for chunk in text.replace(";", ",").split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            if ":" not in chunk:
+                raise SystemExit(f"组成格式应为 '元素:个数'，收到 {chunk!r}")
+            symbol, count = chunk.split(":", 1)
+            out[symbol.strip()] = int(float(count))
+        return out
+
+    try:
+        result = surface_energy(
+            e_slab=args.slab_e, n_slab=args.slab_atoms, area_a2=args.area,
+            e_bulk_per_atom=args.bulk_per_atom, e_bulk_total=args.bulk_e,
+            n_bulk=args.bulk_atoms, slab_formula=_formula(args.slab_formula),
+            bulk_formula=_formula(args.bulk_formula),
+            surfaces=1 if args.one_surface else 2)
+    except ValueError as exc:
+        print(f"错误：{exc}")
+        return 2
+    print(render_markdown(result))
+    if args.json:
+        Path(args.json).write_text(_json.dumps(result.as_dict(), ensure_ascii=False,
+                                             indent=2), encoding="utf-8")
+        print(f"report: {args.json}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

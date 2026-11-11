@@ -789,3 +789,14 @@ QE `ecutwfc`、CP2K `CUTOFF`）、解析各家能量方言、并按严格定义�
 
 另外，单作业 5 个 cutoff 会 `deadline_exceeded`（90 分钟上限）**且被杀作业没有结果归档**，
 所以扫描改成**一个 cutoff 一个作业** + 每个 cutoff 后落盘 checkpoint。
+
+### 8.34 表面能工具 + 模板默认值的实测警告（round 49）
+
+**表面能（D3 收窄）**：`cifkit surface-energy` 把「slab 结构 + 用户 DFT 能量」之间的算术固定下来：
+`E_surf = (E_slab − n_slab·e_bulk) / (N_surface·A)`，输出 eV/Å² / meV/Å² / J/m²（1 eV/Å² = 16.02176634 J/m²），
+并做**化学计量校验**（slab 组成必须是 bulk 的整数倍）与两种 bulk 参考写法的一致性检查。
+测试 19 条，重点覆盖**拒绝**：组成不匹配、两种 bulk 参考打架、非正面积、负表面能如实报出。
+
+**模板默认值的实测警告**：既然测出 cutoff 20→30 差 582 meV/atom、30→40 仍差 53 meV/atom，
+NWChem 导出的注释里现在直接写明「`cutoff 20` 是 smoke-test 值，**不是收敛值**」，
+并附上实测数字（`tests/test_nwchem_memory_guidance.py` 锁住这段警告不被删掉）。

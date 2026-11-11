@@ -71,7 +71,7 @@
 |---|---|---|---|---|---|
 | D1 | slab 终止面按"悬键+化学计量"启发式打分 | 🟡 | 不保证是能量最低表面 | 可指定 termination/shift；DFT 表面能另算 | docs/GEOM |
 | D2 | `surface_frame="cell"` 是"先超胞再切"的字面语义，不是物理 (hkl) | 🟡 | 与默认 slab 语义不同 | 默认 `slab`；文档对比说明 | docs/GEOM |
-| D3 | slab 未弛豫；表面能文件只是输入结构 | 🟡 | E_surf 需用户 DFT | 提供模板与公式；不含能量 | docs/PERFORMANCE / usecases/u3 |
+| D3 | slab 未弛豫（不变），但**表面能算术与配套工具已提供**：`cifkit surface-energy`（`E_surf = (E_slab - n_slab * e_bulk) / (N_surface * A)`），支持两种 bulk 参考写法、**化学计量校验**（组成不是整数倍就报错，避免拿不同组成的 bulk 相减）、eV/Å²、meV/Å²、J/m²（1 eV/Å² = 16.02176634 J/m²）、单/双表面 | 🟡 | 能量仍需用户自己的 DFT；工具只保证**算式与记账正确**，不产生能量 | `cifkit/surface_energy.py`、`cifkit/cli.py`（`surface-energy` 子命令）、`tests/test_surface_energy.py`（13 条）、`tests/test_surface_energy_cli.py`（6 条） |
 | D4 | 超大超胞/slab 有原子数上限（`MAX_SLAB_ATOMS`） | 🟡 | 会明确报错而非 OOM | 降低厚度/超胞 | docs/GEOM |
 
 ## E. 导出 / 计算软件输入包（cif → anything）
