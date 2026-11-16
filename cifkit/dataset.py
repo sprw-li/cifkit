@@ -34,7 +34,8 @@ import time
 from pathlib import Path
 from typing import Any, Iterator
 
-from cifkit.features import extract_features
+from cifkit.features import FEATURE_VERSION, extract_features
+from cifkit.locks import atomic_write_json
 
 __all__ = ["build_dataset", "load_runs", "iter_manifests", "iter_runs",
            "iter_jsonl", "count_jsonl", "dedupe_rows", "DEDUPE_KEYS"]
@@ -386,14 +387,15 @@ def build_dataset(
             "jsonl": str(jsonl_path),
             "structures": str(struct_dir) if copy_structures else None,
             "csv_sha256": _sha256(csv_path) if csv_path.is_file() else None,
-            "feature_version": "cifkit-features/v1",
+            "feature_version": FEATURE_VERSION,
             "max_rows_held": stats["max_rows_held"],
             "dedupe": stats.get("dedupe_key"),
             "n_deduped": stats.get("n_deduped", 0),
             "built_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         }
-        (out / "dataset_manifest.json").write_text(
-            json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        # atomic (round 57): LIMITATIONS G4 promises "不会读到半个文件" for the
+        # dataset manifest — the plain write_text here did not honour that
+        atomic_write_json(out / "dataset_manifest.json", summary)
         return summary
 
     # ---- legacy materialised path (kept for A/B verification) ----
@@ -441,9 +443,9 @@ def build_dataset(
         "jsonl": str(jsonl_path),
         "structures": str(struct_dir) if copy_structures else None,
         "csv_sha256": _sha256(csv_path) if csv_path.is_file() else None,
-        "feature_version": "cifkit-features/v1",
+        "feature_version": FEATURE_VERSION,
         "max_rows_held": len(rows),
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
-    (out / "dataset_manifest.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(out / "dataset_manifest.json", summary)
     return summary

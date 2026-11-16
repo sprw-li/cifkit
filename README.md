@@ -55,11 +55,11 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 |---|---|---|
 | `pipeline` | 一条管线，产出 manifest/report/预览 | 见上 |
 | `batch` | 多条 pipeline 并发（每条独立子进程，写 batch_manifest.json） | `batch --spec "<一句话>" --spec "<另一句>" --jobs 4 --outdir runs\batch` |
-| `fetch` | 按 RCSR 拓扑 / 名称 / id 从 **CoRE MOF 2024、COD、Materials Project、AFLOW、本地**检索并落盘 | `fetch --topology sod --raw`；`fetch --source aflow --name ZnO` |
+| `fetch` | 按 RCSR 拓扑 / 名称 / id 从 **CoRE MOF 2024、COD、Materials Project、AFLOW、QMOF（本地镜像）、本地** 检索并落盘 | `fetch --topology sod --raw`；`fetch --source aflow --name ZnO` |
 | `sources` | 列出数据源、是否需要 key、缓存/网络状态（智能选型入口） | `sources --probe` |
 | `repair` | 补氢 / 无序占位 / 过近原子 / 价态检查 | `repair raw.cif -o fixed.cif --add-h --json` |
 | `geom` | 标准化 / 超胞 / (hkl) slab / 真空 / 金属簇-SBU | `geom s.cif -o slab.cif --standardize --surface 1 1 1 --supercell 2 2 1 --vacuum 15` |
-| `export` | VASP/CIF/XYZ/LAMMPS/QE/CP2K/XSF（7 种，写出后尽量读回校验） | `export slab.cif --format vasp,cif -o out` |
+| `export` | **31 种格式**（写出后尽量读回校验；VASP/CIF/XYZ/LAMMPS/QE/CP2K/XSF/gaussian/orca/abacus 等全支持，模板类标注见 EXPORT.md） | `export slab.cif --format vasp,cif -o out` |
 | `validate` | 结构校验（原子数、最近邻、真空、悬空键、C 配位…） | `validate final.cif --json` |
 | `route` | 一句话 → TaskSpec + 计划（不执行） | `route "…"`；退出码 2 = 缺少结构信息 |
 | `formats` / `selftest` | 格式列表 / 环境自检 | |
@@ -176,13 +176,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 701 条（默认 695 passed + 6 条 opt-in/skipped：`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像；含 demo 端到端，需 _cache）
+& $PY -m pytest tests -q            # 723 条（默认 713 passed + 4 failed + 6 skipped，round 57 实测；4 failed 全部来自工作区未跟踪的 WIP 脚本 scripts/check_lammps_physics.py 未归类触发 check_ci 门禁，非本轮代码——该脚本归类后应回到 713+6。skipped：opt-in 4 条——`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像——加 2 条环境型（Windows 只读目录、symlinks）；含 demo 端到端，需 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布：export 20 / geom 34 / pipeline 3 / repair 12 / sources 17 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11 / batch 3 / repair-carboxylate 17 / robustness 6 / slab-cache 4 / sources-qmof 4 / topology-nets 34 / usecase-cli 13。
+测试分布（主要文件，其余 60 个文件未逐一列出）：export 20 / geom 34 / pipeline 3 / repair 12 / sources 18 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11 / batch 5 / repair-carboxylate 17 / robustness 8 / slab-cache 4 / sources-qmof 5 / topology-nets 35 / usecase-cli 13。
 
 ---
 
@@ -197,7 +197,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | `catalog/cif-export` | 格式导出与读回验证 |
 
 - 原句路由：`intent=cif-structure-pipeline`，第一候选 `cif-workbench`（修复前曾被误判为 `install-app`）。
-- `eval_router --all`：正例 73/73（intent/skill top1/top5 100%），负例 0/25 误报，槽位 11/11；`ci.py --fast` 通过。
+- `eval_router --all`（2026-11-16 实测，catalog 96 条）：intent/skill top1/top5 **96/96 = 100%**，负例 0/25 误报，槽位 11/11；`ci.py --fast` 通过。（历史：round 6 时为 89/89、更早 73/73。）
 
 ---
 
@@ -226,7 +226,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
   详见 `docs/REPAIR.md` §8/§10。
 - 拓扑比对以单个金属原子为节点，未做 Zr6 等 SBU 收缩；参考取 CoRE 同拓扑 ASR 记录。
 - 切面终止面是几何启发式（悬空键 + 化学计量偏差），不是表面能计算；表面有悬空键是正常现象。
-- 导出 7 种格式；`gaussian/orca/abacus` 未实现，会明确报 unsupported（不会静默写错）。
+- 导出支持 **31 种格式**（round 3 起）；`cp2k/siesta/abacus/orca/dftb` 是模板类（无 POTCAR/UPF/basis/skf/力场，不宣称可直接运行）；未实现的格式会明确报 unsupported（不会静默写错）。
 - CoRE 2024 的 NCR 原始 CIF 只有 curated 样例带 DOI；其余 raw 记录 `doi=None` 并在 notes 说明。
 - 数据源限制：Materials Project 需要用户自己的 `MP_API_KEY`（只支持 `mp-id`/化学式检索，不支持 "ZIF-8" 这类名称）；
   AFLOW 的 `structure_id` 只支持 aurl/URL（`aflow:<auid>` 无法经公共 AFLUX 反查），MOF 覆盖很少；

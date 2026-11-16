@@ -174,3 +174,68 @@ def test_stream_route_respects_the_path_sandbox(live_service, tmp_path):
         assert payload["error"]["code"] in ("forbidden-path", "forbidden")
     else:  # pragma: no cover
         pytest.fail("a path outside the policy roots must be rejected")
+
+
+def test_stream_route_bad_query_is_json_400(live_service, dataset_dir):
+    """Round 57: offset/limit parsing must not happen outside the error path —
+    ?offset=abc used to raise ValueError in the handler and kill the connection
+    with a traceback instead of a JSON 400."""
+    for query in (f"dir={dataset_dir}&offset=abc",
+                  f"dir={dataset_dir}&limit=abc",
+                  f"dir={dataset_dir}&limit=0",
+                  f"dir={dataset_dir}&limit=20000",
+                  f"dir={dataset_dir}&offset=-1"):
+        try:
+            urllib.request.urlopen(
+                f"{live_service}/stream/dataset_rows?{query}", timeout=30)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400, query
+            payload = json.loads(exc.read().decode())
+            assert payload["error"]["code"] == "invalid-request", query
+        else:  # pragma: no cover
+            pytest.fail(f"expected 400 for {query}")
+
+
+def test_stream_route_default_limit_is_bounded(live_service, dataset_dir):
+    """Round 57: no limit param → bounded by the contract maximum (10000), not
+    unbounded; small datasets still return every row."""
+    body = urllib.request.urlopen(
+        f"{live_service}/stream/dataset_rows?dir={dataset_dir}", timeout=30).read().decode()
+    lines = [line for line in body.splitlines() if line.strip()]
+    assert len(lines) == 7  # the fixture dataset has exactly 7 rows
+
+
+def test_rpc_body_with_nan_literal_is_400(live_service):
+    """Round 57: NaN/Infinity literals are not JSON (RFC 8259) — the boundary
+    must answer 400 instead of producing a non-serialisable 500 downstream."""
+    request = urllib.request.Request(
+        f"{live_service}/rpc",
+        data=b'{"op": "fetch", "params": {"limit": NaN}}',
+        headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(request, timeout=30)
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 400, exc.code
+        payload = json.loads(exc.read().decode())
+        assert payload["error"]["code"] == "invalid-request"
+    else:  # pragma: no cover
+        pytest.fail("NaN literal must be rejected at the boundary")
+
+
+def test_rpc_body_with_overflow_number_is_400(live_service):
+    """Round 57 adversarial F3: ``1e309`` is *valid JSON* that overflows to inf,
+    so parse_constant never sees it.  parse_float must catch it at the boundary
+    (previously the contract's 400 carried a params_echo containing inf, failed
+    to serialise, and degraded into a 500)."""
+    request = urllib.request.Request(
+        f"{live_service}/rpc",
+        data=b'{"op": "fetch", "params": {"limit": 1e309}}',
+        headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(request, timeout=30)
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 400, exc.code
+        payload = json.loads(exc.read().decode())
+        assert payload["error"]["code"] == "invalid-request"
+    else:  # pragma: no cover
+        pytest.fail("overflow number must be rejected at the boundary")

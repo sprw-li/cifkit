@@ -59,7 +59,8 @@ Measure-Command { & $PY -m cifkit batch --spec $spec --spec $spec --spec $spec -
 
 - 未在 Linux/macOS 上测；未对 87 元素全量 `metals` 做端到端计时（子集 Fe/Cu/Mg 3.6 s，见 WP1 报告）。
 - `batch` 的并发上限取决于机器核心数与网络；没有做 N=8/16 的扩展性曲线。
-- slab 缓存是**进程内**的：跨进程不共享（跨进程可考虑落盘，但会引入失效问题，暂不做）。
+- slab 缓存是**进程内 + 磁盘**两层：进程内 LRU → 磁盘（`_cache/slabs`，键 = 结构指纹 + 全部几何参数，
+  round 47 落盘）→ 重算；坏条目一律按 miss 处理（见 LIMITATIONS G2 与 `cifkit/geom/disk_cache.py`）。
 
 ## 10. 嵌入接口基准（round 15，`scripts/bench_api.py`）
 

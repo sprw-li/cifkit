@@ -70,6 +70,49 @@ def limitations_summary_ok(text: str) -> tuple[bool, str]:
     return consistent, detail
 
 
+def limitations_group_table_ok(text: str) -> tuple[bool, str]:
+    """Check the group summary table (right under the headline) against the rows.
+
+    Round 57: the headline was verified per-row for months while the ``J`` group
+    row claimed "1 ✅ / 7 🟡" although J4 and J8 were both ✅ — the summary table
+    itself was never parsed, so a stale group row survived every gate.  This
+    closes that hole.
+    """
+    rows = [line for line in text.splitlines() if re.match(r"^\| [A-L]\d+[a-z]? \|", line)]
+    per_group: dict[str, dict[str, int]] = {}
+    for line in rows:
+        group = re.match(r"^\| ([A-L])", line).group(1)  # J12/J13/H3b belong to J/J/H
+        marks = per_group.setdefault(group, {"✅": 0, "🟡": 0, "🔴": 0})
+        for mark in marks:
+            if mark in line:
+                marks[mark] += 1
+    problems: list[str] = []
+    checked = 0
+    for line in text.splitlines():
+        match = re.match(r"^\| ([A-L]) \|", line)
+        if not match:
+            continue
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) < 8:
+            continue
+        try:  # | group | topic | entries | ok | warn | red | ...
+            entries, ok, warn, red = (int(cells[3]), int(cells[4]), int(cells[5]), int(cells[6]))
+        except ValueError:
+            continue
+        group = match.group(1)
+        checked += 1
+        actual = per_group.get(group, {})
+        if entries != len([r for r in rows if re.match(r"^\| ([A-L])", r).group(1) == group]):
+            problems.append(f"{group}: entries {entries}")
+        if (ok, warn, red) != (actual.get("✅", 0), actual.get("🟡", 0), actual.get("🔴", 0)):
+            problems.append(f"{group}: stated {ok}/{warn}/{red}, rows {actual.get('✅', 0)}/{actual.get('🟡', 0)}/{actual.get('🔴', 0)}")
+    if not checked:
+        return False, "no parsable group table rows"
+    if problems:
+        return False, "; ".join(problems)
+    return True, f"{checked} group rows consistent with {len(rows)} entries"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="skip the full pytest suite")
@@ -253,8 +296,11 @@ def main() -> int:
 
     limitations = ROOT / "docs" / "LIMITATIONS.md"
     if limitations.is_file():
-        consistent, detail = limitations_summary_ok(limitations.read_text(encoding="utf-8"))
+        text = limitations.read_text(encoding="utf-8")
+        consistent, detail = limitations_summary_ok(text)
         record("docs: LIMITATIONS summary matches the rows", consistent, detail)
+        groups_ok, groups_detail = limitations_group_table_ok(text)
+        record("docs: LIMITATIONS group table matches the rows (round 57)", groups_ok, groups_detail)
 
     report["gates"] = GATES
     report["seconds"] = round(time.time() - started, 1)

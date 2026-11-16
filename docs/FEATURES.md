@@ -27,7 +27,7 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 | `volume`, `density_g_cm3`, `volume_per_atom` | float | 体积/密度/每原子体积 |
 | `spacegroup_number/symbol`, `point_group`, `n_symops`, `crystal_system` | mixed | spglib/pymatgen 对称性（失败为 null） |
 | `cn_mean`, `cn_by_element`(JSON), `cn_histogram`(JSON) | mixed | 几何配位数统计 |
-| `rdf_<ElA>_<ElB>` | JSON list | 元素对 g(r)，长度 = `rdf_bins`；`rdf_r` 是 r 网格 |
+| `rdf_<ElA>_<ElB>` | JSON list | 元素对 g(r)，长度 = `rdf_bins`；`rdf_r` 是 r 网格。**对称定义**（round 57）：每列是 A≤B 的无序对，中心与邻居两个方向都计入同一根直方图；归一化 `g_AB = hist/((N_A·ρ_B + N_B·ρ_A)·壳层体积)`（A=B 时为 `N_A·ρ_A·壳层体积`），理想随机混合 → 1。round 57 修复三处缺陷（此前所有列恒 0 或量级错）：邻居物种解析用错 Site 助手、壳层体积少减内球、归一化用总原子数 |
 | `topology_net`, `topology_evidence` | str | `--topology` 时调用 `cifkit.topology.identify`（6 个落盘 net；未知→unknown） |
 | `ring_basis`, `ring_sizes`, `rings_per_node` | JSON/list | `--rings` 时的 4–8 元环。金属框架走 SBU 收缩的 underlying net（`ring_basis=metal-net`，另给 `n_metal_nodes`/`n_linkers`）；**无金属的共价/有机框架走完整键图**（`ring_basis=full-bond-graph`，另给 `rings_per_cell`/`rings_truncated`） |
 | `error` | str | 失败行标记（其它行仍输出，命令 exit 1） |

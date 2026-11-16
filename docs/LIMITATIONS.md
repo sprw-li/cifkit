@@ -6,21 +6,26 @@
 
 ## 摘要
 
-**共 77 条局限 = 21 ✅（已修/已覆盖） / 56 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 81 条局限 = 22 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
-| A | 数据源 | 6 | 0 | 6 | 0 |
-| B | 拓扑判定 | 6 | 1 | 5 | 0 |
+| A | 数据源 | 8 | 1 | 7 | 0 |
+| B | 拓扑判定 | 4 | 0 | 4 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
 | E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
-| F | 特征 / 数据集 | 6 | 3 | 3 | 0 |
-| G | 性能 / 并发 / 稳定性 | 7 | 7 | 0 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 7 | 3 | 4 | 0 |
-| I | 环境 / 网络 / 依赖获取 | 5 | 1 | 4 | 0 |
-| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 8 | 1 | 7 | 0 |
-| L | 许可 / 商用合规 | 16 | 4 | 12 | 0 |
+| F | 特征 / 数据集 | 7 | 4 | 3 | 0 |
+| G | 性能 / 并发 / 稳定性 | 10 | 8 | 2 | 0 |
+| H | 技能 / 路由 / 测试覆盖 | 8 | 4 | 4 | 0 |
+| I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
+| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 13 | 2 | 11 | 0 |
+| K | 可移植性 / 产物卫生 | 1 | 1 | 0 | 0 |
+| L | 许可 / 商用合规 | 10 | 2 | 8 | 0 |
+
+> 统计口径（round 57 起，门禁 `release_check.limitations_group_table_ok` 强制）：按**条目 ID 前缀**计数；
+> 部分编号历史上跨节存放（A7/A8 在 B 节、F7 曾在 G 节、J9-J11/H3b/H3c/K9 在 L 节），本表与逐条状态列保持一致，
+> 与物理章节的对应关系留待后续统一重编号。
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
@@ -84,7 +89,7 @@
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供；且这 12 个 bundle 的**跨文件契约现在被门禁校验**（必需文件、交叉引用、声明缺失必须真缺失，12/12 一致、43 条检查） | 🟡 | 模板仍不可直接运行（数据由用户提供），但**包内部不再自相矛盾**；检查器用故意破坏的包做过负例测试 | `scripts/check_bundles.py`、`cifkit/export/bundle_check.py`、`tests/test_bundle_check.py`（18 条）、`release_check` 第 13 道门；**新增注释风格门禁**：每种代码只认一种注释符（LAMMPS/DFTB+ 用 `#`、CP2K/QE 用 `!`、GROMACS 用 `;`），写错即被真实软件判为未知命令——该规则当场抓到 **LAMMPS `in.min` 与 CP2K `cp2k.inp` 两处真缺陷** |
+| E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供；且这 12 个 bundle 的**跨文件契约现在被门禁校验**（必需文件、交叉引用、声明缺失必须真缺失，12/12 一致、54 条检查） | 🟡 | 模板仍不可直接运行（数据由用户提供），但**包内部不再自相矛盾**；检查器用故意破坏的包做过负例测试 | `scripts/check_bundles.py`、`cifkit/export/bundle_check.py`、`tests/test_bundle_check.py`（18 条）、`release_check` 第 13 道门；**新增注释风格门禁**：每种代码只认一种注释符（LAMMPS/DFTB+ 用 `#`、CP2K/QE 用 `!`、GROMACS 用 `;`），写错即被真实软件判为未知命令——该规则当场抓到 **LAMMPS `in.min` 与 CP2K `cp2k.inp` 两处真缺陷** |
 | E2 | 第三方独立回读 **25/31**，而且**已从「原子数」升级为「几何」**：25 个格式全部通过几何比对（20 个精确到 ≤1e-6 Å；`gromacs` 3.2e-3 Å 对应其 3 位小数精度，`pdb` 3.5e-4 Å）；5 个模板格式（abacus/cp2k/dftb/orca/siesta）**没有第三方读取器**（ASE 实测读不了），改用自研严格解析；`png` 用魔数 | 🟡 | 模板仍只能自研校验；其它格式的「回读」只证明读取器能读回，不代表目标软件能算 | `cifkit/export/geometry_check.py`（周期走 StructureMatcher，无晶胞走「排序配对距离指纹」）、`scripts/verify_formats.py`（报告含 `n_geometry_checked`/`worst_deviation_A`）、`tests/test_export_fidelity.py`（8 条，含「合成晶胞不得触发周期匹配」「位移/换晶胞/换元素必须失败」）、`tests/test_template_check.py`；**round 55 升格为语料级验证**：`scripts/verify_corpus.py` 对 **16 个结构**（16-750 原子，含 424/750 原子大胞与 2 个 CoRE ASR 真实条目）跑完 31 格式 + 12 bundle + 5 模板，**逐个结构 31/31**（16/16 结构全通过），并行 8 进程 18 s；**round 56 扩到 320 个真实 CoRE MOF**（28-9872 原子，共 153226 原子，9920 次格式检查，8 进程 281 s）：**320/320 结构全通过**；本轮由此修掉 3 个真缺陷（`.struct` 静默截断、`.pdb` 容差模型、指纹回退漏检换元素） |
 | E3 | 模板参数此前**没有收敛性验证**。现有完整机械（按代码生成扫描、解析各家能量方言、按「从某取值起后续每步 <= 阈值」判定、**要求输出有正常结束标记**、同一取值多次尝试时**优先采用完成的那次**）与真实云端数据（NWChem 7.2.2，16 原子周期胞，全部有 `Total times` 结束标记）：`20 -> -111.2953510 Ha`、`30 -> -111.6378257`、`40 -> -111.6688537`、`60 -> -111.7286759`；步间变化 **-582.5 / -52.8 / -101.8 meV/atom**（注意 40->60 又变大）。**结论：模板默认 cutoff 20 远未收敛，且到 60 Ha 仍在动 ~100 meV/atom**——这是**否定性**结果：该 smoke-test 设置不能用于生产 | 🟡 | 80 Ha 在 5400 s 单次上限内**超时**（作业级 failed，无输出）；高位扫描需要更长时限与更大机器（`MAX_SECONDS_PER_RUN` 已可调）；VASP/QE/CP2K 仍只能生成扫描 | `cifkit/export/convergence.py::output_completed`、`scripts/{run,collect,analyse}_convergence.py`、`cloud_h3/run_convergence_nwchem.py`、`tests/test_convergence.py`（21 条）、`tests/test_output_completion.py`（20 条）、证据 `runs/cloud_h3/conv_c*`、`runs/convergence/nwchem_cloud_report.json`（4 有效 + 1 作废 + 1 次被取代的尝试） |
 | E4 | PDB/SDF/MOL 不表达周期性（不变）；GRO 3 位小数（不变）；**LAMMPS 现在带完整 `Masses` + `in.min` 三种力场选项**（`zero` 几何检查 / 通用 LJ 占位（明确标注不是拟合力场）/ 真实 FF 示例）；**GROMACS 现在带 `topol.top` 骨架**（每个原子含元素质量、`[ bonds ]` 来自 cifkit 的键感知、所有必需 section 齐全），但 **[ atomtypes ]/[ atoms ] 的电荷与 LJ 参数是占位值** | 🟡 | 力场无法从 CIF 推导——骨架把「写拓扑」的工作量降到「填参数」 | `cifkit/export/bundles.py::_gromacs_topology`、`tests/test_ff_skeletons.py`（6 条：section 齐全、原子数/质量、键引用合法、占位已标注、readme 说明、LAMMPS 三选项）；bundle 门禁规则同步更新 |
@@ -102,42 +107,44 @@
 | F4 | `rings` 已覆盖无金属框架（完整键图回退） | ✅ | 节点数上限 >600 原子跳过并标 `truncated` | 金属框架仍走 underlying net（`ring_basis=metal-net`） | `cifkit.topology.ring_statistics`；diamond 6 元环=16/胞实测 |
 | F5 | dataset 新增 **`--dedupe KEY`**（`structure_sha256`/`structure_file`/`formula`/`reduced_formula`/`label`）：保留首次出现、**失败 run 永不被去掉**、流式与物化两种模式一致、内存只占「键集合」而非行；summary 增 `dedupe`/`n_deduped` 字段 | ✅ | 仍无更复杂的清洗（电荷/自旋一致性、留一法去重、跨源同一结构判定） | `cifkit/dataset.py::dedupe_rows`、`cifkit/cli.py --dedupe`、`tests/test_dataset_dedupe.py`（6 条） |
 | F6 | 数据集**已流式**（manifest 惰性遍历 + 行不驻留 + 分页读取），并在 2000 run 语料上量化：峰值内存 **3.55× 更低**（RDF 变体 4.34×），代价是墙钟 0.85×（多读一遍 JSONL） | ✅ | 极端语料（百万 run、超大行）仍未测 | `build_dataset(stream=True)`（默认）、`iter_manifests`、`api.dataset_rows` 分页；CSV 哈希与流式/传统一致 | docs/PERFORMANCE.md §10.5；tests/test_dataset.py |
+| F7 | dataset 现在**有 `--jobs`**（`build_dataset(jobs=N)` / `cifkit dataset --jobs N`，顺序保持、在飞窗口 jobs×2、`max_rows_held` 仍为 1，测试保证 jsonl/csv 与串行逐字节一致）；但**实测无加速**：40 run 语料 jobs=1/2/4/8 → 13.7/14.9/13.8/12.9 s（0.92-1.06×），瓶颈是 GIL（pymatgen 解析 + 纯 Python 特征） | ✅ | 并行**正确但无效**，要吞吐请按语料分片起多个进程（或多机 fan-out） | `runs/bench_dataset_jobs.json`、`tests/test_dataset_jobs.py`（4 条：一致性/流式界/失败行/默认值） |
 
 ## G. 性能 / 并发 / 稳定性
 
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| F7 | dataset 现在**有 `--jobs`**（`build_dataset(jobs=N)` / `cifkit dataset --jobs N`，顺序保持、在飞窗口 jobs×2、`max_rows_held` 仍为 1，测试保证 jsonl/csv 与串行逐字节一致）；但**实测无加速**：40 run 语料 jobs=1/2/4/8 → 13.7/14.9/13.8/12.9 s（0.92-1.06×），瓶颈是 GIL（pymatgen 解析 + 纯 Python 特征） | ✅ | 并行**正确但无效**，要吞吐请按语料分片起多个进程（或多机 fan-out） | `runs/bench_dataset_jobs.json`、`tests/test_dataset_jobs.py`（4 条：一致性/流式界/失败行/默认值） |
 | G1 | batch 并发扩展性**已实测**（8 个真实 pipeline 作业，两次独立运行）：jobs=1 约 147-149 s；jobs=2 **1.66×**；jobs=4 **2.05-2.93×**（效率 0.51-0.73）；jobs=8 **3.11-3.85×**（效率 0.39-0.48）；**jobs=16 反而更慢（2.78×）**——过订阅 | ✅ | 数字来自共享机器，是数量级证据；建议 `--jobs 4`（效率高）或 8（吞吐最高），不要 16 | `scripts/bench_batch_scale.py`（可复测，写 runs/bench_batch_scale*.json） |
 | G2 | slab 缓存**已加磁盘层**（G2 关闭）：键 = 结构指纹 + 全部几何参数，存 `<cache>/slabs/<sha1>.json`（原子写 + 锁），跨进程复用；坏条目（缺字段/无法解析/键不符）一律按 **miss** 处理并重算，缓存永不破坏几何；`CIFKIT_SLAB_DISK_CACHE=0` 可关 | ✅ | 条目会累积（无容量上限/淘汰），需要时手工清理 `_cache/slabs` | `cifkit/geom/disk_cache.py`、`cifkit/geom/surface.py::make_slab`（命中顺序：进程内 LRU -> 磁盘 -> 计算）、`tests/test_slab_disk_cache.py`（6 条，含**真起子进程**验证跨进程命中） |
 | G3 | `library/index.jsonl` 的并发追加走跨进程锁（`append_jsonl_locked`，持锁写入 + `fsync`，崩溃不留半行）。**且这把锁被压力测试反复捶过**（并发测试连跑 12 次）并修掉 4 个真实缺陷：① SIGKILL 的持锁者留下新 mtime 的锁 → 改按**属主探活**；② 只探活会被 **PID 复用**骗过 → 锁里记**进程身份 token**（pid+启动时刻）；③ Windows 上别人在读文件时 `unlink` 会失败，而失败被**静默吞掉**→ 产生永久僵尸锁 → 改为重试 + 失败则**记为过期**；④ Windows 的 `O_EXCL` 冲突抛的是 **EACCES 而非 EEXIST**→ 原代码只捕后者，直接崩 | ✅ | 无锁读者仍非线程安全（已写明） | `cifkit/locks.py`（`file_lock`/`_pid_alive`/`_process_token`/`_release`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（4 进程真并发）、`tests/test_lock_liveness.py`（9 条）、`tests/test_crash_recovery.py`（SIGKILL） |
-| G4 | 文件锁覆盖范围：**CoRE 索引构建**用锁；**`library/index.jsonl` 追加**现在也用锁（round 42）；其余缓存文件（数据集清单、格式校验报告等）靠**原子写**（同目录 temp + `os.replace`），并发读者可能读到旧内容但**不会读到半个文件** | ✅ | 语义已明确写出：「写者原子、读者无锁」——需要强一致的场景请显式加锁 | `cifkit/locks.py`（`file_lock`/`atomic_write_text`/`atomic_write_json`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（含 stale 锁回收、锁互斥） |
+| G4 | 文件锁覆盖范围：**CoRE 索引构建**用锁；**`library/index.jsonl` 追加**现在也用锁（round 42）；其余缓存文件（数据集清单、格式校验报告等）靠**原子写**（同目录 temp + `os.replace`），并发读者可能读到旧内容但**不会读到半个文件**（round 57 复核时发现 dataset manifest / verify_formats 报告 / run manifest+report 当时还是裸 `write_text`，声明超前于实现，已全部换成 `atomic_write_json`/`atomic_write_text`，声明与实现现在一致） | ✅ | 语义已明确写出：「写者原子、读者无锁」——需要强一致的场景请显式加锁 | `cifkit/locks.py`（`file_lock`/`atomic_write_text`/`atomic_write_json`/`append_jsonl_locked`）、`tests/test_concurrent_index.py`（含 stale 锁回收、锁互斥） |
 | G5 | 崩溃恢复**已做真实进程杀死测试**：SIGKILL 追加者后索引**只剩完整行**（逐行可解析、结尾必有换行）；SIGKILL 原子写者后目标文件**是完整的旧/新一代、绝无截断**，且不留临时文件；崩溃后重跑幂等（读者按 run_id 去重） | ✅ | 测试覆盖文件级契约，不是全流程混沌测试 | `tests/test_crash_recovery.py`（3 条，真起子进程并强杀）、`tests/test_lock_liveness.py`（5 条） |
 | G6 | 行尾（EOL）会破坏按字节 sha256 钉住的文件 | ✅ | 修复前**任何干净 clone 都会红**（nets 参考哈希 FAIL、verify_demo 7/8、check_all 6/7） | `.gitattributes` 统一 `eol=lf`；`runs/**` 标 `-text`；已实测 clone 通过 | `.gitattributes`；REVIEW-ROUND11-OPT P1-b |
+| G7 | 锁等待在**高负载**下过紧（8 并发构建索引时 waiter 曾 120s 超时）——现已改为「超时后先复查缓存 + 有界重试」 | ✅ | 极端负载下仍可能整体超时（此时会明确报错） | `CIFKIT_LOCK_TIMEOUT`(120s)/`CIFKIT_LOCK_TOTAL_TIMEOUT`(900s) 可调；对等进程完成后 waiter 直接复用其索引 | tests/test_lock_contention.py；cifkit/sources/core_mof.py |
+| G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
+| G9 | unlink 型文件锁有**已知竞态窗口**（round 57 对抗评审）：①`O_CREAT+O_EXCL` 成功到写入 pid 之间，另一进程读到空锁体 → 误判 stale 并抢锁（双持锁）；②持锁者超过 stale 期后锁被他人抢占，其 finally `_release` 会误删他人的锁；`_release` 失败后的 "pid=0" 中性化同样可能改写他人锁 | 🟡 | 仅在「持锁 > 180s」或「极窄创建窗口」的并发场景触发；当前调用点（CoRE 索引、slab 磁盘缓存）单写者/短临界区，实测未触发 | 需要 owner-token 校验后再 unlink（`_process_token` 基础设施已在）；并发同目标写入请用进程级隔离 | runs/_council_review_b/（round 57 评审记录）；cifkit/locks.py:128-185 |
+| G10 | `atomic_write_text` 的临时文件名只含 pid（不含线程 id/uuid）：**同进程多线程**并发写同一目标会互踩 tmp（round 57 对抗评审实测：两线程 build_dataset 同一 outdir 4/6 轮 PermissionError） | ✅ | 单线程主路径本就无影响 | **round 57 已修**：tmp 名加 pid+线程 id+随机后缀，`os.replace` 遇 Windows 读者持锁的有界重试（5 次×20ms 递增）；`tests/test_concurrent_index.py::test_atomic_write_survives_concurrent_thread_writers`（4 线程×20 轮全成、无 tmp 残留） | runs/_adversarial_r57/；cifkit/locks.py::atomic_write_text |
 
 ## H. 技能 / 路由 / 测试覆盖
 
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| G7 | 锁等待在**高负载**下过紧（8 并发构建索引时 waiter 曾 120s 超时）——现已改为「超时后先复查缓存 + 有界重试」 | ✅ | 极端负载下仍可能整体超时（此时会明确报错） | `CIFKIT_LOCK_TIMEOUT`(120s)/`CIFKIT_LOCK_TOTAL_TIMEOUT`(900s) 可调；对等进程完成后 waiter 直接复用其索引 | tests/test_lock_contention.py；cifkit/sources/core_mof.py |
-| G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
-| H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 89 条 eval + 负例；持续补 eval | docs/SKILLS |
-| H2 | 4 条 opt-in/skipped：MP live×2、QMOF live、metals 全量 zip | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
+| H1 | 路由是 pattern+keyword+域先验，不是语义模型；罕见表述可能错 | 🟡 | 新说法可能落到 fallback | 已加 96 条 eval + 负例；持续补 eval | docs/SKILLS |
+| H2 | 6 条 skipped：opt-in 4 条（MP live×2、QMOF live、metals 全量 zip）+ 环境型 2 条（Windows 只读目录不强制、symlinks 不可用） | 🟡 | 未在 CI 覆盖 | 有 key/镜像/env 时打开 | tests |
 | H3a | 云端验收管线**已跑通**：Bohrium `batchjob`（光子付费）提交 → 调度 → 运行 → 取回；**NWChem 7.2.2 接受并跑完**本项目写的最小自洽算例（`Total times` 输出、exit 0、作业 succeeded，237 s / 5 光子） | ✅ | 只覆盖 NWChem；VASP/QE/CP2K/ORCA 等本机与云端镜像都没有 | `runs/cloud_h3/CLOUD-LOG.md`（5 个作业的 jobId/耗时/光子）、`runs/cloud_h3/artifacts_cp2k/acceptance_result.json`、`scripts/cloud_h3_submit.py --bohr-status` |
-| H4 | CI workflow **仍未在真实 runner 上跑过**（本机只有 Windows）；但已加**定义漂移门禁**：`scripts/check_ci.py` 解析 workflow，校验 10 项（两个 job、3 OS × 2 Python、3.11 在列、LF 设置、引用的脚本都存在、**每个 gate 脚本都能从 CI 到达**、每个非 CI 脚本都有明确 on-demand 归类、import 冒烟指向真实模块） | 🟡 | 只证明「定义与仓库一致」，不证明其它 OS 能跑 | `scripts/check_ci.py`（可 `--run` 在本机执行可移植步骤）、`tests/test_check_ci.py`（5 条，含注入缺失脚本的负例）、`release_check` 门禁；**同时把 check_bundles/check_portability 接进 check_all（现 7 组）**，让 CI 通过 check_all 覆盖它们 |
+| H4 | CI workflow **仍未在真实 runner 上跑过**（本机只有 Windows）；但已加**定义漂移门禁**：`scripts/check_ci.py` 解析 workflow，校验 10 项（两个 job、3 OS × 2 Python、3.11 在列、LF 设置、引用的脚本都存在、**每个 gate 脚本都能从 CI 到达**、每个非 CI 脚本都有明确 on-demand 归类、import 冒烟指向真实模块） | 🟡 | 只证明「定义与仓库一致」，不证明其它 OS 能跑 | `scripts/check_ci.py`（可 `--run` 在本机执行可移植步骤）、`tests/test_check_ci.py`（5 条，含注入缺失脚本的负例）、`release_check` 门禁；**同时把 check_bundles/check_portability 接进 check_all（现 13 组）**，让 CI 通过 check_all 覆盖它们 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
+| H6 | 打包/发布：**已在本机实跑验证**——`pip wheel` 构建出 70 文件的 wheel（237 KB），用 `pip install --no-deps --target` 装进干净目录后**从安装副本导入**（`is_target_copy=true`）、CLI 可跑、4 个 contract schema 与 6 个拓扑参考都在包内且全部 verify 通过 | ✅ | 仍缺的是 PyPI 上传与多平台测试（CI 定义已有） | `scripts/check_package.py`（构建→安装→导入→CLI→拓扑，写 runs/check_package.json）；`release_check --package`；`tests/test_packaging.py`（5 条，含 package-data 声明回归） |
 
 ## I. 环境 / 网络 / 依赖获取
 
 
-> 自检工具：`scripts/verify_formats.py`（31 格式独立回读）、`scripts/adversarial_check.py`（18 项破坏性检查）、`scripts/check_all.py [--fast] [--adversarial]`（7 组健康检查，含 `check_skill cif-*`）。
+> 自检工具：`scripts/verify_formats.py`（31 格式独立回读）、`scripts/adversarial_check.py`（18 项破坏性检查）、`scripts/check_all.py [--fast] [--adversarial]`（**13 组**健康检查，含 `check_skill cif-*`；可选 `--adversarial` 为第 14 组）。
 > 干净 clone 验收（round 12）：`git clone` → 拓扑参考哈希测试通过、`verify_demo` 8/8、`check_all --fast` 7/7（修复前分别是 FAIL / 7-of-8 / 6-of-7）。
 
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
-| H6 | 打包/发布：**已在本机实跑验证**——`pip wheel` 构建出 70 文件的 wheel（237 KB），用 `pip install --no-deps --target` 装进干净目录后**从安装副本导入**（`is_target_copy=true`）、CLI 可跑、4 个 contract schema 与 6 个拓扑参考都在包内且全部 verify 通过 | ✅ | 仍缺的是 PyPI 上传与多平台测试（CI 定义已有） | `scripts/check_package.py`（构建→安装→导入→CLI→拓扑，写 runs/check_package.json）；`release_check --package`；`tests/test_packaging.py`（5 条，含 package-data 声明回归） |
 | I1 | 不提供 POTCAR/UPF/skf/力场/basis（许可与体积） | 🟡 | 用户必须自备 | bundle `missing` 明确列出 | docs/EXPORT |
 | I2 | 数据许可：CoRE CC-BY-4.0；COD 公有领域；MP/AFLOW 条款；QMOF 派生自 CoRE/CSD | 🟡 | 再分发前需核对 | SOURCES/pipeline 记录 DOI/license | docs/SOURCES |
 | I3 | 本环境网络受限：figshare 不稳、rcsr.anu.edu.au 不可达 | 🟡 | QMOF/RCSR 在线验证受限 | 本地镜像/缓存优先 | docs/SOURCES |
@@ -156,6 +163,8 @@
 | J6 | 1.0 是首个冻结版本，无 LTS 承诺 | 🟡 | 次版本兼容、主版本可能破坏 | 平台按 `api_version` 分支；schema 文件可做网关校验 | docs/API.md §5 |
 | J7 | `structure` 参数接受 pymatgen 对象 → RPC 场景不可用 | 🟡 | HTTP 调用者只能用 `path`/`cif_text` | 平台把结构序列化成 CIF 文本传入 | `cifkit/contract.py` ops.json |
 | J8 | 已有**路径沙箱**（read_roots/write_roots，resolve 后包含性检查，挡 `..` 与逃逸符号链接） | ✅ | 进程内检查（TOCTOU 非绝对；跨盘符按拒绝处理） | `Policy(read_roots=..., write_roots=...)` → 403 `forbidden-path`；另限 `max_bytes`/`max_atoms`/`max_inputs` | cifkit/platform.py；tests/test_platform.py |
+| J12 | `--ingest` 以 **outdir 目录名**为唯一入库 key：两个不同 run 的 outdir 基名相同（如都叫 `demo`）时，后入库者覆盖 `library/<name>/` 内同名产物，index.jsonl 出现两条指向同一目录的记录（round 57 对抗评审实测） | 🟡 | 同名 run 会静默互相覆盖；不同名不受影响 | 冲突时加时间戳/序号后缀或显式 supersede（待修）；暂避免用相同 `--outdir` 基名重复 ingest | runs/_council_review_b/（round 57 评审记录）；cifkit/provenance.py:132-155 |
+| J13 | `fetch` **0 命中**的退出码口径漂移：无 `--json` exit 1、带 `--json` exit 0（两分支必有一错，round 57 对抗评审实测） | 🟡 | 调用方按退出码决定重试/放弃时会误判 | 统一口径并写入文档（待修）；暂以 stdout 内容为准 | runs/_council_review_b/（round 57 评审记录）；cifkit/cli.py:582-624 |
 
 ## L. 许可 / 商用合规
 

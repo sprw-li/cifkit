@@ -11,6 +11,7 @@ edge.  ``validate_request`` is a deliberately small JSON-Schema subset checker
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -223,12 +224,19 @@ def validate_against(instance: Any, schema: dict[str, Any], path: str = "$") -> 
     if "enum" in schema and instance not in schema["enum"]:
         errors.append(f"{path}: {instance!r} not in {schema['enum']}")
     if isinstance(instance, (int, float)) and not isinstance(instance, bool):
-        if "minimum" in schema and instance < schema["minimum"]:
-            errors.append(f"{path}: {instance} < minimum {schema['minimum']}")
-        if "maximum" in schema and instance > schema["maximum"]:
-            errors.append(f"{path}: {instance} > maximum {schema['maximum']}")
-        if "exclusiveMinimum" in schema and instance <= schema["exclusiveMinimum"]:
-            errors.append(f"{path}: {instance} <= exclusiveMinimum {schema['exclusiveMinimum']}")
+        # round 57: NaN/±Infinity compare False against every bound, so without
+        # this guard they sailed through the contract and blew up as a 500 in
+        # the op (int(limit), np.linspace(NaN)...).  JSON itself forbids them;
+        # Python's json.loads is the only reason they can appear here at all.
+        if not math.isfinite(instance):
+            errors.append(f"{path}: numeric values must be finite (got {instance!r})")
+        else:
+            if "minimum" in schema and instance < schema["minimum"]:
+                errors.append(f"{path}: {instance} < minimum {schema['minimum']}")
+            if "maximum" in schema and instance > schema["maximum"]:
+                errors.append(f"{path}: {instance} > maximum {schema['maximum']}")
+            if "exclusiveMinimum" in schema and instance <= schema["exclusiveMinimum"]:
+                errors.append(f"{path}: {instance} <= exclusiveMinimum {schema['exclusiveMinimum']}")
     if isinstance(instance, dict):
         for key in schema.get("required", []):
             if key not in instance:

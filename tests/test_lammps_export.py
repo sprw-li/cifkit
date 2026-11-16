@@ -65,3 +65,37 @@ def test_atom_count_matches_the_header(data_file):
     rows = [line for line in atoms_block.splitlines() if line.strip() and
             not line.strip().startswith("#")]
     assert len(rows) == n_atoms
+
+def test_skewed_cell_beyond_half_box_is_refused(tmp_path):
+    """Round 57 adversarial F1: ASE's Prism rotates but does NOT reduce tilts
+    (reduce_cell=False), so a strongly skewed cell produced |xy| > length/2 —
+    a box real LAMMPS rejects — silently.  cifkit now refuses honestly; writing
+    a *reduced* cell instead would change the cell shape and trip the round-57
+    cellpar guard, so refusal is the only consistent behaviour."""
+    import math as _math
+
+    from pymatgen.core import Lattice, Structure
+
+    from cifkit.export import write_structure
+
+    # a=b, gamma=170° → xy ≈ -0.985*a, far beyond half the box length
+    skewed = Structure(Lattice.from_parameters(2.0, 2.0, 2.4, 90, 90, 170),
+                       ["Zn", "O"], [[0, 0, 0], [0.33, 0.66, 0.5]])
+    target = tmp_path / "data.lmp"
+    with pytest.raises(ValueError, match="tilt factor"):
+        write_structure(skewed, target, fmt="lammps-data")
+    assert not target.exists()  # no half-broken file left behind
+
+
+def test_edge_tilt_exactly_half_the_box_is_allowed(tmp_path):
+    """Hexagonal cells (gamma=120°) sit exactly at |xy| = length/2 — the
+    historical workhorse case must keep working."""
+    from pymatgen.core import Lattice, Structure
+
+    from cifkit.export import write_structure
+
+    structure = Structure(Lattice.hexagonal(3.25, 5.2), ["Zn", "O"],
+                          [[0, 0, 0], [0.3333, 0.6667, 0.5]])
+    target = tmp_path / "data.lmp"
+    write_structure(structure, target, fmt="lammps-data")
+    assert "xy xz yz" in target.read_text(encoding="utf-8")

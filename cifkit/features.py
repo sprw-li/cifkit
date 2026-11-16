@@ -81,10 +81,33 @@ def _coordination(structure: Structure) -> dict[str, Any]:
 
 
 def _rdf(structure: Structure, *, bins: int, max_r: float) -> dict[str, Any]:
-    """Element-pair radial distribution functions g(r) on a shared r grid."""
+    """Element-pair radial distribution functions g(r) on a shared r grid.
+
+    Columns ``rdf_<A>_<B>`` (A ≤ B) fold *both* observation directions into one
+    symmetric histogram: every (center, neighbour) observation whose unordered
+    species pair is {A, B} lands in the same bin array, so the column set stays
+    stable.  The normalisation matches that definition:
+
+        g_AB(r) = hist_AB(r) / ((N_A·ρ_B + N_B·ρ_A) · shell_volume(r))   (A ≠ B)
+        g_AA(r) = hist_AA(r) / (N_A·ρ_A · shell_volume(r))
+
+    (``hist_AB`` already contains both directions, so no extra factor of 2 for
+    A ≠ B; for A == A every unordered pair is observed twice — i as center and
+    j as center — which cancels against the single N_A·ρ_A factor.)  g(r) → 1
+    for an ideal random mixture under this definition.
+
+    Round 57 fixes three defects that kept every RDF column at 0 or at a wrong
+    scale: neighbour species were resolved through ``element_symbol`` (a *Site*
+    helper) on a bare Element/Species — always "X", so every observation was
+    dropped; the shell volume used (4/3)π·Δr³ instead of (4/3)π·(r₂³−r₁³); and
+    the normalisation divided by ``len(structure)`` instead of the species
+    density product.
+    """
     elements = sorted({element_symbol(site) for site in structure})
     r_grid = np.linspace(0.0, float(max_r), int(bins) + 1)
     centers = 0.5 * (r_grid[:-1] + r_grid[1:])
+    # true spherical shell volume per bin, (4/3)π·(r_hi³ − r_lo³)
+    shell_vol = (4.0 / 3.0) * math.pi * (r_grid[1:] ** 3 - r_grid[:-1] ** 3)
     hist = {(a, b): np.zeros(int(bins), dtype=float) for i, a in enumerate(elements) for b in elements[i:]}
     counts = {a: 0 for a in elements}
     for site in structure:
@@ -98,7 +121,9 @@ def _rdf(structure: Structure, *, bins: int, max_r: float) -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             continue
         for nb in neighbors:
-            el_j = element_symbol(nb.specie) if hasattr(nb.specie, "symbol") else str(nb.specie)
+            # nb.specie is a bare Element/Species, NOT a Site — the Site helper
+            # element_symbol() fell through to "X" for every neighbour
+            el_j = getattr(nb.specie, "symbol", None) or str(nb.specie)
             if el_j not in elements or el_i not in elements:
                 continue
             r = float(nb.nn_distance)
@@ -107,12 +132,15 @@ def _rdf(structure: Structure, *, bins: int, max_r: float) -> dict[str, Any]:
                 key = (el_i, el_j) if (el_i, el_j) in hist else (el_j, el_i)
                 hist[key][idx] += 1.0
     result: dict[str, Any] = {"rdf_bins": int(bins), "rdf_max": float(max_r)}
-    shell_vol = (4.0 / 3.0) * math.pi * (np.diff(r_grid) ** 3)
     for (a, b), raw in hist.items():
-        norm = len(structure) * density[b] * shell_vol if density[b] > 0 else np.zeros_like(raw)
+        if a == b:
+            pair_density = counts[a] * density[a]
+        else:
+            pair_density = counts[a] * density[b] + counts[b] * density[a]
+        norm = pair_density * shell_vol if pair_density > 0 else np.zeros_like(raw)
         g = np.divide(raw, norm, out=np.zeros_like(raw), where=norm > 0)
-        result[f"rdf_{a}_{b}"] = json.dumps([_round(v, 4) for v in g])
-    result["rdf_r"] = json.dumps([_round(v, 4) for v in centers])
+        result[f"rdf_{a}_{b}"] = json.dumps([_round(float(v), 4) for v in g])
+    result["rdf_r"] = json.dumps([_round(float(v), 4) for v in centers])
     return result
 
 

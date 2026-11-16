@@ -90,6 +90,26 @@ def _has_cell(structure) -> bool:
         return False
 
 
+def _back_has_cell(back) -> bool:
+    """Did the *reader* hand us a real cell?
+
+    ``_to_pymatgen`` fabricates a bounding box for cell-less containers (xyz,
+    mol, sdf, turbomole, lammps-data without tilt), so the converted Structure
+    always "has" one.  The round-57 box guard must only fire on cells that came
+    from the file itself — a fabricated box is not evidence of a wrong export.
+    """
+    import numpy as np
+
+    from pymatgen.core import Structure
+
+    if isinstance(back, Structure):
+        return _has_cell(back)
+    if hasattr(back, "get_scaled_positions"):  # ase.Atoms
+        cell = np.array(back.cell)
+        return cell.shape == (3, 3) and abs(float(np.linalg.det(cell))) > 1e-8
+    return False
+
+
 def _cell_matches(other, structure, rtol: float = 0.02, atol: float = 0.25) -> bool:
     """Does the read-back reproduce the *source* lattice (not just any lattice)?
 
@@ -197,5 +217,31 @@ def compare(structure, back, fmt: str, *, tolerance: float | None = None) -> Geo
                              f"periodic and lattice-free comparison both failed "
                              f"({fallback.detail})")
 
-    # lattice-free: compare the distance fingerprints
+    # lattice-free: compare the distance fingerprints — but only when the box
+    # *shape* agrees.  Round 57: a periodic read-back whose cell parameters
+    # differ from the source is a real defect (wrong box = wrong periodicity,
+    # e.g. a hexagonal cell written as an orthogonal box); the distance
+    # fingerprint is blind to the box and must not clear it.  Orientation alone
+    # may legitimately differ between readers (round 56e), so compare the
+    # orientation-free cell parameters (a, b, c, α, β, γ), not raw matrices —
+    # and only when the reader itself delivered a cell (not a fabricated box).
+    if _back_has_cell(back) and _has_cell(structure):
+        len_tol = max(10.0 * target, 0.02)
+        ang_tol = 1.0
+        for name, left, right in (
+                ("a", other.lattice.a, structure.lattice.a),
+                ("b", other.lattice.b, structure.lattice.b),
+                ("c", other.lattice.c, structure.lattice.c)):
+            if abs(left - right) > len_tol:
+                return GeometryCheck(False, True, None, target,
+                                     f"read-back cell length {name}={left:.4f} A != "
+                                     f"source {right:.4f} A (wrong periodic box?)")
+        for name, left, right in (
+                ("alpha", other.lattice.alpha, structure.lattice.alpha),
+                ("beta", other.lattice.beta, structure.lattice.beta),
+                ("gamma", other.lattice.gamma, structure.lattice.gamma)):
+            if abs(left - right) > ang_tol:
+                return GeometryCheck(False, True, None, target,
+                                     f"read-back cell angle {name}={left:.3f} deg != "
+                                     f"source {right:.3f} deg (wrong periodic box?)")
     return _fingerprint_check(other, structure, target, reason="container has no cell")

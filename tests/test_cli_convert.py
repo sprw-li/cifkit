@@ -213,6 +213,56 @@ def test_convert_batch_disambiguates_duplicate_stems(tmp_path):
     assert len(outdirs) == 2, outdirs
 
 
+def test_convert_batch_generated_suffix_does_not_collide(tmp_path):
+    """P1 (round 57): a generated disambiguation suffix (same_001) must not itself
+    collide with another input literally named same_001.cif — the first input's
+    output would otherwise be silently overwritten while manifest says n_ok=3."""
+    d1 = tmp_path / "d1"
+    d2 = tmp_path / "d2"
+    d3 = tmp_path / "d3"
+    for directory in (d1, d2, d3):
+        directory.mkdir()
+    shutil.copyfile(ZIF8, d1 / "same.cif")          # stem: same
+    shutil.copyfile(ZIF8, d2 / "same.cif")          # stem: same (dup)
+    shutil.copyfile(ZIF8, d3 / "same_001.cif")      # stem: same_001 (suffix clash)
+    out = tmp_path / "out"
+    proc = _run(["convert", str(d1 / "same.cif"), str(d2 / "same.cif"),
+                 str(d3 / "same_001.cif"), "--to", "vasp", "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_ok"] == 3
+    outdirs = sorted(Path(run["outdir"]).name for run in data["runs"])
+    assert len(set(outdirs)) == 3, outdirs  # three distinct sub-directories
+    for name in outdirs:
+        assert (out / name / f"{name}.vasp").is_file(), name
+
+
+def test_convert_batch_case_insensitive_stems_do_not_collide(tmp_path):
+    """Round 57 adversarial F2: on case-insensitive filesystems (Windows) the
+    sub-directories for 'Same' and 'same' are *physically the same*, so the two
+    inputs silently clobbered each other while manifest said n_ok=2."""
+    d1 = tmp_path / "d1"
+    d2 = tmp_path / "d2"
+    d1.mkdir()
+    d2.mkdir()
+    shutil.copyfile(ZIF8, d1 / "same.cif")                  # 138 atoms
+    shutil.copyfile(ROOT / "tests" / "data" / "terephthalic_acid_hfree.cif",
+                    d2 / "Same.cif")                        # 16 atoms
+    out = tmp_path / "out"
+    proc = _run(["convert", str(d1 / "same.cif"), str(d2 / "Same.cif"),
+                 "--to", "vasp", "--outdir", str(out), "--json"])
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["n_ok"] == 2
+    outdirs = sorted(Path(run["outdir"]).name for run in data["runs"])
+    assert len(set(outdirs)) == 2, outdirs  # two physically distinct directories
+    from pymatgen.core import Structure
+
+    sizes = sorted(len(Structure.from_file(out / name / f"{name}.vasp"))
+                   for name in outdirs)
+    assert sizes == [16, 138], sizes  # BOTH structures survived
+
+
 def test_convert_single_with_stem_stays_flat(tmp_path):
     """Round-9 behaviour kept: single input + --stem X → outdir/X.vasp (no subdir)."""
     out = tmp_path / "flat"

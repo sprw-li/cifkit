@@ -2,7 +2,7 @@
 
 > 目标：让平台把 cifkit 当**库**或**服务**复用，而不是解析 CLI 文本。
 > 契约版本：`API_VERSION = 1.0`；特征表版本：`cifkit-features/v1`。
-> 机器可读 schema：[cifkit/schemas/](cifkit/schemas/request.json)（`request.json` / `response.json` / `ops.json` / `feature_row.json`）。
+> 机器可读 schema：[../cifkit/schemas/request.json](../cifkit/schemas/request.json)（`request.json` / `response.json` / `ops.json` / `feature_row.json`）。
 
 ## 1. 两种接入方式
 
@@ -53,6 +53,7 @@ server, thread = serve("127.0.0.1", 8765, background=True)
 | `features_many` | `paths[]` | `jobs`(4)、`rdf`、`rings`、`topology` | `{n_inputs,n_ok,n_failed,rows[]}` |
 | `convert` | 结构 + (`formats[]` 或 `bundles[]`) | `outdir`（省略=内存返回）、`title` | `{formats,bundles,natoms}` |
 | `dataset` | `runs_dir`、`outdir` | `label_key`、`rdf`、`topology`、`features_enabled`、`copy_structures` | dataset 摘要（含 `csv_sha256`、`errors`） |
+| `dataset_rows` | `dataset_dir` | `offset`(0)、`limit`(100, max 10000)、`columns[]`、`with_features`、`include_manifest` | 分页行 `{rows[],total,offset,limit,has_more}` |
 | `topology` | 结构（可选 `net`） | — | `identify` 或 `verify` 结果 |
 | `validate` | 结构 | `vacuum` | `{ok,checks[],metrics}` |
 
@@ -143,18 +144,18 @@ service.stats_snapshot()               # requests/ok/errors/rejected/timeouts
 2. 用 `cifkit/schemas/request.json` 在网关层先挡非法请求（或直接依赖服务的契约校验）；
 3. 数据落库时透传 `manifest`/`provenance` 里的 `record_id`、`doi`、`license`、`sha256`；
 4. 记住输入包是**模板**：不要对用户承诺"可直接计算"（见 `docs/EXPORT.md` §6、`docs/LIMITATIONS.md` E1/E3）；
-5. 许可：代码 MIT（[LICENSE](LICENSE)）；数据源逐源条款（[LICENSING.md](LICENSING.md)）；
+5. 许可：代码 MIT（[../LICENSE](../LICENSE)）；数据源逐源条款（[LICENSING.md](LICENSING.md)）；
    依赖里**不要**引入 GPL 的 openbabel（核心不需要，实测见 `scripts/verify_formats_no_gpl.py`）；
-   源码级 copyleft 由 `scripts/sca_scan.py --strict` 守（check_all 第 8 组，当前 0 命中）；
+   源码级 copyleft 由 `scripts/sca_scan.py --strict` 守（check_all 第 9 组，当前 0 命中）；
 6. 对外服务用 `GuardedService` 设 `read_roots`/`write_roots`/`timeout_s`/`max_concurrency`，
    并自备鉴权（`authorizer=`）与指标导出。
 
-## 7. 已知限制（接口层）
+## 7. 已知限制（接口层，round 57 更新）
 
 - 无异步/队列：长任务（大结构 RDF、87 元素批量）会占满调用线程；平台应放工作队列；
 - 无线程池/进程池上限控制；`features_many(jobs=N)` 的 N 由调用方负责；
-- 无请求级超时/取消（Python 侧无法安全中断 pymatgen 计算）；
-- 无流式响应（大结果一次性 JSON）；无分页；
+- ~~无请求级超时/取消~~（已实现，见下方「超时与取消」）；
+- ~~无流式响应/无分页~~（已实现，见下方「流式导出」与 `dataset_rows` op）；
 - `handle()` 会捕获所有异常（避免 traceback 外泄），**调试时需要看日志/直接调 `api.*`**；
 - 未做压力/并发压测，也未做多租户隔离测试。
 
@@ -168,10 +169,12 @@ worker 在下一个 `checkpoint()` 停下（已接入 `features_many`）。
 ## 流式导出（round 52）
 
 ```
-GET /stream/dataset_rows?dir=<dataset_dir>&offset=0&limit=100000
+GET /stream/dataset_rows?dir=<dataset_dir>&offset=0&limit=100
     → 200, Content-Type: application/x-ndjson, Transfer-Encoding: chunked
 ```
 
-每行一个 JSON 对象（无外层包装）。`cifkit.api.iter_dataset_rows(...)` 是同一个实现，
+每行一个 JSON 对象（无外层包装）。`offset`/`limit` 必须是整数，`limit` 上限 10000
+（与 `dataset_rows` op 契约一致；省略时默认 10000）——越界或非整数返回 JSON 400。
+`cifkit.api.iter_dataset_rows(...)` 是同一个实现，
 平台也可直接当生成器用：逐行读 `dataset.jsonl`，内存有界；客户端断开时服务端停止拉取。
 该路由**同样经过 Policy 检查**（`read_roots` 沙箱、租户、上限），越界返回 403。

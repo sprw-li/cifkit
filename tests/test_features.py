@@ -39,6 +39,52 @@ def test_features_rdf_shape(zif8):
         assert len(json.loads(row[key])) == 20
 
 
+def test_features_rdf_values_are_physical(zif8):
+    """P1 (round 57): every RDF column used to be all-zero — neighbour species
+    were resolved through the *Site* helper element_symbol() on bare
+    Element/Species objects, which always returned "X", so every observation was
+    dropped silently (no rdf_error).  Real values must come out: ZIF-8 shows the
+    imidazolate C–C first-shell peak near ~1.4 Å with g > 1."""
+    import numpy as np
+
+    row = extract_features(zif8, rdf=True, rdf_bins=50, rdf_max=8.0)
+    rdf_keys = [k for k in row if k.startswith("rdf_") and k not in ("rdf_bins", "rdf_max", "rdf_r")]
+    assert len(rdf_keys) == 10  # ZIF-8: C/H/N/Zn → 10 unordered pairs
+    sums = {key: float(np.sum(np.asarray(json.loads(row[key])))) for key in rdf_keys}
+    assert all(value > 0 for value in sums.values()), sums  # was 0.0 for all ten
+    r = np.asarray(json.loads(row["rdf_r"]))
+    c_c = np.asarray(json.loads(row["rdf_C_C"]))
+    peak = int(np.argmax(c_c))
+    assert 1.2 <= r[peak] <= 1.7, r[peak]  # C–C bond length region
+    assert c_c[peak] > 1.5, c_c[peak]      # a real crystalline first shell
+
+
+def test_features_rdf_random_mixture_plateaus_near_one():
+    """Round 57: with the correct shell volume (4/3)π(r₂³−r₁³) and pair-density
+    normalisation, g(r) must converge to 1 for an ideal random mixture (the old
+    (4/3)πΔr³ shell and len(structure) normalisation gave platform values in the
+    thousands)."""
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+    length, n_target = 18.0, 200
+    points: list = []
+    while len(points) < n_target:
+        p = rng.random(3) * length
+        if all(np.linalg.norm(((p - q + length / 2) % length) - length / 2) > 2.2 for q in points):
+            points.append(p)
+    structure = Structure(Lattice.cubic(length), ["Na"] * 120 + ["Cl"] * 80, points[:n_target])
+    row = extract_features(structure, rdf=True, rdf_bins=50, rdf_max=8.0)
+    r = np.asarray(json.loads(row["rdf_r"]))
+    band = (r >= 5.0) & (r <= 7.5)  # beyond the 2.2 Å exclusion zone
+    rdf_keys = [k for k in row if k.startswith("rdf_") and k not in ("rdf_bins", "rdf_max", "rdf_r")]
+    assert rdf_keys
+    for key in rdf_keys:
+        g = np.asarray(json.loads(row[key]))
+        mean = float(g[band].mean())
+        assert 0.75 <= mean <= 1.25, (key, mean)
+
+
 def test_features_no_metal_and_bad_input():
     sio2 = Structure(Lattice.hexagonal(5.0, 5.5), ["Si", "O", "O"], [[0, 0, 0], [1/3, 2/3, 0.3], [2/3, 1/3, 0.7]])
     row = extract_features(sio2, rdf=False)

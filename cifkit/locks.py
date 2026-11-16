@@ -185,19 +185,38 @@ def file_lock(
         _release(lock)
 
 
-def atomic_write_text(path: str | Path, text: str, *, encoding: str = "utf-8") -> Path:
-    """Write ``text`` to ``path`` atomically (same-directory temp file + ``os.replace``)."""
+def atomic_write_text(path: str | Path, text: str, *, encoding: str = "utf-8",
+                      attempts: int = 5) -> Path:
+    """Write ``text`` to ``path`` atomically (same-directory temp file + ``os.replace``).
+
+    Round 57 (adversarial F4/G10): the temp name used to contain only the pid, so
+    two *threads* in one process writing the same target shared one tmp path and
+    clobbered each other mid-write.  The name is now pid + thread id + a random
+    suffix, so concurrent writers never share a temp file.  ``os.replace`` can
+    still fail with PermissionError on Windows while *a reader* holds the target
+    open; that is retried with a short backoff instead of failing the write.
+    """
+    import threading
+    import uuid
+
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(f"{target.name}.tmp{os.getpid()}")
+    tmp = target.with_name(f"{target.name}.tmp{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:8]}")
+    last_error: PermissionError | None = None
     try:
         tmp.write_text(text, encoding=encoding)
-        os.replace(tmp, target)
+        for attempt in range(max(1, attempts)):
+            try:
+                os.replace(tmp, target)
+                return target
+            except PermissionError as exc:  # Windows: a lock-free reader is mid-read
+                last_error = exc
+                time.sleep(0.02 * (attempt + 1))
+        raise last_error  # type: ignore[misc]
     finally:
         with contextlib.suppress(OSError):
             if tmp.exists():
                 tmp.unlink()
-    return target
 
 
 def atomic_write_json(path: str | Path, data: Any, *, ensure_ascii: bool = False) -> Path:

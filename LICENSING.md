@@ -17,7 +17,7 @@
 
 | 类别 | 数量 | 包 |
 |---|---|---|
-| 宽松 permissive | 7 | pymatgen(MIT)、spglib(BSD-3)、numpy(BSD-3+others permissive)、scipy(BSD-3)、matplotlib(PSF/BSD-compatible)、networkx(BSD-3)、rdkit(BSD-3)、Pillow(MIT-CMU) |
+| 宽松 permissive | 8 | pymatgen(MIT)、spglib(BSD-3)、numpy(BSD-3+others permissive)、scipy(BSD-3)、matplotlib(PSF/BSD-compatible)、networkx(BSD-3)、rdkit(BSD-3)、Pillow(MIT-CMU) |
 | 弱 copyleft | 1 | **ASE = LGPL-2.1-or-later** |
 | 强 copyleft | 1 | **openbabel-wheel = GPL-2.0（Open Babel）** |
 

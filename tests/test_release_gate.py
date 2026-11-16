@@ -85,3 +85,31 @@ def test_the_real_limitations_file_is_consistent(release_check):
     text = (ROOT / "docs" / "LIMITATIONS.md").read_text(encoding="utf-8")
     ok, detail = release_check.limitations_summary_ok(text)
     assert ok, detail
+
+
+def test_limitations_group_table_must_match_the_rows(release_check):
+    """Round 57: the J group row claimed 1✅/7🟡 for weeks while J4 and J8 were
+    both ✅ — the group summary table itself was never parsed.  The gate must
+    reject a stale group row (by entry-ID prefix, matching the headline gate)."""
+    good = """
+| A1 | x | 🟡 | a | b | c |
+| A2 | y | ✅ | a | b | c |
+| B1 | z | 🟡 | a | b | c |
+
+| 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
+|---|---|---|---|---|---|
+| A | alpha | 2 | 1 | 1 | 0 |
+| B | beta | 1 | 0 | 1 | 0 |
+"""
+    ok, detail = release_check.limitations_group_table_ok(good)
+    assert ok, detail
+
+    stale = good.replace("| A | alpha | 2 | 1 | 1 | 0 |", "| A | alpha | 2 | 0 | 2 | 0 |")
+    ok, detail = release_check.limitations_group_table_ok(stale)
+    assert not ok and "A:" in detail
+
+
+def test_the_real_limitations_group_table_is_consistent(release_check):
+    text = (ROOT / "docs" / "LIMITATIONS.md").read_text(encoding="utf-8")
+    ok, detail = release_check.limitations_group_table_ok(text)
+    assert ok, detail

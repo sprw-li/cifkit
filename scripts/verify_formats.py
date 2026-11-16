@@ -277,7 +277,11 @@ def main() -> int:
         ),
     }
     json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    # atomic (round 57): the format-check report is named in LIMITATIONS G4 as a
+    # "不会读到半个文件" file — honour that with the shared atomic writer
+    from cifkit.locks import atomic_write_json
+
+    atomic_write_json(json_path, report)
 
     print(f"formats: {report['n_ok']}/{report['n_formats']} ok; "
           f"third-party readback {report['n_third_party_ok']}/{report['n_third_party_readback']} ok")

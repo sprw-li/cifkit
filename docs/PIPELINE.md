@@ -319,7 +319,7 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 
 | 工具 | 作用 | 命令 |
 |---|---|---|
-| `scripts/check_all.py` | 一键健康检查（7 组：selftest / pytest / verify_demo / router / eval / ci / **check_skill cif-***） | `python scripts\check_all.py --fast` |
+| `scripts/check_all.py` | 一键健康检查（**13 组**：selftest / pytest / verify_demo / router / eval / ci / **check_skill cif-\*** / check_eol / sca_scan / check_bundles / verify_corpus / check_ci / check_portability；`--skip-agentlib` 跳过 agentlib 组） | `python scripts\check_all.py --fast` |
 | `scripts/check_all.py --adversarial` | 追加对抗性自检（convert 边界 / 格式验证器可被欺骗 / 环计数语义 / check_skill 真跑） | `python scripts\check_all.py --adversarial` |
 | `scripts/verify_formats.py` | 31 格式 + 12 输入包的独立回读验证（第三方库） | `python scripts\verify_formats.py [--only vasp,cif]` |
 | `scripts/adversarial_check.py` | 上面那张表的实现（18 项破坏性检查，写 `runs/lead_verify_r11/adversarial_check.json`） | `python scripts\adversarial_check.py` |
@@ -345,7 +345,7 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
   超时 → 504、`authorizer=` 租户钩子、`stats_snapshot()`）。
 - `api.fetch`：联网 op 的**内联**版本（记录 + provenance + CIF 文本，默认隐藏本机路径、绝不带 key）；
   受 `allow_network` 策略控制。
-- `scripts/sca_scan.py`：SCA-lite，按"代码 / 注释 / docstring"分类标记；`--strict` 作为 check_all 第 8 组
+- `scripts/sca_scan.py`：SCA-lite，按"代码 / 注释 / docstring"分类标记；`--strict` 作为 check_all 第 9 组
   （当前源码级 copyleft = 0，mention-only = 2）。
 - 局限表：J1/J2/J5/J8 与 L7 由 🔴 降为 🟡/✅（剩余 🔴 为 A6/C2/C3/F6/H3/H4，均需外部条件）。
 
@@ -651,7 +651,7 @@ CI 没在真实 runner 上跑过，但**定义可以保持诚实**。`scripts/ch
 实现过程中修掉两个自身缺陷：注释里提到 `scripts/check_ci.py` 一度被当成"gate 脚本"；
 "可达"的定义在检查器与测试间不一致。现在两者共用同一个 `analyse()`。
 
-顺带把 `check_bundles` 与 `check_portability` 接进 `check_all`（**7 组**），
+顺带把 `check_bundles` 与 `check_portability` 接进 `check_all`（接入当时为 7 组，**现为 13 组**），
 于是 CI 通过 `check_all` 自动覆盖它们；`release_check` 也新增此门。
 
 > round 41：`check_all` 现在 **8 组**（新增 `check_ci`，让 CI 定义漂移检查也进入日常健康检查）；

@@ -225,6 +225,13 @@ def cmd_batch(args) -> int:
             return {"index": index, "spec": query, "outdir": str(outdir), "ok": False,
                     "returncode": None, "seconds": round(time.time() - t0, 2),
                     "stderr_tail": f"timeout after {args.timeout}s", "summary": {}}
+        except OSError as exc:  # spawn failure (python missing, cwd gone, WinError...):
+            # a crashed spawn must still be *recorded* — PERFORMANCE.md promises
+            # "任一失败 exit 1 但其余 run 仍完成并进入 manifest"，losing the
+            # batch manifest because one job could not start breaks that promise
+            return {"index": index, "spec": query, "outdir": str(outdir), "ok": False,
+                    "returncode": None, "seconds": round(time.time() - t0, 2),
+                    "stderr_tail": f"spawn failed: {exc}", "summary": {}}
         summary: dict = {}
         try:
             summary = json.loads(proc.stdout.strip() or "{}")
@@ -246,7 +253,14 @@ def cmd_batch(args) -> int:
     with ThreadPoolExecutor(max_workers=jobs_n) as pool:
         futures = {pool.submit(run_one, i, job): i for i, job in enumerate(jobs)}
         for future in as_completed(futures):
-            results.append(future.result())
+            try:
+                results.append(future.result())
+            except Exception as exc:  # noqa: BLE001 - a broken worker must not
+                # destroy the whole batch record: keep going, record, exit 1
+                results.append({"index": futures[future], "spec": "", "outdir": "",
+                                "ok": False, "returncode": None, "seconds": 0.0,
+                                "stderr_tail": f"worker crashed: {type(exc).__name__}: {exc}",
+                                "summary": {}})
     results.sort(key=lambda item: item["index"])
     manifest = {
         "root": str(root),
@@ -394,22 +408,34 @@ def cmd_convert(args) -> int:
         result.update({"outdir": str(outdir), "n_inputs": 1})
     else:
         # batch: one sub-directory per input + a manifest of everything written.
-        # Stems must be unique: d1/same.cif and d2/same.cif would otherwise write to
-        # the same sub-directory and silently overwrite each other.
-        counts: dict[str, int] = {}
+        # Stems must be *globally* unique: d1/same.cif and d2/same.cif would write
+        # to the same sub-directory (fixed in round 11), and a generated suffix
+        # itself collides when another input is literally named same_001.cif
+        # (round 57): d1/same.cif + d2/same.cif + d3/same_001.cif must yield three
+        # distinct sub-directories, or the first input's output is silently lost.
         base_stems: list[str] = []
         for index, src in enumerate(inputs):
-            base = f"{args.stem}_{index:03d}" if args.stem else src.stem
-            base_stems.append(base)
-            counts[base] = counts.get(base, 0) + 1
-        seen: dict[str, int] = {}
+            base_stems.append(f"{args.stem}_{index:03d}" if args.stem else src.stem)
+        # Round 57 adversarial F2: the filesystem may be case-insensitive
+        # (Windows/macOS default), so "Same" and "same" collide *physically*
+        # even though they differ as strings — uniqueness is enforced on the
+        # case-folded stem, while the original casing is preserved for output.
+        used: set[str] = {stem.casefold() for stem in base_stems}
+        assigned: list[str] = []
+        for base in base_stems:
+            stem = base
+            if any(stem.casefold() == other.casefold() for other in assigned):
+                number = 1
+                candidate = f"{base}_{number:03d}"
+                while candidate.casefold() in used:
+                    number += 1
+                    candidate = f"{base}_{number:03d}"
+                stem = candidate
+                used.add(stem.casefold())
+            assigned.append(stem)
+        stems = assigned
         runs = []
-        for src, base in zip(inputs, base_stems):
-            if counts[base] > 1:
-                seen[base] = seen.get(base, 0) + 1
-                stem = f"{base}_{seen[base]:03d}"
-            else:
-                stem = base
+        for src, stem in zip(inputs, stems):
             runs.append(_convert_one(src, outdir, formats, bundles, stem=stem,
                                      title=args.title, in_subdir=True))
         manifest = {

@@ -8,7 +8,7 @@
 | skill | catalog 路径 | 管什么 | 典型触发语 |
 |---|---|---|---|
 | `cif-workbench` | `catalog/cif-workbench/SKILL.md` | **总入口**：一条 `pipeline` 跑完 下载→拓扑核实→修复→超胞→切面→真空→导出→校验→manifest | “下载典型 sod 的 MOF，补氢，2x2x1 超胞，切 (111)，加 15 Å 真空，导出计算化学格式” |
-| `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**五个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
+| `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**六个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、QMOF 本地镜像、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
 | `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
 | `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件 | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件" |
@@ -33,7 +33,7 @@
 | cif-fetch | `& $PY -m cifkit fetch --topology sod --name ZIF-8 --raw --outdir runs\fetch --json` | 记录列表 / `raw.cif` + `source.json` |
 | cif-repair | `& $PY -m cifkit repair FILE -o OUT --add-h --json` | `{"report": {...}, "natoms", "formula"}` |
 | cif-geometry | `& $PY -m cifkit geom FILE -o OUT --supercell 2 2 1 --surface 1 1 1 --thickness 15 --vacuum 15 --json` | `{natoms, abc, info:{slab, vacuum}}` |
-| cif-export | `& $PY -m cifkit export FILE --format vasp,cif,xyz -o DIR --json`；`formats`；`validate` 读回 | `structure.<ext>` 与读回结果（当前支持 vasp/cif/xyz/lammps/qe/cp2k/xsf，以 `formats` 为准） |
+| cif-export | `& $PY -m cifkit export FILE --format vasp,cif,xyz -o DIR --json`；`formats`；`validate` 读回 | `structure.<ext>` 与读回结果（支持 31 种格式，以 `formats` 实测输出为准） |
 | cif-usecases | `& $PY -m cifkit teach --spacegroup Fd-3m --outdir runs\uc\fd3m`；`bravais --outdir runs\uc\bravais [--bain-range 0.9:1.7:0.05]`；`metals --outdir runs\uc\metals --elements Fe,Cu,Mg [--zip]`；`fec --outdir runs\uc\fec [--zip]`（实现 `cifkit/usecases_cli.py`；均支持 `--json`） | `figures/fd3m_examples.png`+`data/examples.csv`；Bain/14 点阵 CSV+PNG；`elements/<El>/...`+`metals_summary.csv`；Fe-C 结构+凸包+VASP 模板+`fe_c_kit.zip` |
 | 公共 | `& $PY -m cifkit route "TEXT"` / `selftest` / `validate FILE` / `formats` | 解析结果、环境自检、校验报告 |
 

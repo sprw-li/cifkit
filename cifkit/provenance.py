@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from cifkit.cache import project_root
-from cifkit.locks import append_jsonl_locked
+from cifkit.locks import append_jsonl_locked, atomic_write_json, atomic_write_text
 from cifkit.types import RunResult, StructureRecord, TaskSpec
 
 #: packages whose *versions are recorded in every manifest*.  Only packages cifkit
@@ -93,7 +93,9 @@ def add_step(manifest: dict[str, Any], step_dict: dict[str, Any]) -> None:
 def write_json(path: str | Path, data: dict[str, Any] | list[Any]) -> str:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    # atomic (round 57): manifest.json must never be observed half-written —
+    # LIMITATIONS G4 already documents this as the file-level guarantee
+    atomic_write_json(p, data)
     return str(p)
 
 
@@ -120,7 +122,7 @@ def finish_run(result: RunResult, manifest: dict[str, Any] | None = None) -> Non
     result.manifest_path = str(manifest_path)
     manifest["artifacts"] = dict(result.artifacts)
     report = render_report(result, manifest)
-    report_path.write_text(report, encoding="utf-8")
+    atomic_write_text(report_path, report)
     manifest["artifacts"] = dict(result.artifacts)
     write_manifest(outdir, manifest)
 

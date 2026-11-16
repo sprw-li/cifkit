@@ -146,6 +146,6 @@ a3056f5 docs: final README with verified demo numbers; ...
 | `verify_runs_review_round2_demo*.txt` | 另两个 demo run 的 8/8 原始输出 |
 | `pytest_cli.txt`、`pytest_collect.txt` | test_cli 8 条 exit 0；127 tests collected |
 | `check_all_fast.txt`、`check_all_full.txt` | 一键体检 fast 6/6（21 s）/ full 6/6（60.3 s pytest） |
-| `../../docs/REVIEW-ROUND2.md`、`../../docs/REVIEW-ROUND3.md` | Round 2/3 报告 |
+| `REVIEW-ROUND2.md`、`REVIEW-ROUND3.md`（同目录） | Round 2/3 报告 |
 
 > 备注：`check_all.py` full 已跑完 → `CHECK_ALL_FULL_EXIT=0`、6/6 组 PASS（full pytest 60.3 s），与 fast 一致。

@@ -59,3 +59,39 @@ def test_batch_rejects_empty_specs(tmp_path):
     proc = _run(["batch", "--outdir", str(tmp_path / "x"), "--json"])
     assert proc.returncode == 2
     assert "spec" in (proc.stderr or "").lower()
+
+
+def test_batch_manifest_written_when_subprocess_spawn_fails(tmp_path, monkeypatch):
+    """P1 (round 57): a spawn-level failure (OSError from subprocess.run) must be
+    recorded in batch_manifest.json instead of losing the whole batch record —
+    PERFORMANCE.md promises "任一失败 exit 1 但其余 run 仍完成并进入 manifest"."""
+    import cifkit.cli as cli_module
+
+    def boom(*args, **kwargs):
+        raise OSError("injected spawn failure")
+
+    monkeypatch.setattr(cli_module.subprocess, "run", boom)
+    out = tmp_path / "batch"
+    code = cli_module.main(["batch", "--spec", SPEC_LOCAL, "--spec", SPEC_LOCAL,
+                            "--jobs", "2", "--outdir", str(out), "--json"])
+    assert code == 1
+    manifest = json.loads((out / "batch_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["jobs"] == 2 and manifest["ok"] == 0
+    for run in manifest["runs"]:
+        assert run["ok"] is False
+        assert "spawn failed" in run["stderr_tail"]
+        assert run["returncode"] is None
+
+
+def test_batch_timeout_records_returncode_none(tmp_path):
+    """The timeout path must be recorded (returncode=None) and still write the
+    batch manifest; previously only exit!=0 subprocesses were covered."""
+    out = tmp_path / "batch_to"
+    proc = _run(["batch", "--spec", SPEC_LOCAL, "--jobs", "1", "--timeout", "1",
+                 "--outdir", str(out), "--json"])
+    assert proc.returncode == 1
+    data = json.loads(proc.stdout)
+    assert data["ok"] == 0 and data["jobs"] == 1
+    run = data["runs"][0]
+    assert run["returncode"] is None and "timeout" in run["stderr_tail"]
+    assert (out / "batch_manifest.json").is_file()

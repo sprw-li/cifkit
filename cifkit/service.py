@@ -42,6 +42,7 @@ this module: the embedding platform owns those (see ``docs/LIMITATIONS.md`` §J)
 from __future__ import annotations
 
 import json
+import math
 import time
 from typing import Any, Callable
 
@@ -54,6 +55,40 @@ OPS: dict[str, Callable[..., dict[str, Any]]] = dict(api.OPS)
 
 #: parameters that must never be echoed back to the caller (secret hygiene)
 _SECRET_KEYS = {"api_key", "mp_api_key", "pmg_mapi_key", "authorization", "token", "password"}
+
+
+def _reject_constant(name: str) -> None:
+    """``json.loads(parse_constant=...)`` hook: NaN/Infinity are not JSON.
+
+    RFC 8259 has no constants; Python's json module accepts them by default,
+    which let a hand-written body smuggle them past the boundary and blow up
+    later as a 500.  Raising here turns them into a clean 400 (round 57).
+    """
+    raise ValueError(f"non-JSON constant {name} in request body")
+
+
+def _finite_float(text: str) -> float:
+    """``json.loads(parse_float=...)`` hook: ``1e309`` is *valid JSON* that
+    overflows to ``inf`` — without this hook such a body sailed past
+    ``parse_constant`` (round 57 adversarial F3) and only died at the op."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"number {text} overflows to a non-finite value")
+    return value
+
+
+def _sanitize_nonfinite(value: Any) -> Any:
+    """Make a value strictly JSON-serialisable (error echoes may carry the very
+    params that were rejected for being non-finite — round 57 adversarial F3:
+    without this, the 400 with the violations could not be serialised and
+    degraded into a 500)."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return repr(value)  # "nan" / "inf" / "-inf" — echo only, never dispatched
+    if isinstance(value, dict):
+        return {key: _sanitize_nonfinite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_nonfinite(item) for item in value]
+    return value
 
 
 def _redact(params: dict[str, Any]) -> dict[str, Any]:
@@ -77,8 +112,11 @@ def handle(request: Any) -> dict[str, Any]:
     func = OPS.get(op)
     if func is None:
         return _error(op, InvalidRequest(f"unknown op {op!r}; known ops: {sorted(OPS)}"), started)
-    # contract check first: schema violations become a 400 with the exact paths
-    violations = validate_request({"op": op, "params": params})
+    # contract check first: schema violations become a 400 with the exact paths.
+    # round 57: validate the *original* request object, so the envelope schema's
+    # additionalProperties:false and auth typing are live checks — rebuilding
+    # {"op","params"} here had silently turned both into dead code.
+    violations = validate_request(request)
     if violations:
         return _error(op, InvalidRequest("request does not match the API contract",
                                          detail={"violations": violations}), started, params=params)
@@ -122,7 +160,7 @@ def _error(op: Any, exc: Exception, started: float, *, params: dict[str, Any] | 
         "http_status": status,
     }
     if params is not None:
-        out["params_echo"] = _redact(params)
+        out["params_echo"] = _sanitize_nonfinite(_redact(params))
     return out
 
 
@@ -146,7 +184,16 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
         server_version = "cifkit-service"
 
         def _send(self, payload: dict[str, Any], status: int = 200) -> None:
-            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            # round 57: strict JSON on the wire.  allow_nan=False fails *loudly*
+            # (clean 500) instead of silently emitting NaN/Infinity bodies that
+            # RFC 8259 clients (JSON.parse, JSONSchema validators) cannot read.
+            try:
+                body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+            except ValueError:
+                body = json.dumps({"ok": False, "error": {"code": "internal-error",
+                                   "message": "response contained non-finite floats and was refused"}},
+                                  ensure_ascii=False, allow_nan=False).encode("utf-8")
+                status = 500
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -182,11 +229,26 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
                 from cifkit.api import stream_dataset_rows_ndjson
 
                 query = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
-                params = {"dataset_dir": query.get("dir") or query.get("dataset_dir"),
-                          "offset": int(query.get("offset", 0) or 0),
-                          "limit": int(query["limit"]) if query.get("limit") else None,
-                          "with_features": str(query.get("with_features", "")).lower()
-                          in ("1", "true", "yes")}
+                # round 57: numeric params are parsed and bounded *here* — int()
+                # used to run outside any try, so ?offset=abc killed the
+                # connection with a traceback instead of a JSON 400; and the
+                # policy check claimed limit=1_000_000 while the actual call was
+                # unbounded (None), so the route did not honour the contract's
+                # dataset_rows maximum of 10000.
+                try:
+                    params = {"dataset_dir": query.get("dir") or query.get("dataset_dir"),
+                              "offset": int(query.get("offset", 0) or 0),
+                              "limit": int(query["limit"]) if query.get("limit") else 10_000,
+                              "with_features": str(query.get("with_features", "")).lower()
+                              in ("1", "true", "yes")}
+                except (TypeError, ValueError):
+                    self._send({"ok": False, "error": {"code": "invalid-request",
+                                                       "message": "offset/limit must be integers"}}, 400)
+                    return
+                if params["offset"] < 0 or not 1 <= params["limit"] <= 10_000:
+                    self._send({"ok": False, "error": {"code": "invalid-request",
+                                                       "message": "offset must be >= 0 and limit must be 1..10000 (contract dataset_rows)"}}, 400)
+                    return
                 if not params["dataset_dir"]:
                     self._send({"ok": False, "error": {"code": "invalid-request",
                                                        "message": "dir is required"}}, 400)
@@ -197,7 +259,7 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
                     checked = check_params("dataset_rows", {
                         "dataset_dir": params["dataset_dir"],
                         "offset": params["offset"],
-                        "limit": params["limit"] or 1_000_000,
+                        "limit": params["limit"],  # always a real int now (1..10000)
                         "with_features": params["with_features"]}, active_policy)
                 except Exception as exc:  # noqa: BLE001 - report, never leak a traceback
                     code = getattr(exc, "code", "error")
@@ -226,7 +288,13 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length else b""
             try:
-                request = json.loads(raw.decode("utf-8"))
+                # round 57: reject NaN/Infinity literals at the boundary — JSON
+                # forbids them, and letting them through produced non-serialisable
+                # responses (500) instead of a clean 400.  parse_float additionally
+                # catches *valid* JSON numbers that overflow to inf (1e309).
+                request = json.loads(raw.decode("utf-8"),
+                                     parse_constant=_reject_constant,
+                                     parse_float=_finite_float)
             except Exception as exc:  # noqa: BLE001
                 self._send({"ok": False, "error": {"code": "invalid-request",
                                                    "message": f"body is not JSON: {exc}"}}, 400)

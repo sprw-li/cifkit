@@ -191,7 +191,19 @@ def _write_lammps(structure: Structure, path: Path, title: str | None) -> None:
     ASE's ``lammps-data`` writer omits masses when the atoms carry none, and it
     also does not record which type maps to which element.  Both are needed for
     the file to be usable, so we write the file ourselves.
+
+    Round 57: the box is now written with LAMMPS tilt factors (via ASE's
+    ``Prism``): the old code used the lattice lengths ``a/b/c`` as axis-aligned
+    box bounds, which is simply a wrong periodic box for every non-orthogonal
+    cell (a hexagonal cell's true y-period is ``b·sin(γ)``, not ``b`` — a silent
+    ~15% density error — and tilted coordinates even left the declared box).
+    The box math (rotation, tilt factors, coordinate wrap) is ASE's
+    battle-tested ``Prism``; tilts beyond LAMMPS's half-box limit are refused
+    outright (they would be rejected by real LAMMPS anyway); the file layout
+    stays cifkit's.
     """
+    import numpy as np
+    from ase.calculators.lammps import Prism
     from ase.data import atomic_masses, atomic_numbers
 
     lat = structure.lattice
@@ -201,6 +213,22 @@ def _write_lammps(structure: Structure, path: Path, title: str | None) -> None:
         if symbol not in order:
             order.append(symbol)
     type_of = {symbol: index + 1 for index, symbol in enumerate(order)}
+    # ASE's Prism performs the LAMMPS rotation but does NOT reduce the tilt
+    # factors (reduce_cell defaults to False), so a strongly skewed cell can
+    # produce |tilt| > length/2 — real LAMMPS refuses such boxes (round 57
+    # adversarial F1: γ=170° gave xy=-3.94 on a 2 Å box).  Reducing the cell
+    # would silently change the cell *shape*, which the geometry guard (which
+    # compares read-back cell parameters with the source) would then rightly
+    # reject; an honest refusal keeps both correct.
+    prism = Prism(np.asarray(lat.matrix), pbc=True)
+    x_len, y_len, z_len, xy, xz, yz = prism.get_lammps_prism()
+    for tilt_name, tilt_value, box_length in (("xy", xy, x_len), ("xz", xz, x_len),
+                                              ("yz", yz, y_len)):
+        if abs(tilt_value) > box_length / 2 + 1e-9:
+            raise ValueError(
+                f"LAMMPS export: tilt factor {tilt_name}={tilt_value:.4f} exceeds half the "
+                f"box length ({box_length:.4f}/2) — real LAMMPS would reject this box. "
+                f"Reorient/reduce the cell first (e.g. a standard setting) or export CIF/POSCAR.")
     lines = [f"# LAMMPS data written by cifkit: {_comment(structure, title)}",
              "# type -> element: " + ", ".join(f"{type_of[s]}={s}" for s in order),
              "# NOTE: force field (pair_style/pair_coeff) and charges are NOT included.",
@@ -208,20 +236,25 @@ def _write_lammps(structure: Structure, path: Path, title: str | None) -> None:
              f"{len(structure)} atoms",
              f"{len(order)} atom types",
              "",
-             f"0.0 {lat.a:.10f} xlo xhi",
-             f"0.0 {lat.b:.10f} ylo yhi",
-             f"0.0 {lat.c:.10f} zlo zhi",
-             "",
-             "Masses",
-             ""]
+             f"0.0 {x_len:.10f} xlo xhi",
+             f"0.0 {y_len:.10f} ylo yhi",
+             f"0.0 {z_len:.10f} zlo zhi"]
+    if prism.is_skewed():
+        lines.append(f"{xy:.10f} {xz:.10f} {yz:.10f} xy xz yz")
+    lines += ["",
+              "Masses",
+              ""]
     for symbol in order:
         lines.append(f"  {type_of[symbol]:4d} {atomic_masses[atomic_numbers[symbol]]:.6f} "
                      f"# {symbol}")
     lines += ["", "Atoms # atomic", ""]
-    import numpy as np
 
     cart = structure.frac_coords @ np.array(lat.matrix)
-    for index, (symbol, xyz) in enumerate(zip(symbols, cart), start=1):
+    # rotate into the LAMMPS frame (and wrap into the tilted box); LAMMPS
+    # re-wraps on read_data anyway, but writing in-box coordinates keeps the
+    # file self-consistent for other readers too
+    lammps_cart = prism.vector_to_lammps(cart, wrap=True)
+    for index, (symbol, xyz) in enumerate(zip(symbols, lammps_cart), start=1):
         lines.append(f"  {index:6d} {type_of[symbol]:4d} "
                      f"{xyz[0]:.10f} {xyz[1]:.10f} {xyz[2]:.10f}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

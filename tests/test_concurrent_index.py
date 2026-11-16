@@ -85,3 +85,33 @@ def test_append_creates_parent_directories(tmp_path):
     target = tmp_path / "deep" / "nested" / "index.jsonl"
     append_jsonl_locked(target, {"ok": True})
     assert json.loads(target.read_text(encoding="utf-8").strip()) == {"ok": True}
+
+
+def test_atomic_write_survives_concurrent_thread_writers(tmp_path):
+    """Round 57 adversarial F4/G10: the temp name used to contain only the pid,
+    so two *threads* writing the same target shared one tmp file and clobbered
+    each other (PermissionError / torn content).  Unique tmp names + a bounded
+    replace retry must let every writer succeed and leave no tmp files behind."""
+    import threading
+
+    from cifkit.locks import atomic_write_json
+
+    target = tmp_path / "out" / "manifest.json"
+    errors: list[Exception] = []
+
+    def writer(worker: int) -> None:
+        try:
+            for _ in range(20):
+                atomic_write_json(target, {"worker": worker, "payload": "x" * 500})
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=writer, args=(w,)) for w in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+    assert not errors, errors
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["worker"] in (0, 1, 2, 3)  # one complete write won
+    assert list(tmp_path.joinpath("out").glob("*.tmp*")) == []
