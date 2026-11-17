@@ -1,0 +1,35 @@
+# SIESTA input skeleton written by cifkit: H4C8O4 (16 atoms)
+# Add SpeciesLabel/PAO.Basis or use the SIESTA pseudopotential database; lattice in Ang.
+SystemName H4C8O4
+NumberOfAtoms 16
+NumberOfSpecies 3
+LatticeConstant 1.0 Ang
+%block LatticeVectors
+  15.0000000000 0.0000000000 0.0000000000
+  0.0000000000 15.0000000000 0.0000000000
+  0.0000000000 0.0000000000 15.0000000000
+%endblock LatticeVectors
+AtomicCoordinatesFormat Fractional
+%block AtomicCoordinatesAndAtomicSpecies
+        0.4065559500       0.3867138200       0.4092910700 2
+        0.5707238100       0.3806088300       0.3973474500 2
+        0.5918932100       0.6014823900       0.5809166900 2
+        0.4285189900       0.6075580000       0.5928024100 2
+        0.3073904300       0.4986205500       0.5068792800 1
+        0.4061417700       0.4974842300       0.5018126300 1
+        0.4469152100       0.4338422300       0.4469650800 1
+        0.5398271800       0.4303870600       0.4402055100 1
+        0.5926895000       0.4905469400       0.4882408700 1
+        0.6909473600       0.4843570200       0.4789744900 1
+        0.5519562100       0.5542128100       0.5431068600 1
+        0.4589689100       0.5576708400       0.5498718400 1
+        0.2572300600       0.4486722600       0.4672596900 3
+        0.2761151200       0.5624462100       0.5614835000 3
+        0.7310255000       0.4310534900       0.4327891800 3
+        0.7344160000       0.5454026000       0.5281414900 3
+%endblock AtomicCoordinatesAndAtomicSpecies
+%block ChemicalSpeciesLabel
+  1 8 C
+  2 4 H
+  3 4 O
+%endblock ChemicalSpeciesLabel

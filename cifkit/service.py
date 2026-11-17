@@ -56,6 +56,9 @@ OPS: dict[str, Callable[..., dict[str, Any]]] = dict(api.OPS)
 #: parameters that must never be echoed back to the caller (secret hygiene)
 _SECRET_KEYS = {"api_key", "mp_api_key", "pmg_mapi_key", "authorization", "token", "password"}
 
+#: sentinel for "the chunk iterator is exhausted" (``None`` is a legal chunk value)
+_UNSET = object()
+
 
 def _reject_constant(name: str) -> None:
     """``json.loads(parse_constant=...)`` hook: NaN/Infinity are not JSON.
@@ -201,22 +204,46 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
             self.wfile.write(body)
 
         def _send_chunked(self, chunks) -> None:
-            """Stream ``chunks`` as NDJSON (round 52, J4) with chunked encoding."""
+            """Stream ``chunks`` as NDJSON (round 52, J4) with chunked encoding.
+
+            Round 58 protocol fix: the ``200`` status line is written **only after
+            the first chunk has been produced**.  Previously it went out
+            unconditionally, so a generator that raised on its first ``next()``
+            (e.g. ``/stream/dataset_rows?dir=.`` where ``dataset.jsonl`` is
+            missing) had already committed a ``200 + chunked`` header; the error
+            handler then emitted a *second* complete HTTP response inside the
+            chunked body, with no terminator.  Standard clients saw
+            ``IncompleteRead`` and never the JSON error.
+
+            Exceptions from the first pull escape before any header is written, so
+            the caller can still answer with a normal single 4xx/5xx response.
+            Once the headers are committed a second response is impossible: a
+            later failure aborts the stream (no terminator — an honest truncation
+            the client can detect) instead of corrupting the protocol.
+            """
+            iterator = iter(chunks)
+            first = next(iterator, _UNSET)  # may raise -> caller sends the error
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
             self.send_header("Transfer-Encoding", "chunked")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            sent = 0
             try:
-                for chunk in chunks:
-                    body = chunk.encode("utf-8")
+                pending = first
+                while pending is not _UNSET:
+                    body = pending.encode("utf-8")
                     self.wfile.write(f"{len(body):X}\r\n".encode("ascii") + body + b"\r\n")
-                    sent += 1
+                    pending = next(iterator, _UNSET)
                 self.wfile.write(b"0\r\n\r\n")
             except (BrokenPipeError, ConnectionResetError):
                 # the client hung up: stop pulling rows (this is what streaming is for)
                 pass
+            except Exception:  # noqa: BLE001 - too late for a second response
+                # The 200 was already on the wire; writing an error response here
+                # would be the round-58 double-response bug.  Drop the connection
+                # mid-chunk so the client sees a truncated stream, not fake success.
+                self.close_connection = True
+
         def do_GET(self) -> None:  # noqa: N802 - stdlib API
             from urllib.parse import parse_qs, urlparse
 
@@ -274,6 +301,12 @@ def make_handler(policy=None):  # pragma: no cover - exercised through tests via
                         limit=params["limit"], with_features=params["with_features"])
                     self._send_chunked(chunks)
                 except Exception as exc:  # noqa: BLE001
+                    # Round 58: only reachable *before* the 200 headers — the
+                    # first chunk is pulled inside _send_chunked before the status
+                    # line is written, so a missing dataset.jsonl (not-found) can
+                    # still be reported as a single, well-formed 404 response.
+                    # Failures after the headers committed are handled inside
+                    # _send_chunked (they must never produce a second response).
                     code = getattr(exc, "code", "error")
                     self._send({"ok": False, "error": {"code": code, "message": str(exc)}},
                                404 if code == "not-found" else 400)

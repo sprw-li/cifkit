@@ -20,6 +20,7 @@ from typing import Any, Iterable
 import numpy as np
 from pymatgen.core import Structure
 
+from cifkit import guards
 from cifkit.geom._common import coordination_numbers, element_symbol
 
 __all__ = ["extract_features", "features_from_cif", "features_many", "FEATURE_VERSION"]
@@ -43,6 +44,10 @@ def _element_counts(structure: Structure) -> dict[str, int]:
 
 
 def _symmetry(structure: Structure, symprec: float) -> dict[str, Any]:
+    # Non-finite cells crash spglib in native code (0xC0000005, no traceback);
+    # guard before the analyzer is even constructed, and deliberately *outside*
+    # the best-effort try block so the typed error propagates to the caller.
+    guards.assert_finite_cell(structure, context="features._symmetry")
     try:
         from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
@@ -172,6 +177,10 @@ def extract_features(
         raise ValueError(f"expected pymatgen Structure, got {type(structure).__name__}")
     if len(structure) == 0:
         raise ValueError("empty structure")
+    # One guard up front covers every branch below (rdf / --no-rdf / topology /
+    # rings / coordination): a degenerate cell raises DegenerateCellError here
+    # instead of reaching spglib through _symmetry and killing the process.
+    guards.assert_finite_cell(structure, context="extract_features")
     counts = _element_counts(structure)
     natoms = len(structure)
     lat = structure.lattice

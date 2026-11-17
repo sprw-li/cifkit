@@ -94,12 +94,19 @@ def supported_bundles() -> dict[str, str]:
 
 
 def _README(path: Path, structure: Structure, code: str, files: list[str]) -> None:
+    """Write the bundle's ``README.md`` and declare it in ``files`` (round 58).
+
+    Every bundle writes this file, so it is part of what the bundle *produced*:
+    leaving it out of the returned ``files`` made every caller undercount the
+    bundle by one (``api.convert`` reports the raw return value).
+    """
     info = BUNDLE_INFO[code]
+    listing = [*files, "README.md"]
     lines = [
         f"# {code} input bundle",
         "",
         f"Structure: {_formula(structure)} ({len(structure)} atoms)",
-        f"Files: {', '.join(files)}",
+        f"Files: {', '.join(listing)}",
         "",
         "## What you must supply / review",
     ]
@@ -116,6 +123,7 @@ def _README(path: Path, structure: Structure, code: str, files: list[str]) -> No
         "",
     ]
     (path / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    files.append("README.md")
 
 
 def write_bundle(
@@ -125,7 +133,13 @@ def write_bundle(
     *,
     title: str | None = None,
 ) -> dict[str, Any]:
-    """Write a computation-software input bundle; returns file list + missing items."""
+    """Write a computation-software input bundle; returns file list + missing items.
+
+    ``files`` lists **every file the bundle wrote**, including ``README.md`` (round
+    58 — it used to be omitted, so callers that count the returned list undercounted
+    each bundle by one).  ``missing`` keeps its own meaning: things *the user* must
+    supply, which the bundle deliberately does not contain.
+    """
     from cifkit.export.disorder_guard import guard_ordered
 
     from cifkit.export.format_limits import guard_atom_limit
@@ -141,6 +155,9 @@ def write_bundle(
         raise ValueError(f"unsupported bundle {code!r}; available: {', '.join(sorted(BUNDLE_INFO))}")
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
+    # files that were already there before this call (a reused outdir must not have
+    # its unrelated contents reported as part of *this* bundle)
+    pre_existing = {p.name for p in out.iterdir() if p.is_file()}
     files: list[str] = []
     stem = "structure" if not title else str(title).replace(" ", "_")[:40]
     form = _formula(structure)
@@ -283,6 +300,12 @@ a MOF-specific force field) before running GROMACS.""")
         _txt("control.readme", "Provide control.in with species defaults (basis, xc, k-grid) for FHI-aims.\n")
 
     _README(out, structure, key, files)
+    # round 58: the returned list is the bundle's contract, so it must match what is
+    # on disk.  Any file this branch produced without declaring it (the class of bug
+    # that omitted README.md) is appended here instead of being silently dropped.
+    written = {p.name for p in out.iterdir() if p.is_file()} - pre_existing
+    for name in sorted(written - set(files)):
+        files.append(name)
     return {
         "code": key,
         "outdir": str(out),

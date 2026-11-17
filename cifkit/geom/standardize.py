@@ -31,6 +31,7 @@ import numpy as np
 from pymatgen.core import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
+from cifkit import guards
 from cifkit.geom._common import attach_geom_info, dedupe_sites, element_counts
 
 #: allowed integer atomic-number scaling between input and output cells
@@ -114,9 +115,15 @@ def standardize(structure: Structure, *, target: str = "conventional") -> Struct
 
     Raises:
         ValueError: unknown ``target`` or an empty structure.
+        DegenerateCellError: the input cell is non-finite / zero-volume (a
+            symmetry finder such as spglib would access-violate the process).
     """
     if len(structure) == 0:
         raise ValueError("standardize: empty structure")
+    # Guard *before* every SpacegroupAnalyzer call below: the analyzer crashes
+    # spglib in native code on a non-finite lattice, and the broad ``except
+    # Exception`` around it is not (and must not become) a crash handler.
+    guards.assert_finite_cell(structure, context="standardize")
     key = str(target or "conventional").strip().lower()
     if key in ("conv", "conventional", "standard"):
         target = "conventional"
@@ -193,6 +200,9 @@ def standardize(structure: Structure, *, target: str = "conventional") -> Struct
     note = ""
     if removed:
         note = f"; removed {removed} duplicate site(s)"
+    # the symmetry-derived cell itself must also be finite before the second
+    # SpacegroupAnalyzer below (defence in depth: never trust a derived cell)
+    guards.assert_finite_cell(out, context="standardize(output)")
     try:
         out_sga = SpacegroupAnalyzer(out, symprec=SYMPREC)
         out_symbol = out_sga.get_space_group_symbol()

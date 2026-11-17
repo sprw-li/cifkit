@@ -11,7 +11,7 @@
 | `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**六个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、QMOF 本地镜像、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
 | `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
 | `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
-| `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件 | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件" |
+| `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件；另含配套命令 `cifkit surface-energy`（slab/bulk 能量 → E_surf 算术与单位换算） | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件"、"我有 slab 和 bulk 的能量，算一下表面能" |
 | `cif-data` | `catalog/cif-data/SKILL.md` | ML-ready 数据管线：结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）CSV/JSONL；runs/library → dataset | "批量提取结构特征导出 CSV"、"构建 ML 数据集" |
 | `cif-export` | `catalog/cif-export/SKILL.md` | **cif → anything**：31 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
 
@@ -35,6 +35,7 @@
 | cif-geometry | `& $PY -m cifkit geom FILE -o OUT --supercell 2 2 1 --surface 1 1 1 --thickness 15 --vacuum 15 --json` | `{natoms, abc, info:{slab, vacuum}}` |
 | cif-export | `& $PY -m cifkit export FILE --format vasp,cif,xyz -o DIR --json`；`formats`；`validate` 读回 | `structure.<ext>` 与读回结果（支持 31 种格式，以 `formats` 实测输出为准） |
 | cif-usecases | `& $PY -m cifkit teach --spacegroup Fd-3m --outdir runs\uc\fd3m`；`bravais --outdir runs\uc\bravais [--bain-range 0.9:1.7:0.05]`；`metals --outdir runs\uc\metals --elements Fe,Cu,Mg [--zip]`；`fec --outdir runs\uc\fec [--zip]`（实现 `cifkit/usecases_cli.py`；均支持 `--json`） | `figures/fd3m_examples.png`+`data/examples.csv`；Bain/14 点阵 CSV+PNG；`elements/<El>/...`+`metals_summary.csv`；Fe-C 结构+凸包+VASP 模板+`fe_c_kit.zip` |
+| cif-usecases（表面能） | `& $PY -m cifkit surface-energy --slab-e E --slab-atoms N --area A --bulk-per-atom e --slab-formula "Zn:8,O:8" --bulk-formula "Zn:4,O:4" --json runs\se.json`（`--json` 是**文件路径**；`--one-surface` 只算单表面） | 表面能 `eV/Å² / meV/Å² / J/m²` + 化学计量校验；能量由用户 DFT 提供，本命令不产能量 |
 | 公共 | `& $PY -m cifkit route "TEXT"` / `selftest` / `validate FILE` / `formats` | 解析结果、环境自检、校验报告 |
 
 **2x2x1 语义（技能正文与 `--help` 都以这条为准）**：`pipeline` / `geom` 里同时给 `supercell` 和 `surface` 时，
@@ -45,6 +46,7 @@
 ## 3. 路由链路（实测）
 
 ```powershell
+$env:PYTHONIOENCODING='utf-8'   # GBK 控制台下不加会 UnicodeEncodeError traceback
 py -3 D:\agent-library\router.py route --agent dsh "<用户原句>"
 ```
 
@@ -74,13 +76,13 @@ intent candidates: cif-structure-pipeline
 3. `domains.json` 的 `science` 域补 `cif/mof/rcsr/晶胞/超胞/supercell/slab/vacuum/补氢/切面/poscar/vasp` 关键词；
 4. `catalog/evals/routing.jsonl` 新增 10 条 CIF 正例（原句、中文变体、英文变体、只补氢、只切面、只导出、只下载）。
 
-## 4. 评测证据（`py -3 scripts\eval_router.py --all`）
+## 4. 评测证据（`py -3 scripts\eval_router.py --all`，先 `$env:PYTHONIOENCODING='utf-8'`）
 
 ```text
-cases=89
-intent top1: 89/89 = 100.0%
-skill top1:  89/89 = 100.0%
-skill top5:  89/89 = 100.0%
+cases=96
+intent top1: 96/96 = 100.0%
+skill top1:  96/96 = 100.0%
+skill top5:  96/96 = 100.0%
 negatives=25  false-positive=0 (0.0%)  budget=10.0%
 slot cases=11  pass=11/11
 ```

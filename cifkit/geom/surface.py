@@ -45,6 +45,7 @@ import numpy as np
 from pymatgen.core import Structure
 from pymatgen.core.surface import SlabGenerator
 
+from cifkit import guards
 from cifkit.geom._common import (
     attach_geom_info,
     coordination_numbers,
@@ -323,6 +324,10 @@ def make_slab(
     The returned ``info`` carries ``cache="hit"`` on memoised calls; geometry
     arguments and the input structure fully determine the result.
     """
+    # Guard before the cache key and before any SlabGenerator work: a non-finite
+    # cell makes SlabGenerator's internal spglib call access-violate the process
+    # (0xC0000005), so the cell must be rejected here, cache or not.
+    guards.assert_finite_cell(structure, context="make_slab")
     key: tuple[Any, ...] | None = None
     try:
         key = _slab_cache_key(structure, hkl, slab_thickness, vacuum, termination, reps, frame)
@@ -402,6 +407,8 @@ def _make_slab_uncached(
     Raises:
         ValueError: bad arguments, a slab that would be too large, or an
             impossible termination selector.
+        DegenerateCellError: the input cell is non-finite / zero-volume (also a
+            ``ValueError``; raised before SlabGenerator reaches spglib).
         RuntimeError: the slab generator returned nothing / failed.
     """
     hkl_t = _normalize_hkl(hkl)
@@ -421,6 +428,9 @@ def _make_slab_uncached(
         )
     if len(structure) == 0:
         raise ValueError("make_slab: empty structure")
+    # a second guard for direct callers of this uncached path (make_slab already
+    # guards, but this function is also reachable on its own)
+    guards.assert_finite_cell(structure, context="make_slab")
 
     t_start = time.time()
     source = structure.copy()

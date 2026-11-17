@@ -1,5 +1,13 @@
 # Round 57：OPT 批次（council 选点 → 实施 → 对抗复核 → 修复闭环）
 
+> **Round 58 更正（不被追溯修改的原文，仅加注）**：本文件 §六 的两句结论**不成立**——
+> ①「4 failed 全部来自未跟踪 WIP 脚本」只对其中 3 条成立：第 4 条 `test_check_all_report` 的子进程里
+> **同时**有 `verify_corpus` 变红（round 57 引入的 LAMMPS tilt 守卫把**已跟踪**夹具 `tests/data/sod_zn_mof.cif`
+> 判为坏格式）；②「提交时点（无该文件）等价于 713 passed + 6 skipped、**0 failed**」也不成立：把 HEAD
+> `50451b8` 解到干净副本（无任何 WIP 文件）后，`pytest tests/test_check_all_report.py` 仍失败，
+> `check_all --fast` 仍因 `verify_corpus` 不绿。两处均已在 round 58 修复（见
+> [docs/REVIEW-ROUND58-FIXES.md](REVIEW-ROUND58-FIXES.md) 与 `docs/LIMITATIONS.md` H7）。
+
 > 本轮流程：**council 多模型选点**（3 个独立评审员并行 + 主席复核关键指控）→ OPT 批次实施 →
 > **独立对抗复核**（bohrium 评审员，产物 `runs/_adversarial_r57/`）→ 复核挖出 4 个 P1 → 修复闭环 → 全量回归。
 > council_review 工具本身两次全模型失败（runId `cmwj03bmupz4s9`、`cmwj0hsiz4egvq`，三个默认模型同因「阶段失败」），

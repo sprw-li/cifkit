@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from cifkit.export.refusals import ExportRefusalError
+
 #: format -> (max atoms, why)
 ATOM_LIMITS: dict[str, tuple[int, str]] = {
     "mol": (999, "MDL MOL V2000 stores the atom count in a 3-digit field"),
@@ -29,7 +31,7 @@ ATOM_LIMITS: dict[str, tuple[int, str]] = {
 }
 
 
-class FormatLimitError(ValueError):
+class FormatLimitError(ExportRefusalError):
     """Raised when a structure exceeds a format's hard structural limit."""
 
     code = "format-limit"

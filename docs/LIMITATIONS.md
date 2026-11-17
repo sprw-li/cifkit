@@ -1,12 +1,12 @@
 # 局限清单（cifkit / cif → anything）
 
-> 更新：2026-11-09（round 13）。每一条都尽量给出**影响 / 现状 / 规避 / 证据**。
+> 更新：2026-11-17（round 58）。每一条都尽量给出**影响 / 现状 / 规避 / 证据**。
 > 状态：✅ 已修或已覆盖；🟡 可绕过/有已知边界；🔴 未解决/未验证。
 > 本表是"诚实边界"，不是 TODO 承诺；不把模板/预估说成已验证。
 
 ## 摘要
 
-**共 81 条局限 = 22 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 89 条局限 = 30 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -14,18 +14,19 @@
 | B | 拓扑判定 | 4 | 0 | 4 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
-| E | 导出 / 计算软件输入包（cif → anything） | 6 | 0 | 6 | 0 |
+| E | 导出 / 计算软件输入包（cif → anything） | 8 | 2 | 6 | 0 |
 | F | 特征 / 数据集 | 7 | 4 | 3 | 0 |
-| G | 性能 / 并发 / 稳定性 | 10 | 8 | 2 | 0 |
-| H | 技能 / 路由 / 测试覆盖 | 8 | 4 | 4 | 0 |
+| G | 性能 / 并发 / 稳定性 | 12 | 10 | 2 | 0 |
+| H | 技能 / 路由 / 测试覆盖 | 9 | 5 | 4 | 0 |
 | I | 环境 / 网络 / 依赖获取 | 4 | 0 | 4 | 0 |
-| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 13 | 2 | 11 | 0 |
+| J | 嵌入接口 / 商用平台（cifkit.api + cifkit.service） | 16 | 5 | 11 | 0 |
 | K | 可移植性 / 产物卫生 | 1 | 1 | 0 | 0 |
 | L | 许可 / 商用合规 | 10 | 2 | 8 | 0 |
 
 > 统计口径（round 57 起，门禁 `release_check.limitations_group_table_ok` 强制）：按**条目 ID 前缀**计数；
 > 部分编号历史上跨节存放（A7/A8 在 B 节、F7 曾在 G 节、J9-J11/H3b/H3c/K9 在 L 节），本表与逐条状态列保持一致，
 > 与物理章节的对应关系留待后续统一重编号。
+> round 58 新增 8 条（E7/E8/G11/G12/H7/J14/J15/J16），全部因当轮对抗评审发现并修复而计入 ✅。
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
@@ -90,11 +91,13 @@
 | # | 局限 | 状态 | 影响 | 规避 / 说明 | 证据 |
 |---|---|---|---|---|---|
 | E1 | 31 种格式里 12 种电子结构代码是**模板**：POTCAR/UPF/basis/skf/力场不提供；且这 12 个 bundle 的**跨文件契约现在被门禁校验**（必需文件、交叉引用、声明缺失必须真缺失，12/12 一致、54 条检查） | 🟡 | 模板仍不可直接运行（数据由用户提供），但**包内部不再自相矛盾**；检查器用故意破坏的包做过负例测试 | `scripts/check_bundles.py`、`cifkit/export/bundle_check.py`、`tests/test_bundle_check.py`（18 条）、`release_check` 第 13 道门；**新增注释风格门禁**：每种代码只认一种注释符（LAMMPS/DFTB+ 用 `#`、CP2K/QE 用 `!`、GROMACS 用 `;`），写错即被真实软件判为未知命令——该规则当场抓到 **LAMMPS `in.min` 与 CP2K `cp2k.inp` 两处真缺陷** |
-| E2 | 第三方独立回读 **25/31**，而且**已从「原子数」升级为「几何」**：25 个格式全部通过几何比对（20 个精确到 ≤1e-6 Å；`gromacs` 3.2e-3 Å 对应其 3 位小数精度，`pdb` 3.5e-4 Å）；5 个模板格式（abacus/cp2k/dftb/orca/siesta）**没有第三方读取器**（ASE 实测读不了），改用自研严格解析；`png` 用魔数 | 🟡 | 模板仍只能自研校验；其它格式的「回读」只证明读取器能读回，不代表目标软件能算 | `cifkit/export/geometry_check.py`（周期走 StructureMatcher，无晶胞走「排序配对距离指纹」）、`scripts/verify_formats.py`（报告含 `n_geometry_checked`/`worst_deviation_A`）、`tests/test_export_fidelity.py`（8 条，含「合成晶胞不得触发周期匹配」「位移/换晶胞/换元素必须失败」）、`tests/test_template_check.py`；**round 55 升格为语料级验证**：`scripts/verify_corpus.py` 对 **16 个结构**（16-750 原子，含 424/750 原子大胞与 2 个 CoRE ASR 真实条目）跑完 31 格式 + 12 bundle + 5 模板，**逐个结构 31/31**（16/16 结构全通过），并行 8 进程 18 s；**round 56 扩到 320 个真实 CoRE MOF**（28-9872 原子，共 153226 原子，9920 次格式检查，8 进程 281 s）：**320/320 结构全通过**；本轮由此修掉 3 个真缺陷（`.struct` 静默截断、`.pdb` 容差模型、指纹回退漏检换元素） |
+| E2 | 第三方独立回读 **25/31**，而且**已从「原子数」升级为「几何」**：25 个格式全部通过几何比对（20 个精确到 ≤1e-6 Å；`gromacs` 3.2e-3 Å 对应其 3 位小数精度，`pdb` 3.5e-4 Å）；5 个模板格式（abacus/cp2k/dftb/orca/siesta）**没有第三方读取器**（ASE 实测读不了），改用自研严格解析；`png` 用魔数 | 🟡 | 模板仍只能自研校验；其它格式的「回读」只证明读取器能读回，不代表目标软件能算 | `cifkit/export/geometry_check.py`（周期走 StructureMatcher，无晶胞走「排序配对距离指纹」）、`scripts/verify_formats.py`（报告含 `n_geometry_checked`/`worst_deviation_A`）、`tests/test_export_fidelity.py`（8 条，含「合成晶胞不得触发周期匹配」「位移/换晶胞/换元素必须失败」）、`tests/test_template_check.py`；**round 55 升格为语料级验证**：`scripts/verify_corpus.py` 对 **16 个结构**（16-750 原子，含 424/750 原子大胞与 2 个 CoRE ASR 真实条目）跑完 31 格式 + 12 bundle + 5 模板，**逐个结构 31/31**（16/16 结构全通过），并行 8 进程 18 s；**round 56 扩到 320 个真实 CoRE MOF**（28-9872 原子，共 153226 原子，9920 次格式检查，8 进程 281 s）：**320/320 结构全通过**；本轮由此修掉 3 个真缺陷（`.struct` 静默截断、`.pdb` 容差模型、指纹回退漏检换元素）；**round 58 口径变更**：无法表示的晶胞由 `cifkit/export/refusals.py` 显式拒绝并记为 `unsupported`（不再算 bad），因此「320/320 全通过」应读作「**可表示的** 320/320 通过」，其余按 `n_unsupported` 单列（例：`sod_zn_mof.cif` 的 `lammps` 因 tilt 超半盒被拒） |
 | E3 | 模板参数此前**没有收敛性验证**。现有完整机械（按代码生成扫描、解析各家能量方言、按「从某取值起后续每步 <= 阈值」判定、**要求输出有正常结束标记**、同一取值多次尝试时**优先采用完成的那次**）与真实云端数据（NWChem 7.2.2，16 原子周期胞，全部有 `Total times` 结束标记）：`20 -> -111.2953510 Ha`、`30 -> -111.6378257`、`40 -> -111.6688537`、`60 -> -111.7286759`；步间变化 **-582.5 / -52.8 / -101.8 meV/atom**（注意 40->60 又变大）。**结论：模板默认 cutoff 20 远未收敛，且到 60 Ha 仍在动 ~100 meV/atom**——这是**否定性**结果：该 smoke-test 设置不能用于生产 | 🟡 | 80 Ha 在 5400 s 单次上限内**超时**（作业级 failed，无输出）；高位扫描需要更长时限与更大机器（`MAX_SECONDS_PER_RUN` 已可调）；VASP/QE/CP2K 仍只能生成扫描 | `cifkit/export/convergence.py::output_completed`、`scripts/{run,collect,analyse}_convergence.py`、`cloud_h3/run_convergence_nwchem.py`、`tests/test_convergence.py`（21 条）、`tests/test_output_completion.py`（20 条）、证据 `runs/cloud_h3/conv_c*`、`runs/convergence/nwchem_cloud_report.json`（4 有效 + 1 作废 + 1 次被取代的尝试） |
 | E4 | PDB/SDF/MOL 不表达周期性（不变）；GRO 3 位小数（不变）；**LAMMPS 现在带完整 `Masses` + `in.min` 三种力场选项**（`zero` 几何检查 / 通用 LJ 占位（明确标注不是拟合力场）/ 真实 FF 示例）；**GROMACS 现在带 `topol.top` 骨架**（每个原子含元素质量、`[ bonds ]` 来自 cifkit 的键感知、所有必需 section 齐全），但 **[ atomtypes ]/[ atoms ] 的电荷与 LJ 参数是占位值** | 🟡 | 力场无法从 CIF 推导——骨架把「写拓扑」的工作量降到「填参数」 | `cifkit/export/bundles.py::_gromacs_topology`、`tests/test_ff_skeletons.py`（6 条：section 齐全、原子数/质量、键引用合法、占位已标注、readme 说明、LAMMPS 三选项）；bundle 门禁规则同步更新 |
 | E5 | Gaussian/ORCA 模板默认电荷 0、多重度 1 | 🟡 | 开壳层/离子体系需改 | 模板注释提示 | docs/EXPORT |
 | E6 | `cube`/`png` 之外的体积数据格式未实现（cube 需要 3D 数据数组） | 🟡 | 不能导出 volumetric cube | png 预览已支持；cube 文档标未实现 | docs/EXPORT §6 |
+| E7 | **裸 `--to dftb` 曾经只写 515 B 的 `dftb_in.hsd`（引用不存在的 `geo.gen`）却报 `ok:true`/exit 0**；且 `scripts/verify_formats.py` 验 dftb 时切到 `dftb_bundle` 目录，官方「31/31」从未覆盖裸产物（round 58 对抗评审发现） | ✅ | 已修：裸 `--to dftb` 在 HSD 同级写出配套 `geo.gen`（与 bundle 同 title 下字节一致），`writers._verify` 校验 HSD+`geo.gen` 配对，缺失/截断即报错；`verify_formats` 改为验证裸产物自身、bundle 另行验证；`dftb` 入 `ORDERED_ONLY` | `cifkit/export/writers.py`、`scripts/verify_formats.py`、`tests/test_dftb_single_format.py`（8 条） |
+| E8 | 非 JSON 模式的单文件 `cifkit convert` 在**部分格式失败**时只打印成功项、exit 1 却零说明（round 58 对抗评审发现） | ✅ | 已修：非 JSON 模式同样打印失败项与原因；批量分支原本就会打印 | `cifkit/cli.py`、`tests/test_cli_json_strictness.py` |
 
 ## F. 特征 / 数据集
 
@@ -124,6 +127,8 @@
 | G8 | 超大结构能力已实测到 **11152 原子**（解析 25s、建键 1.0s、特征 3.3s、校验 3.4s），但 2×2×1 超胞（44608 原子）**未尝试** | 🟡 | 不要宣称支持 5 万+ 原子体系 | `runs/c2_large_mof_probe.json`；环统计 >600 原子按设计标 `truncated` | docs/PERFORMANCE.md §10.6 |
 | G9 | unlink 型文件锁有**已知竞态窗口**（round 57 对抗评审）：①`O_CREAT+O_EXCL` 成功到写入 pid 之间，另一进程读到空锁体 → 误判 stale 并抢锁（双持锁）；②持锁者超过 stale 期后锁被他人抢占，其 finally `_release` 会误删他人的锁；`_release` 失败后的 "pid=0" 中性化同样可能改写他人锁 | 🟡 | 仅在「持锁 > 180s」或「极窄创建窗口」的并发场景触发；当前调用点（CoRE 索引、slab 磁盘缓存）单写者/短临界区，实测未触发 | 需要 owner-token 校验后再 unlink（`_process_token` 基础设施已在）；并发同目标写入请用进程级隔离 | runs/_council_review_b/（round 57 评审记录）；cifkit/locks.py:128-185 |
 | G10 | `atomic_write_text` 的临时文件名只含 pid（不含线程 id/uuid）：**同进程多线程**并发写同一目标会互踩 tmp（round 57 对抗评审实测：两线程 build_dataset 同一 outdir 4/6 轮 PermissionError） | ✅ | 单线程主路径本就无影响 | **round 57 已修**：tmp 名加 pid+线程 id+随机后缀，`os.replace` 遇 Windows 读者持锁的有界重试（5 次×20ms 递增）；`tests/test_concurrent_index.py::test_atomic_write_survives_concurrent_thread_writers`（4 线程×20 轮全成、无 tmp 残留） | runs/_adversarial_r57/；cifkit/locks.py::atomic_write_text |
+| G11 | **含 `nan`/非有限晶胞的 CIF 让进程 native 崩溃**：`features` / `geom --standardize` / `--surface` exit `0xC0000005`（`-1073741819`）、stdout 0 字节、无 traceback；`POST /rpc {"op":"features"}` 一个请求即可杀死 `serve()` 进程（round 58 对抗评审发现，P0） | ✅ | 已修：新增 `cifkit/guards.py`（`DegenerateCellError`；矩阵全有限、`|det|>1e-8`、abc 正有限、角度 (0,180)），在 features、standardize、surface（`SlabGenerator` 之前）、slab disk cache 全部前置守卫；CLI 现在 exit 1 + 可读错误 + 严格 JSON | `cifkit/guards.py`、`cifkit/features.py`、`cifkit/geom/{standardize,surface,disk_cache}.py`、`tests/test_degenerate_cell_guard.py`（21 条） |
+| G12 | `scripts/verify_corpus.py` 在"加载失败的结构排在第一个"时：`by_format`/`by_bundle` 聚合整份丢失，且打印行 `row['bad_formats']` 抛 `KeyError` 崩溃（round 57 §五 提及、round 58 复现并修复） | ✅ | 已修：`check_one` 的行 key 集合完整、加载失败不再提前 return；`aggregate()` 取全行 key 并集；`format_row()` 全 `.get`；新增 `by_format_unsupported` / `by_bundle_unsupported` | `scripts/verify_corpus.py`、`tests/test_export_refusal_accounting.py`（9 条） |
 
 ## H. 技能 / 路由 / 测试覆盖
 
@@ -136,6 +141,7 @@
 | H4 | CI workflow **仍未在真实 runner 上跑过**（本机只有 Windows）；但已加**定义漂移门禁**：`scripts/check_ci.py` 解析 workflow，校验 10 项（两个 job、3 OS × 2 Python、3.11 在列、LF 设置、引用的脚本都存在、**每个 gate 脚本都能从 CI 到达**、每个非 CI 脚本都有明确 on-demand 归类、import 冒烟指向真实模块） | 🟡 | 只证明「定义与仓库一致」，不证明其它 OS 能跑 | `scripts/check_ci.py`（可 `--run` 在本机执行可移植步骤）、`tests/test_check_ci.py`（5 条，含注入缺失脚本的负例）、`release_check` 门禁；**同时把 check_bundles/check_portability 接进 check_all（现 13 组）**，让 CI 通过 check_all 覆盖它们 |
 | H5 | `check_skill` 已接入 `check_all`（8 个 cif-* 技能 errors=0） | ✅ | 仍依赖 `D:\agent-library` 存在 | `--skip-agentlib` 可跳过 | check_all 第 7 组 |
 | H6 | 打包/发布：**已在本机实跑验证**——`pip wheel` 构建出 70 文件的 wheel（237 KB），用 `pip install --no-deps --target` 装进干净目录后**从安装副本导入**（`is_target_copy=true`）、CLI 可跑、4 个 contract schema 与 6 个拓扑参考都在包内且全部 verify 通过 | ✅ | 仍缺的是 PyPI 上传与多平台测试（CI 定义已有） | `scripts/check_package.py`（构建→安装→导入→CLI→拓扑，写 runs/check_package.json）；`release_check --package`；`tests/test_packaging.py`（5 条，含 package-data 声明回归） |
+| H7 | **验收脚本把"写入方正确拒绝"记成坏格式**：round 57 的 LAMMPS tilt 守卫对已跟踪夹具 `tests/data/sod_zn_mof.cif` 抛 `ValueError`，`verify_corpus` 记为 `bad` → `check_all` / `release_check` / `test_check_all_report` 连锁变红（HEAD 自带回归，round 58 发现） | ✅ | 已修：新增 `cifkit/export/refusals.py`（`ExportRefusalError` + `CellNotRepresentableError`），`DisorderedStructureError` / `FormatLimitError` 继承同一基类；两个校验脚本统一按 `unsupported`（带 `code: message`）记账、**不再算 bad**，同时拒绝本身没有被改成静默写错盒 | `cifkit/export/refusals.py`、`cifkit/export/{writers,disorder_guard,format_limits}.py`、`scripts/{verify_corpus,verify_formats}.py`、`tests/test_export_refusal_accounting.py` |
 
 ## I. 环境 / 网络 / 依赖获取
 
@@ -165,6 +171,9 @@
 | J8 | 已有**路径沙箱**（read_roots/write_roots，resolve 后包含性检查，挡 `..` 与逃逸符号链接） | ✅ | 进程内检查（TOCTOU 非绝对；跨盘符按拒绝处理） | `Policy(read_roots=..., write_roots=...)` → 403 `forbidden-path`；另限 `max_bytes`/`max_atoms`/`max_inputs` | cifkit/platform.py；tests/test_platform.py |
 | J12 | `--ingest` 以 **outdir 目录名**为唯一入库 key：两个不同 run 的 outdir 基名相同（如都叫 `demo`）时，后入库者覆盖 `library/<name>/` 内同名产物，index.jsonl 出现两条指向同一目录的记录（round 57 对抗评审实测） | 🟡 | 同名 run 会静默互相覆盖；不同名不受影响 | 冲突时加时间戳/序号后缀或显式 supersede（待修）；暂避免用相同 `--outdir` 基名重复 ingest | runs/_council_review_b/（round 57 评审记录）；cifkit/provenance.py:132-155 |
 | J13 | `fetch` **0 命中**的退出码口径漂移：无 `--json` exit 1、带 `--json` exit 0（两分支必有一错，round 57 对抗评审实测） | 🟡 | 调用方按退出码决定重试/放弃时会误判 | 统一口径并写入文档（待修）；暂以 stdout 内容为准 | runs/_council_review_b/（round 57 评审记录）；cifkit/cli.py:582-624 |
+| J14 | `/stream/dataset_rows` 的**运行时错误路径**发双重 HTTP 响应：先发 `200 + Transfer-Encoding: chunked` 头，再把一整个 `HTTP/1.0 404` 响应嵌进 chunked body（且无 `0\r\n\r\n` 终止符）→ 标准客户端 `IncompleteRead`，拿不到那个 404 JSON（round 58 对抗评审发现） | ✅ | 已修：200 头推迟到首个 chunk 成功产生之后，首 chunk 前失败直接走 `_send`；原始 socket 级回归测试证明只出现一个响应 | `cifkit/service.py`、`tests/test_stream_error_path.py` |
+| J15 | CLI `--json` 与 `cifkit.api` 的返回值可含**裸 `NaN`**（RFC 8259 禁止；`validate` 畸形晶胞 → `"abc":[NaN,NaN,5.0]`），与 README「api 返回值 JSON 可序列化」冲突（round 58 对抗评审发现） | ✅ | 已修：CLI/API 输出统一清洗非有限浮点；`validate` 对非有限晶胞仍 exit 1 且 stdout 可被严格 JSON 解析 | `cifkit/cli.py`、`cifkit/api.py`、`tests/test_cli_json_strictness.py` |
+| J16 | `pipeline --spec` 的**未知键静默丢弃**：`supercel` 拼写错误会让行为悄悄退回默认值（round 57 §五 提及、round 58 修复） | ✅ | 已修：保留原始 JSON 到 `spec_inputs` 的同时，对未知键发明确警告（`--json` 下进结果对象、不污染 stdout）；回归测试钉住"有警告且不改行为" | `cifkit/cli.py`、`tests/test_cli_json_strictness.py` |
 
 ## L. 许可 / 商用合规
 

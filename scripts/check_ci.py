@@ -43,6 +43,8 @@ ON_DEMAND: dict[str, str] = {
     "bootstrap_data.py": "downloads the CoRE archive (network + licence terms)",
     "bootstrap_qmof.py": "downloads QMOF (network, often unreachable)",
     "check_ci.py": "validates this very workflow (run locally/release)",
+    "check_lammps_physics.py": "reproduces recorded cloud LAMMPS energies from the "
+                               "cloud_lj/ bundles (physics gate, run on demand)",
     "check_package.py": "builds and installs a wheel (slow; release gate --package)",
     "check_software.py": "needs real codes installed (release informational)",
     "cloud_gpu_fanout.py": "spends cloud credits; never in CI",

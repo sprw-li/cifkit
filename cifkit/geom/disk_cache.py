@@ -112,6 +112,12 @@ def lookup(key: tuple[Any, ...]) -> tuple[Any, dict[str, Any]] | None:
         from pymatgen.core import Structure
 
         structure = Structure.from_str(payload["cif"], fmt="cif")
+        # a well-formed CIF can still carry a non-finite lattice; serving it
+        # would hand a poisoned cell to the caller (and to spglib later), so a
+        # degenerate entry is treated as corrupt -> miss (except below).
+        from cifkit import guards
+
+        guards.assert_finite_cell(structure, context="slab disk cache")
         decoded = _decode(payload.get("info") or {})
         info = dict(decoded) if isinstance(decoded, dict) else {}
     except Exception:  # noqa: BLE001 - a bad cache entry is a miss, never an error

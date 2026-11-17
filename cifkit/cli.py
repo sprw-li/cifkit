@@ -25,6 +25,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -40,7 +41,20 @@ def _setup_stdio() -> None:
 
 
 def _print_json(data) -> None:
-    print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+    """Print one strict JSON document on stdout.
+
+    Round 58 (defect C): a non-finite lattice produces ``nan`` metrics, and
+    ``json.dumps`` writes the bare literal ``NaN`` by default — which RFC 8259
+    forbids and ``json.loads(..., parse_constant=...)`` rejects, contradicting
+    the README's "api return values are JSON-serialisable".  Every non-finite
+    float becomes ``null`` first (:func:`cifkit.api.sanitize_nonfinite`), and
+    ``allow_nan=False`` stays as a hard backstop so a missed value fails loudly
+    instead of shipping invalid JSON.
+    """
+    from cifkit.api import sanitize_nonfinite
+
+    print(json.dumps(sanitize_nonfinite(data), ensure_ascii=False, indent=2,
+                     default=str, allow_nan=False))
 
 
 def _read_spec_text(path: str | Path) -> str:
@@ -76,12 +90,26 @@ def _load_spec(args) -> TaskSpec:
         if not isinstance(raw, dict):
             raise SystemExit(f"error: --spec 顶层必须是 JSON 对象，得到 {type(raw).__name__}")
         known = {f.name for f in TaskSpec.__dataclass_fields__.values()}
+        # Round 58: a typo such as "supercel" used to be dropped silently, so the
+        # request quietly fell back to the default (no supercell) and the caller
+        # had no way to notice.  Warn instead of failing: exiting non-zero would
+        # break existing scripts that carry harmless extra metadata in the spec.
+        unknown = sorted(key for key in raw if key not in known)
+        if unknown:
+            print(
+                "warning: --spec 含未知键，已忽略（拼写错误？）："
+                f"{', '.join(unknown)}；已知键：{', '.join(sorted(known))}",
+                file=sys.stderr,
+            )
         spec = TaskSpec(**{k: v for k, v in raw.items() if k in known})
         spec.spec_inputs = raw  # type: ignore[attr-defined]
+        # surfaced in the --json payload via TaskSpec.to_dict() -> result.spec
+        spec.spec_unknown_keys = unknown  # type: ignore[attr-defined]
     else:
         from cifkit.spec import parse_request
 
         spec = parse_request(args.query, outdir=args.outdir)
+        spec.spec_unknown_keys = []  # type: ignore[attr-defined]  # no raw JSON to check
     if getattr(args, "outdir", None):
         spec.outdir = Path(args.outdir)
     if getattr(args, "source", None):
@@ -314,6 +342,53 @@ def _bundle_codes(text: str | None) -> list[str]:
     return [code.strip().lower() for code in text.split(",") if code.strip()]
 
 
+def _files_in(directory: Path) -> set[str]:
+    """Names of the regular files directly under ``directory`` (best effort)."""
+    try:
+        return {entry.name for entry in directory.iterdir() if entry.is_file()}
+    except OSError:  # pragma: no cover - the writer reports unreadable directories
+        return set()
+
+
+def _companions_written(directory: Path, before: set[str], since: float,
+                        written: Path | None) -> list[str]:
+    """Sibling files the last writer produced in ``directory``.
+
+    ``export.write_structure`` returns exactly one path (its interface is frozen),
+    but some formats are a *pair*: DFTB+ writes ``geo.gen`` next to the HSD that
+    ``path`` names, and the HSD is unusable without it (round 58, export-gate).
+    Reporting only the returned path made ``--json`` claim ``n_files: 1`` while
+    two files were on disk, so a consumer could not tell a complete export from a
+    half-product.
+
+    ``written`` is the file the writer already reported (excluded); pass ``None``
+    for writers with no single main file (bundles).
+
+    The companion is detected from the directory itself — snapshot ``before`` the
+    write plus the file's mtime — so there is no per-format list to maintain here
+    and a *re-run* into the same directory (which overwrites the companion) is
+    still seen.  Files that were already there and were not touched are ignored.
+    """
+    extra: list[str] = []
+    for name in sorted(_files_in(directory)):
+        if written is not None and name == written.name:
+            continue
+        path = directory / name
+        try:
+            untouched = name in before and path.stat().st_mtime < since
+        except OSError:  # pragma: no cover - file vanished between listing and stat
+            continue
+        if not untouched:
+            extra.append(str(path))
+    return extra
+
+
+def _as_path(value: str, base: Path) -> str:
+    """Resolve an artifact entry to an absolute path (bundle ``files`` are names)."""
+    candidate = Path(value)
+    return str(candidate if candidate.is_absolute() else base / candidate)
+
+
 def _convert_one(
     src: Path,
     outdir: Path,
@@ -346,23 +421,54 @@ def _convert_one(
     target = (outdir / name) if in_subdir else outdir
     target.mkdir(parents=True, exist_ok=True)
     for fmt in formats:
+        before = _files_in(target)
+        started = time.time() - 0.001  # mtime tolerance for coarse clocks/FAT
         try:
-            entry["formats"][fmt] = export.write_structure(structure, target / f"{name}.{fmt}", fmt)
+            written = export.write_structure(structure, target / f"{name}.{fmt}", fmt)
+            entry["formats"][fmt] = written
+            # round 58: report sidecar files the writer put on disk (dftb → geo.gen)
+            # so the JSON manifest matches reality instead of undercounting.
+            for companion in _companions_written(target, before, started, Path(written)):
+                companions = entry.setdefault("companion_files", [])
+                if companion not in companions:
+                    companions.append(companion)
         except Exception as exc:  # noqa: BLE001
             entry.setdefault("errors", []).append(f"{fmt}: {type(exc).__name__}: {exc}")
     for code in bundles:
+        bundle_dir = target / code
+        before = _files_in(bundle_dir)
+        started = time.time() - 0.001
         try:
-            entry["bundles"][code] = export.write_bundle(structure, code, target / code,
-                                                         title=title or name)
+            info = export.write_bundle(structure, code, bundle_dir, title=title or name)
+            entry["bundles"][code] = info
+            # round 58: write_bundle's returned ``files`` is export-owned and can be
+            # incomplete (it writes README.md without listing it), so record what is
+            # actually on disk but *not* already listed; n_files takes the union by
+            # path, which stays correct if export starts listing README.md too.
+            listed = {_as_path(fname, bundle_dir)
+                      for fname in (info.get("files", []) if isinstance(info, dict) else [])}
+            for companion in _companions_written(bundle_dir, before, started, None):
+                if companion in listed:
+                    continue
+                companions = entry.setdefault("companion_files", [])
+                if companion not in companions:
+                    companions.append(companion)
         except Exception as exc:  # noqa: BLE001
             entry.setdefault("errors", []).append(f"bundle {code}: {type(exc).__name__}: {exc}")
     entry["ok"] = not entry.get("errors")
-    written = list(entry["formats"].values())
+    # Count produced artifacts as a *set of paths*: formats return absolute paths,
+    # bundle ``files`` are names inside outdir/<code>/, companions are absolute.
+    # Using a set means a file reported twice (or both by the bundle's list and by
+    # the on-disk detection) is still counted once — n_files must equal what a
+    # caller can find on disk, not the sum of every bookkeeping list.
+    produced: set[str] = {str(path) for path in entry["formats"].values()}
     if isinstance(entry.get("bundles"), dict):
-        for info in entry["bundles"].values():
+        for code, info in entry["bundles"].items():
             if isinstance(info, dict):
-                written.extend(info.get("files", []))
-    entry["n_files"] = len(written)
+                produced.update(_as_path(fname, target / code)
+                                for fname in info.get("files", []))
+    produced.update(entry.get("companion_files") or [])
+    entry["n_files"] = len(produced)
     entry["outdir"] = str(target)
     return entry
 
@@ -461,6 +567,12 @@ def cmd_convert(args) -> int:
                 flag = "ok  " if run["ok"] else "fail"
                 print(f"[{flag}] {run['input']} -> {run['n_files']} files"
                       + (f"  ({run['error']})" if run.get("error") else ""))
+                # a load that succeeded but a format/bundle that did not: the
+                # reason lives in run["errors"] and must not be swallowed either
+                for message in run.get("errors") or []:
+                    print(f"         failed: {message}")
+                for path in run.get("companion_files") or []:
+                    print(f"         companion: {path}")
             print(f"\n{result['n_ok']}/{result['n_inputs']} ok; manifest={outdir / 'convert_manifest.json'}")
         else:
             print(f"input: {result['input']} ({result.get('natoms')} atoms)")
@@ -468,6 +580,21 @@ def cmd_convert(args) -> int:
                 print(f"  {fmt:10s} -> {path}")
             for code, info in result["bundles"].items():
                 print(f"  bundle {code} -> {info if not isinstance(info, dict) else info.get('files', info)}")
+            # sidecar files (dftb → geo.gen) written next to a format output
+            for path in result.get("companion_files") or []:
+                print(f"  companion  -> {path}")
+            # Round 58 (defect B): the batch branch already reports every failure,
+            # but the single-file branch printed only the successes and exited 1 —
+            # the reason was visible *only* with --json.  A user converting
+            # `--to cif,lammps` saw the CIF written and no word about LAMMPS
+            # refusing the box.  Print the failures and their causes too.
+            failures = list(result.get("errors") or [])
+            if result.get("error"):
+                failures.insert(0, str(result["error"]))
+            for message in failures:
+                print(f"  failed: {message}")
+            if failures:
+                print(f"{len(failures)} target(s) failed; outdir kept partial output")
             print(f"outdir: {outdir}")
     return 0 if result["ok"] else 1
 
@@ -789,7 +916,12 @@ def cmd_validate(args) -> int:
         for c in report.checks:
             mark = "OK " if c.ok else ("WARN" if c.severity == "warning" else "FAIL")
             print(f"  [{mark}] {c.name}: {c.detail}")
-        print(json.dumps(report.metrics, ensure_ascii=False, indent=2, default=str))
+        # this metrics block is also a JSON document: keep it RFC-8259 clean too
+        # (the non-finite values are still named in the check details above)
+        from cifkit.api import sanitize_nonfinite
+
+        print(json.dumps(sanitize_nonfinite(report.metrics), ensure_ascii=False,
+                         indent=2, default=str, allow_nan=False))
     return 0 if report.ok else 1
 
 

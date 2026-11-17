@@ -21,18 +21,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from cifkit.export.refusals import ExportRefusalError
+
 #: formats that cannot carry partial occupancies.  Determined empirically by the
 #: corpus sweep, not guessed.  Most of these raise inside ASE/pymatgen; ``castep`` is
 #: special — it *writes* the majority species silently, which loses information, so it
-#: is guarded here even though it does not raise on its own (round 55).
+#: is guarded here even though it does not raise on its own (round 55).  ``dftb`` is
+#: guarded because its coordinates live in the sibling ``geo.gen`` (round 58), which is
+#: an ASE ``gen`` write and therefore ordered-only too.
 ORDERED_ONLY = frozenset({
-    "abinit", "aims", "castep", "cfg", "crystal", "dmol", "extxyz", "gaussian",
+    "abinit", "aims", "castep", "cfg", "crystal", "dftb", "dmol", "extxyz", "gaussian",
     "gen", "gromacs", "lammps", "mol", "nwchem", "onetep", "pdb", "qe", "res",
     "sdf", "struct", "turbomole", "vasp", "xsf", "xyz",
 })
 
 
-class DisorderedStructureError(ValueError):
+class DisorderedStructureError(ExportRefusalError):
     """Raised when a format cannot express a partially-occupied structure."""
 
     code = "disordered"

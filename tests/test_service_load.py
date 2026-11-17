@@ -30,6 +30,47 @@ def load():
     return _load("load_service", ROOT / "scripts" / "load_service.py")
 
 
+class CpuBoundService:
+    """A stub that burns CPU holding the GIL — what the real service does."""
+
+    def handle(self, request):
+        total = 0
+        for value in range(120_000):
+            total += value * value
+        return {"ok": True, "result": {"checksum": total % 7}}
+
+
+def _paired_level_ratios(load, make_service, *, rounds: int, seconds: float,
+                         low: int = 1, high: int = 4) -> tuple[float, float, list]:
+    """Interleaved throughput/latency ratios of ``high`` vs ``low`` concurrency.
+
+    Why paired (round 58): these tests used to measure level 1 and level 4 once
+    each, back to back.  On a shared box that is not a controlled experiment — a
+    parallel teammate (or any other process) can load the machine during one of
+    the two windows only, and the two numbers are then not comparable.  That is
+    exactly how a false red appeared (four-thread p50 "faster" than one-thread:
+    8.15 ms vs 10.91 ms) even though the work is a fixed, GIL-serialised loop.
+
+    Measuring low/high in the *same* round, alternating which goes first, makes
+    drifting external load a common factor of the pair.  The median over the
+    rounds then absorbs the remaining jitter.
+
+    Returns ``(median_rps_ratio, median_p50_ratio, pairs)``.
+    """
+    import statistics
+
+    pairs: list[tuple[float, float]] = []
+    for index in range(rounds):
+        order = (low, high) if index % 2 == 0 else (high, low)
+        rows = {level: load.run_level(make_service(), "x", level=level, seconds=seconds)
+                for level in order}
+        pairs.append((rows[high]["throughput_rps"] / rows[low]["throughput_rps"],
+                      rows[high]["p50_ms"] / max(1e-9, rows[low]["p50_ms"])))
+    return (statistics.median(pair[0] for pair in pairs),
+            statistics.median(pair[1] for pair in pairs),
+            pairs)
+
+
 class StubService:
     """Answers after a fixed delay; rejects with `busy` when told to."""
 
@@ -73,11 +114,16 @@ def test_a_sleeping_stub_does_scale(load):
 
     Pinning this keeps the distinction honest: a load curve measured with a sleeping
     stub would be meaningless for a CPU-bound service.
+
+    Paired/median measurement for the same anti-noise reason as the GIL test below;
+    the effect is large (4 concurrent sleepers ≈ 4x the 1-thread rate), so a 2x
+    floor stays far from the noise while still failing if the stub stops scaling.
     """
     service = StubService(delay=0.01)
-    one = load.run_level(service, "x", level=1, seconds=0.5)
-    four = load.run_level(service, "x", level=4, seconds=0.5)
-    assert four["throughput_rps"] > 2 * one["throughput_rps"], (one, four)
+    service.handle({})  # warm-up
+    rps_ratio, _, pairs = _paired_level_ratios(
+        load, lambda: StubService(delay=0.01), rounds=3, seconds=0.4)
+    assert rps_ratio > 2.0, (rps_ratio, pairs)
 
 
 def test_gil_bound_work_does_not_scale_with_threads(load):
@@ -85,20 +131,28 @@ def test_gil_bound_work_does_not_scale_with_threads(load):
 
     (A *sleeping* stub would scale, because sleep releases the GIL - which is exactly
     why this test burns CPU instead.)
+
+    Anti-noise design (round 58): level 1 and level 4 are measured in the same
+    interleaved round (see :func:`_paired_level_ratios`) and compared by the median
+    ratio over ``rounds`` pairs.
+
+    Bandwidths are physical, with measured headroom:
+
+    * throughput — pure-Python bytecode is serialised by the GIL, so four threads
+      can at best match one (~1.0x).  Measured paired medians: 0.91x idle and 1.05x
+      while the box ran at ~100% (three CPU burners), worst single pair 1.16x.
+      1.6x therefore leaves >35% headroom over the worst measurement while still
+      failing hard for a stub with real parallelism (which would be ~4x).
+    * p50 — the per-request work is fixed and adding threads only adds GIL handoff
+      contention, so four-thread latency cannot drop.  Measured paired medians:
+      1.27x idle, 2.74x loaded.  0.8x keeps the original "latency must not improve"
+      claim with margin for scheduler jitter.
     """
-
-    class CpuBound:
-        def handle(self, request):
-            total = 0
-            for value in range(120_000):
-                total += value * value
-            return {"ok": True, "result": {"checksum": total % 7}}
-
-    one = load.run_level(CpuBound(), "x", level=1, seconds=0.4)
-    four = load.run_level(CpuBound(), "x", level=4, seconds=0.4)
-    assert four["throughput_rps"] < 1.6 * one["throughput_rps"], (one, four)
-    # latency must not *improve* with more CPU-bound threads; allow noise around it
-    assert four["p50_ms"] >= 0.8 * one["p50_ms"], (one, four)
+    load.run_level(CpuBoundService(), "x", level=1, seconds=0.2)  # warm-up
+    rps_ratio, p50_ratio, pairs = _paired_level_ratios(
+        load, CpuBoundService, rounds=5, seconds=0.35)
+    assert rps_ratio < 1.6, (rps_ratio, pairs)
+    assert p50_ratio >= 0.8, (p50_ratio, pairs)
 
 
 def test_busy_replies_are_counted_not_swallowed(load):

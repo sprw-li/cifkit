@@ -35,8 +35,8 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | 来源 | CoRE MOF 2024（Zenodo 15055758，CC-BY-4.0）`SI/NCR/both/ja204757x_si_002_ASR_pacman.cif`；DOI 10.1021/ja204757x；sha256 记录在 manifest |
 | 拓扑 | `sod`，证据 `verified`：underlying net 签名（4-配位；配位序列 4,10,20,34,52,74,100,130；4/6/8 元环分布）与 CoRE ASR `2015[Zn][sod]3[ASR]1` 一致 |
 | 补氢 | 0 H → **+120 H**（每 mIm 5 个 H；环 C–H 平面内、甲基 109.5°），156 → **276 原子**，C 96/96 四配位，无 N–H |
-| 标准化 | 常规胞 I-43m，276 原子（整数倍守卫，不翻倍） |
-| (111) slab | 552 原子，面内 a=b≈24.08 Å，slab 厚≈19.28 Å |
+| 标准化 | 保留输入的常规胞形 / **276 原子**（整数倍守卫：不翻倍成 552）。实测（spglib，symprec 0.01–0.5 一致）：`repaired.cif` / `standardized.cif` 读作 **#42 `Fmm2`（正交）**，其 conventional cell 才是 552；**#217 `I-43m` 属于 `raw.cif`**（156 原子）——"产物按 spglib 是 I-43m"不成立 |
+| (111) slab | **base** 552 原子，面内 a=b≈24.08 Å，slab 厚≈19.28 Å（注意：落盘的 `slab.cif` 是面内重复**之后**的核，**2208 原子**；manifest 记 `base_atoms=552, atoms_after_reps=2208`） |
 | 2x2x1 | 作为 **slab 面内 2×2** 重复 → **2208 原子**，面内 a=b≈48.17 Å |
 | 真空 15 Å | c⊥ = 34.283 Å；垂直真空实测 **15.000 Å**（另有最小周期像距离 15.240 Å） |
 | 导出 | `structure.vasp` 2208 原子（读回一致）、`structure.cif`、`structure.xyz` |
@@ -176,13 +176,13 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 # 一键体检（selftest → pytest → verify_demo → router/eval/ci）
 & $PY scripts\check_all.py
 
-& $PY -m pytest tests -q            # 723 条（默认 713 passed + 4 failed + 6 skipped，round 57 实测；4 failed 全部来自工作区未跟踪的 WIP 脚本 scripts/check_lammps_physics.py 未归类触发 check_ci 门禁，非本轮代码——该脚本归类后应回到 713+6。skipped：opt-in 4 条——`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像——加 2 条环境型（Windows 只读目录、symlinks）；含 demo 端到端，需 _cache）
+& $PY -m pytest tests -q            # 808 条（默认 802 passed + 0 failed + 6 skipped，round 58 实测；skipped 全为环境/opt-in 型——`test_metals_zip_full`×1、MP live×2 需 key、QMOF live×1 需镜像、Windows 只读目录×1、symlinks×1；含 demo 端到端，需 _cache）
 & $PY -m cifkit selftest --verbose  # 离线自检 7/7
 & $PY scripts\verify_demo.py runs\demo_sod_zif8              # 8/8（离线：sha256/DOI 格式与一致性/拓扑/补氢/几何/导出/校验）
 & $PY scripts\verify_demo.py runs\demo_sod_zif8 --online     # 额外把 DOI 送 Crossref 解析
 ```
 
-测试分布（主要文件，其余 60 个文件未逐一列出）：export 20 / geom 34 / pipeline 3 / repair 12 / sources 18 / sources-mp-aflow 12 / spec 7 / topology 15 / validate 14 / cli 11 / batch 5 / repair-carboxylate 17 / robustness 8 / slab-cache 4 / sources-qmof 5 / topology-nets 35 / usecase-cli 13。
+测试分布（**808 条 / 85 个文件**，主要文件；round 58 实测）：export-ext 6 / export-fidelity 9 / bundle-check 31 / geom 34 / pipeline 3 / repair 12 / repair-carboxylate 17 / sources 18 / sources-mp-aflow 12 / sources-qmof 5 / spec 7 / topology 15 / topology-nets 35 / validate 14 / cli 11 / cli-convert 17 / batch 5 / robustness 8 / slab-cache 4 / usecase-cli 13；round 58 新增回归：degenerate-cell-guard 21 / export-refusal-accounting 9 / dftb-single-format 8 / lammps-physics 11 / stream-error-path 6 / cli-json-strictness 16。
 
 ---
 
@@ -194,7 +194,10 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 | `catalog/cif-fetch` | 数据库选型 + 下载 + 拓扑证据 |
 | `catalog/cif-repair` | 补氢 / 无序 / 近邻 / 价态 |
 | `catalog/cif-geometry` | 超胞 / 切面 / 真空 / 金属簇 |
-| `catalog/cif-export` | 格式导出与读回验证 |
+| `catalog/cif-export` | 格式导出与读回验证（31 种格式 + 12 种计算软件输入包） |
+| `catalog/cif-data` | ML-ready 数据管线：`cifkit features` 结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）、`cifkit dataset` 从 runs/library 汇总（CSV/JSONL + 结构副本 + manifest） |
+| `catalog/cif-usecases` | 进阶应用：`teach` 点群典例教学图 / `bravais` 布拉维点阵对称性 / `metals` 纯金属批量+表面能输入 / `fec` Fe-C 相图套件 |
+| `catalog/cif-to-3dprint` | 把晶体 CIF 转成可 3D 打印的 STL/OBJ：球棍模型、SBU 提取、芳环薄板、元素材质 |
 
 - 原句路由：`intent=cif-structure-pipeline`，第一候选 `cif-workbench`（修复前曾被误判为 `install-app`）。
 - `eval_router --all`（2026-11-16 实测，catalog 96 条）：intent/skill top1/top5 **96/96 = 100%**，负例 0/25 误报，槽位 11/11；`ci.py --fast` 通过。（历史：round 6 时为 89/89、更早 73/73。）
@@ -214,6 +217,7 @@ Set-Location 'D:\Dev\Project5-skill-cif'
   COD/CoRE/local 保留；新增 `cifkit sources` 选型命令、数据源决策表与经验（`docs/SOURCES.md` §7d），
   路由 intent 增数据源关键词/examples（评测 89/89、负例 0/25），测试总数 **701 条（默认 695 passed + 6 条 opt-in/skipped：`test_metals_zip_full` 需 `CIFKIT_USECASE_FULL=1`、MP live 2 条需 `MP_API_KEY`、QMOF live 1 条需本地镜像）**。
   - 诚实标注：AFLOW/COD 为 **live 实测**；MP 因本机无 key 只做 **mock 测试**，文档/技能正文均写明"需 key"。
+- **Round 58（交付前修复轮）**：[docs/REVIEW-ROUND58-FIXES.md](docs/REVIEW-ROUND58-FIXES.md) — 非有限晶胞 P0 守卫、导出/服务错误路径、文档与技能正文真实性清扫、LAMMPS 物理交叉验证入库。
 
 ---
 

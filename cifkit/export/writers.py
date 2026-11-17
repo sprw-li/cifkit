@@ -52,7 +52,7 @@ FORMAT_INFO: dict[str, str] = {
     "siesta": "SIESTA .fdf input template (CELL + AtomicCoordinates; species/pseudos must be supplied)",
     "abacus": "ABACUS STRU input template (ATOMIC_SPECIES/NUMERICAL_ORBITAL/LATTICE_CONSTANT/LATTICE_VECTORS/ATOMIC_POSITIONS)",
     "orca": "ORCA input template (.inp) + coordinates; basis/route must be reviewed",
-    "dftb": "DFTB+ dftb_in.hsd template (Geometry gen or HSD; Slater-Koster files needed)",
+    "dftb": "DFTB+ dftb_in.hsd + its sibling geo.gen geometry (pair; Slater-Koster files needed)",
     "xsf": "XCrySDen .xsf (periodic crystal, ASE writer)",
     "png": "结构预览 PNG（cifkit.render；用于快速看图/报告，不是计算输入）",
 }
@@ -225,10 +225,17 @@ def _write_lammps(structure: Structure, path: Path, title: str | None) -> None:
     for tilt_name, tilt_value, box_length in (("xy", xy, x_len), ("xz", xz, x_len),
                                               ("yz", yz, y_len)):
         if abs(tilt_value) > box_length / 2 + 1e-9:
-            raise ValueError(
-                f"LAMMPS export: tilt factor {tilt_name}={tilt_value:.4f} exceeds half the "
-                f"box length ({box_length:.4f}/2) — real LAMMPS would reject this box. "
-                f"Reorient/reduce the cell first (e.g. a standard setting) or export CIF/POSCAR.")
+            # round 58: a *typed* refusal, not a bare ValueError.  The refusal is
+            # the correct behaviour, and verifiers must be able to account for it
+            # as "unsupported" instead of reporting a broken format.
+            from cifkit.export.refusals import CellNotRepresentableError
+
+            raise CellNotRepresentableError(
+                "lammps",
+                f"tilt factor {tilt_name}={tilt_value:.4f} exceeds half the "
+                f"box length ({box_length:.4f}/2); real LAMMPS would reject this box",
+                fix="Reorient/reduce the cell first (e.g. a standard setting) or "
+                    "export CIF/POSCAR.")
     lines = [f"# LAMMPS data written by cifkit: {_comment(structure, title)}",
              "# type -> element: " + ", ".join(f"{type_of[s]}={s}" for s in order),
              "# NOTE: force field (pair_style/pair_coeff) and charges are NOT included.",
@@ -628,7 +635,17 @@ def _write_orca(structure: Structure, path: Path, title: str | None) -> None:
 
 
 def _write_dftb(structure: Structure, path: Path, title: str | None) -> None:
-    lat = structure.lattice
+    """DFTB+ ``dftb_in.hsd`` **plus its sibling** ``geo.gen`` (round 58).
+
+    The HSD only carries ``Geometry = GenFormat { <<< "geo.gen" }`` — the
+    coordinates live in a *sibling* file.  Before round 58 a bare
+    ``--to dftb`` wrote the 515-byte HSD and nothing else, yet reported success:
+    an unusable half-product.  The companion is now written next to the HSD with
+    the same ``gen`` writer the ``dftb`` bundle uses, so a single-format export
+    is as usable as the bundle (and ``_verify`` cross-checks the pair).
+    """
+    gen_path = path.parent / "geo.gen"
+    _write_ase(structure, gen_path, title, ase_format="gen")
     lines = [
         "Geometry = GenFormat {",
         '  <<< "geo.gen"',
@@ -755,6 +772,23 @@ def _verify(path: Path, fmt: str, natoms: int) -> None:
             if keyword not in text:
                 raise RuntimeError(f"CASTEP .cell {path} is missing %BLOCK {keyword}")
         return
+    if fmt == "dftb":
+        # round 58: the single-file dftb export is only usable together with its
+        # sibling geo.gen, so verify the *pair* (coordinates parse, atom count and
+        # element set agree with the HSD) instead of accepting any file that
+        # happens to contain the word "Geometry".  A missing/short companion is a
+        # real writer failure, never a silent success.
+        from cifkit.export.template_check import check_template
+
+        companion_path = path.parent / "geo.gen"
+        companion = {"geo.gen": companion_path.read_text(encoding="utf-8", errors="replace")} \
+            if companion_path.is_file() else {}
+        report = check_template("dftb", text, companion)
+        if not report.ok:
+            raise RuntimeError(
+                f"DFTB+ export {path} + {companion_path.name} is not usable: "
+                f"{'; '.join(report.errors[:3])}")
+        return
     if fmt in _TEMPLATE_FORMATS:
         required = {
             "siesta": ("LatticeVectors", "AtomicCoordinates"),
@@ -831,15 +865,23 @@ def write_structure(
             (the UPF files are only needed when running Quantum ESPRESSO).
 
     Returns:
-        The absolute-ish path (as ``str``) of the written file.
+        The absolute-ish path (as ``str``) of the written file.  ``dftb`` also
+        writes its sibling ``geo.gen`` (round 58): the HSD references it, so a
+        single-format dftb export is a *pair* and only usable with it.
 
     Raises:
         DisorderedStructureError: the format cannot express partial occupancies
             (code ``disordered``); resolve the disorder and export again.
+        FormatLimitError: the structure exceeds the format's hard structural
+            limit (code ``format-limit``).
+        CellNotRepresentableError: the target format cannot represent this cell
+            (code ``cell-not-representable``), e.g. LAMMPS tilt factors beyond
+            the half-box limit real LAMMPS enforces.
         ValueError: unknown format, bad arguments, or an element without a
             usable QE pseudopotential name.
         RuntimeError: the file could not be written/verified (e.g. read-back
-            atom count mismatch), which would indicate a real writer problem.
+            atom count mismatch, or a dftb HSD whose ``geo.gen`` is missing or
+            inconsistent), which would indicate a real writer problem.
     """
     from cifkit.export.disorder_guard import guard_ordered
 

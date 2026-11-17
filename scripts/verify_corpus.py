@@ -11,6 +11,15 @@ whole export contract on each:
   style (round 53);
 * the 5 template formats parsed by the in-house strict parser (round 38).
 
+Account rules (round 58): a row is ``ok`` only when the file was written **and**
+read back (or strictly parsed) successfully.  A *typed* refusal — the writer
+correctly declined because the format cannot represent the structure/cell
+(``DisorderedStructureError`` / ``FormatLimitError`` / ``CellNotRepresentableError``,
+all ``ExportRefusalError``) — is counted as ``unsupported`` with its reason, never
+as ``bad``.  ``bad`` is reserved for real failures (crash, unreadable read-back,
+geometry mismatch), so the report means "everything representable passed;
+everything unrepresentable was refused explicitly".
+
 Everything runs across processes (``--jobs``), because this is exactly the workload
 where the GIL-bound thread pool does not help.
 
@@ -55,8 +64,17 @@ def check_one(path_str: str) -> dict:
 
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     path = Path(path_str)
+    # Round 58 (defect A2): every row carries the *complete* key set from the
+    # start, so a structure that fails to load (the first row of a batch, in the
+    # reported bug) can no longer KeyError the reporter or empty the aggregation.
     result: dict = {"structure": path.name, "path": path_str, "ok": False,
-                    "formats": {}, "bundles": {}, "templates": {}, "errors": []}
+                    "load_failed": False, "formats": {}, "bundles": {}, "templates": {},
+                    "errors": [], "bad_formats": [], "bad_bundles": [],
+                    "bad_templates": [], "unsupported_formats": {},
+                    "unsupported_bundles": {}, "unsupported_templates": {},
+                    "n_formats_ok": 0, "n_formats_unsupported": 0,
+                    "n_bundles_ok": 0, "n_bundles_unsupported": 0,
+                    "n_templates_ok": 0, "n_templates_unsupported": 0}
     try:
         import tempfile
 
@@ -64,9 +82,9 @@ def check_one(path_str: str) -> dict:
 
         from cifkit.export import supported_bundles, supported_formats, write_bundle, write_structure
         from cifkit.export.bundle_check import check_bundle
-        from cifkit.export.disorder_guard import DisorderedStructureError
-        from cifkit.export.format_limits import FormatLimitError
         from cifkit.export.geometry_check import compare
+        from cifkit.export.refusals import ExportRefusalError, refusal_reason
+        from cifkit.export.template_check import check_template
         from cifkit.export.verify_formats_map import ASE_READERS, PYMATGEN_READERS
 
         structure = Structure.from_file(path)
@@ -101,18 +119,36 @@ def check_one(path_str: str) -> dict:
                         if not verdict.ok:
                             result["errors"].append(f"{fmt}: {verdict.detail}")
                     elif reader and str(reader).startswith("strict-parse"):
+                        # Round 58: actually parse the template instead of assuming
+                        # "a file was written, therefore it is fine".  For dftb the
+                        # coordinates live in the sibling ``geo.gen`` that the writer
+                        # now produces next to the HSD; ``check_template`` refuses a
+                        # missing or inconsistent companion, so the "31/31" count
+                        # cannot be inflated by an unusable half-product.
                         row["reader"] = "strict-parse"
-                        row["ok"] = True
+                        companion: dict[str, str] = {}
+                        if fmt == "dftb":
+                            gen = outdir / "geo.gen"
+                            if gen.is_file():
+                                companion["geo.gen"] = gen.read_text(
+                                    encoding="utf-8", errors="replace")
+                        report = check_template(
+                            fmt, target.read_text(encoding="utf-8", errors="replace"),
+                            companion)
+                        row["template_natoms"] = report.natoms
+                        row["ok"] = bool(report.ok)
+                        if not report.ok:
+                            result["errors"].append(f"{fmt} (template): {report.errors[:2]}")
                     else:
                         row["reader"] = reader or "none"
                         row["ok"] = row["bytes"] > 0
-                except DisorderedStructureError:
-                    # expected: the format cannot express partial occupancies.  Not a
-                    # defect - the corpus reports it as 'unsupported', separately
-                    # from real failures
-                    row["unsupported"] = "partial occupancies"
-                except FormatLimitError as exc:
-                    row["unsupported"] = f"atom limit {exc.limit}"
+                except ExportRefusalError as exc:
+                    # expected: the writer *correctly* refused because the format
+                    # cannot represent this structure/cell.  Not a defect - the
+                    # corpus reports it as 'unsupported', separately from real
+                    # failures (round 58: previously this was a bare ValueError and
+                    # landed in the 'bad' bucket).
+                    row["unsupported"] = refusal_reason(exc)
                 except Exception as exc:  # noqa: BLE001
                     row["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"{fmt}: {row['error']}")
@@ -128,17 +164,14 @@ def check_one(path_str: str) -> dict:
                     entry["checks"] = len(verdict["checks"])
                     if not verdict["ok"]:
                         result["errors"].append(f"bundle {code}: {verdict['errors'][:2]}")
-                except DisorderedStructureError:
-                    entry["unsupported"] = "partial occupancies"
-                except FormatLimitError as exc:
-                    entry["unsupported"] = f"atom limit {exc.limit}"
+                except ExportRefusalError as exc:
+                    entry["unsupported"] = refusal_reason(exc)
                 except Exception as exc:  # noqa: BLE001
                     entry["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"bundle {code}: {entry['error']}")
                 result["bundles"][code] = entry
 
             templates = ("cp2k", "siesta", "abacus", "orca", "dftb")
-            from cifkit.export.template_check import check_template
 
             for fmt in templates:
                 entry = {"ok": False}
@@ -160,18 +193,18 @@ def check_one(path_str: str) -> dict:
                     entry["natoms"] = report.natoms
                     if not report.ok:
                         result["errors"].append(f"template {fmt}: {report.errors[:2]}")
-                except DisorderedStructureError:
-                    # the underlying format cannot express partial occupancies
-                    entry["unsupported"] = "partial occupancies"
-                except FormatLimitError as exc:
-                    entry["unsupported"] = f"atom limit {exc.limit}"
+                except ExportRefusalError as exc:
+                    # the underlying format cannot express this structure/cell
+                    entry["unsupported"] = refusal_reason(exc)
                 except Exception as exc:  # noqa: BLE001
                     entry["error"] = f"{type(exc).__name__}: {exc}"
                     result["errors"].append(f"template {fmt}: {entry['error']}")
                 result["templates"][fmt] = entry
     except Exception as exc:  # noqa: BLE001
+        # Do NOT return early: the row still has to go through the accounting
+        # below with its complete key set (round 58, defect A2).
         result["errors"].append(f"load failed: {type(exc).__name__}: {exc}")
-        return result
+        result["load_failed"] = True
 
     bad_formats = [name for name, row in result["formats"].items()
                    if not row["ok"] and "unsupported" not in row]
@@ -179,13 +212,30 @@ def check_one(path_str: str) -> dict:
                    if not row["ok"] and "unsupported" not in row]
     bad_templates = [name for name, row in result["templates"].items()
                      if not row["ok"] and "unsupported" not in row]
-    result["n_formats_ok"] = len(result["formats"]) - len(bad_formats)
+    result["n_formats_ok"] = sum(1 for row in result["formats"].values() if row["ok"])
     result["n_formats_unsupported"] = sum(
         1 for row in result["formats"].values() if "unsupported" in row)
+    result["n_bundles_ok"] = sum(1 for row in result["bundles"].values() if row["ok"])
+    result["n_bundles_unsupported"] = sum(
+        1 for row in result["bundles"].values() if "unsupported" in row)
+    result["n_templates_ok"] = sum(1 for row in result["templates"].values() if row["ok"])
+    result["n_templates_unsupported"] = sum(
+        1 for row in result["templates"].values() if "unsupported" in row)
+    result["unsupported_formats"] = {
+        name: row["unsupported"] for name, row in result["formats"].items()
+        if "unsupported" in row}
+    result["unsupported_bundles"] = {
+        name: row["unsupported"] for name, row in result["bundles"].items()
+        if "unsupported" in row}
+    result["unsupported_templates"] = {
+        name: row["unsupported"] for name, row in result["templates"].items()
+        if "unsupported" in row}
     result["bad_formats"] = bad_formats
     result["bad_bundles"] = bad_bundles
     result["bad_templates"] = bad_templates
-    result["ok"] = not bad_formats and not bad_bundles and not bad_templates
+    # ok == "written and verified" (or honestly refused), not "load failed"
+    result["ok"] = (not result["load_failed"] and not bad_formats
+                    and not bad_bundles and not bad_templates)
     return result
 
 
@@ -199,6 +249,62 @@ def _read_back(target: Path, fmt: str, reader: str):
     from cifkit.export.verify_formats_map import ASE_READERS
 
     return ase.io.read(str(target), format=ASE_READERS[fmt])
+
+
+def aggregate(results: list[dict]) -> dict:
+    """Aggregate per-structure rows into the report's cross-structure counts.
+
+    Round 58 (defect A2): the key set comes from the **union of every row**, never
+    from ``results[0]``.  Previously a first row that failed to load had empty
+    ``formats``/``bundles`` maps, which silently emptied ``by_format``/``by_bundle``
+    for the whole run.  ``*_unsupported`` counts honest refusals separately so the
+    headline number can never inflate them into passes.
+    """
+    def _names(key: str) -> list[str]:
+        return sorted({name for row in results for name in (row.get(key) or {})})
+
+    by_format = {fmt: sum(1 for row in results
+                          if ((row.get("formats") or {}).get(fmt) or {}).get("ok"))
+                 for fmt in _names("formats")}
+    by_format_unsupported = {
+        fmt: sum(1 for row in results
+                 if "unsupported" in ((row.get("formats") or {}).get(fmt) or {}))
+        for fmt in _names("formats")}
+    by_bundle = {code: sum(1 for row in results
+                           if ((row.get("bundles") or {}).get(code) or {}).get("ok"))
+                 for code in _names("bundles")}
+    by_bundle_unsupported = {
+        code: sum(1 for row in results
+                  if "unsupported" in ((row.get("bundles") or {}).get(code) or {}))
+        for code in _names("bundles")}
+    n_ok = sum(1 for row in results if row.get("ok"))
+    return {
+        "n_ok": n_ok,
+        "n_load_failed": sum(1 for row in results if row.get("load_failed")),
+        "n_formats_ok_total": sum(int(row.get("n_formats_ok") or 0) for row in results),
+        "n_formats_unsupported_total": sum(
+            int(row.get("n_formats_unsupported") or 0) for row in results),
+        "n_bundles_ok_total": sum(int(row.get("n_bundles_ok") or 0) for row in results),
+        "n_bundles_unsupported_total": sum(
+            int(row.get("n_bundles_unsupported") or 0) for row in results),
+        "by_format": by_format,
+        "by_format_unsupported": by_format_unsupported,
+        "by_bundle": by_bundle,
+        "by_bundle_unsupported": by_bundle_unsupported,
+    }
+
+
+def format_row(row: dict) -> str:
+    """One report line per structure (safe on a load-failed row: defect A2)."""
+    mark = "ok  " if row.get("ok") else "FAIL"
+    formats = row.get("formats") or {}
+    unsupported = sorted(row.get("unsupported_formats") or {})
+    return (f"  [{mark}] {row.get('structure', '?'):34s} natoms={row.get('natoms')} "
+            f"formats={row.get('n_formats_ok', 0)}/{len(formats)} "
+            f"unsupported={unsupported} "
+            f"bad={(row.get('bad_formats') or [])[:3]}"
+            f"{(row.get('bad_bundles') or [])[:2]}{(row.get('bad_templates') or [])[:2]}"
+            + (" LOAD-FAILED" if row.get("load_failed") else ""))
 
 
 def main() -> int:
@@ -224,25 +330,31 @@ def main() -> int:
     report = {"when": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "jobs": args.jobs,
               "seconds": round(elapsed, 1), "n_structures": len(results),
               "results": results}
-    n_ok = sum(1 for row in results if row["ok"])
-    report["n_ok"] = n_ok
-    report["all_ok"] = n_ok == len(results)
-    report["by_format"] = {}
-    for fmt in sorted(results[0]["formats"]):
-        report["by_format"][fmt] = sum(1 for row in results if row["formats"][fmt]["ok"])
-    report["by_bundle"] = {}
-    for code in sorted(results[0]["bundles"]):
-        report["by_bundle"][code] = sum(1 for row in results if row["bundles"][code]["ok"])
+    report.update(aggregate(results))
+    report["all_ok"] = report["n_ok"] == len(results)
+    report["accounting"] = (
+        "ok = file written AND read back / strictly parsed; unsupported = the writer "
+        "correctly refused (typed ExportRefusalError: disordered / format-limit / "
+        "cell-not-representable) and is never counted as bad; bad = real failure "
+        "(crash, read-back mismatch, unparseable template). all_ok therefore means "
+        "'everything representable passed, everything unrepresentable was refused "
+        "explicitly'.")
     out = Path(args.json)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    from cifkit.locks import atomic_write_json
 
-    print(f"\nstructures fully passing: {n_ok}/{len(results)} in {elapsed:.1f}s")
-    for name, row in zip([r["structure"] for r in results], results):
-        mark = "ok  " if row["ok"] else "FAIL"
-        print(f"  [{mark}] {name:34s} natoms={row.get('natoms')} "
-              f"formats={row.get('n_formats_ok')}/{len(row['formats'])} "
-              f"bad={row['bad_formats'][:3]}{row['bad_bundles'][:2]}{row['bad_templates'][:2]}")
+    atomic_write_json(out, report)
+
+    print(f"\nstructures fully passing: {report['n_ok']}/{len(results)} in {elapsed:.1f}s"
+          f" (load failures: {report['n_load_failed']})")
+    for row in results:
+        print(format_row(row))
+        for key, label in (("unsupported_bundles", "unsupported bundles"),
+                           ("unsupported_templates", "unsupported templates")):
+            if row.get(key):
+                print(f"        {label}: "
+                      + ", ".join(f"{name} [{str(reason).split(':', 1)[0]}]"
+                                  for name, reason in sorted(row[key].items())))
     print(f"\nreport: {out}")
     return 0 if report["all_ok"] else 1
 

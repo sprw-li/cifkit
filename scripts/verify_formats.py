@@ -7,9 +7,18 @@ external reader rather than the writer's own self-check.
 
     .venv\\Scripts\\python.exe scripts\\verify_formats.py [--json OUT] [--structure FILE]
 
-Exit code 0 when every format writes and (where a reader exists) reads back with
-the same atom count; 1 otherwise.  Formats with no third-party reader are
-reported as ``structural-check`` rather than being called verified.
+Exit code 0 when every *representable* format writes and (where a reader exists) reads
+back with the same atom count; 1 otherwise.  A typed refusal
+(``ExportRefusalError``: disordered / format-limit / cell-not-representable) is
+reported as ``unsupported`` and is explicitly **not** a failure — the honest refusal
+is the correct behaviour.  Formats with no third-party reader are reported as
+``structural-check`` rather than being called verified.
+
+Round 58: ``dftb`` is checked as the *single-format* product it actually is — the
+written ``structure.dftb`` together with its sibling ``geo.gen`` — instead of
+switching to the bundle directory, which used to hide that a bare ``--to dftb``
+could write the HSD without the geometry it references.  The ``dftb`` bundle is
+verified separately (files + README + a real hsd/geo.gen parse).
 """
 from __future__ import annotations
 
@@ -115,6 +124,8 @@ def main() -> int:
 
     from cifkit import export
 
+    from cifkit.export.refusals import ExportRefusalError, refusal_reason
+
     structure_path = Path(args.structure)
     if not structure_path.is_file():
         print(f"error: structure not found: {structure_path}", file=sys.stderr)
@@ -148,6 +159,13 @@ def main() -> int:
         try:
             export.write_structure(structure, path, fmt, title="verify_formats")
             row["bytes"] = path.stat().st_size
+        except ExportRefusalError as exc:
+            # the writer *correctly* refused: this format cannot represent the
+            # structure/cell.  Counted as unsupported, never as a failure (round 58).
+            row["unsupported"] = refusal_reason(exc)
+            row["seconds"] = round(time.time() - t0, 3)
+            rows.append(row)
+            continue
         except Exception as exc:  # noqa: BLE001
             row["error"] = f"write: {type(exc).__name__}: {exc}"
             row["seconds"] = round(time.time() - t0, 3)
@@ -155,22 +173,23 @@ def main() -> int:
             continue
 
         if fmt == "dftb":
-            # DFTB+'s input is a *pair*: dftb_in.hsd references geo.gen.  Check the
-            # bundle (coordinates live in the sibling gen file), not the single file.
-            bundle_dir = outdir / "dftb_bundle"
-            info = export.write_bundle(structure, "dftb", bundle_dir)
-            hsd_path = bundle_dir / "dftb_in.hsd"
-            gen_path = bundle_dir / "geo.gen"
-            path = hsd_path if hsd_path.is_file() else path
+            # DFTB+'s input is a *pair*: dftb_in.hsd references its sibling geo.gen.
+            # Round 58: the single-format writer now writes that companion itself,
+            # so verify **this** product (the file we just wrote + its sibling
+            # geo.gen) — never the separate bundle directory, which used to stand in
+            # for it and hid the fact that bare `--to dftb` wrote an unusable
+            # half-product.  The bundle keeps its own check in the bundle loop below.
             ok, detail, parsed = _check_template(path, "dftb")
+            companion = path.parent / "geo.gen"
             row["parsed_natoms"] = parsed
-            row["reader"] = "strict-parse (in-house, bundle)"
-            row["bytes"] = hsd_path.stat().st_size if hsd_path.is_file() else row.get("bytes")
-            back = parsed if ok else None
+            row["reader"] = "strict-parse (in-house, single file + sibling geo.gen)"
+            row["companion"] = companion.name if companion.is_file() else None
+            row["companion_bytes"] = companion.stat().st_size if companion.is_file() else 0
+            row["bytes"] = path.stat().st_size
             if not ok:
                 row["error"] = f"template: {detail}"
-            row["natoms_readback"] = back
-            row["ok"] = back == natoms and not row.get("error")
+            row["natoms_readback"] = parsed if ok else None
+            row["ok"] = bool(ok) and parsed == natoms and not row.get("error")
             row["seconds"] = round(time.time() - t0, 3)
             rows.append(row)
             continue
@@ -233,19 +252,47 @@ def main() -> int:
         rows.append(row)
 
     bundles: list[dict] = []
-    for code in ([] if args.only else sorted(export.supported_bundles())):
-        info = export.write_bundle(structure, code, outdir / "bundles" / code, title="verify")
-        files = [outdir / "bundles" / code / name for name in info["files"]]
-        bundles.append({
-            "code": code,
-            "files": info["files"],
-            "all_present": all(f.is_file() and f.stat().st_size > 0 for f in files),
-            "missing_declared": info.get("missing", []),
-            "readme": (outdir / "bundles" / code / "README.md").is_file(),
-        })
+    # Round 58: with --only dftb the *bundle* must still be verified too, otherwise a
+    # single-format run could hide whether the bundle and the bare product agree.
+    bundle_codes = (sorted(export.supported_bundles()) if not args.only
+                    else (["dftb"] if "dftb" in formats else []))
+    for code in bundle_codes:
+        bdir = outdir / "bundles" / code
+        entry: dict = {"code": code, "files": [], "all_present": False, "readme": False}
+        try:
+            info = export.write_bundle(structure, code, bdir, title="verify")
+            files = [bdir / name for name in info["files"]]
+            entry.update({
+                "files": info["files"],
+                "all_present": all(f.is_file() and f.stat().st_size > 0 for f in files),
+                "missing_declared": info.get("missing", []),
+                "readme": (bdir / "README.md").is_file(),
+            })
+            if code == "dftb":
+                # verify the bundle's *content* as well: hsd + its sibling geo.gen
+                # must parse to the same atom count (not just exist).
+                ok, detail, parsed = _check_template(bdir / "dftb_in.hsd", "dftb")
+                entry["template_ok"] = bool(ok)
+                entry["template_natoms"] = parsed
+                entry["companion"] = "geo.gen"
+                if not ok:
+                    entry["template_error"] = detail
+        except ExportRefusalError as exc:
+            entry["unsupported"] = refusal_reason(exc)
+        except Exception as exc:  # noqa: BLE001
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        bundles.append(entry)
+
+    def _bundle_ok(bundle: dict) -> bool:
+        """A bundle is ok when its files/README are present and, for dftb, its
+        hsd+geo.gen pair actually parses to the expected atom count."""
+        return (bool(bundle.get("all_present")) and bool(bundle.get("readme"))
+                and bundle.get("template_ok", True) is not False)
 
     ok_formats = [r for r in rows if r["ok"]]
-    third_party = [r for r in rows if r["reader"] in ("pymatgen", "ase")]
+    unsupported_formats = [r for r in rows if r.get("unsupported")]
+    bad_formats = [r for r in rows if not r["ok"] and not r.get("unsupported")]
+    third_party = [r for r in rows if r.get("reader") in ("pymatgen", "ase")]
     geometry_checked = [row for row in rows if row.get("geometry")]
     geometry_failures = [row["format"] for row in geometry_checked
                          if not row["geometry"]["ok"]]
@@ -258,22 +305,35 @@ def main() -> int:
         "natoms": natoms,
         "n_formats": len(rows),
         "n_ok": len(ok_formats),
+        "n_unsupported": len(unsupported_formats),
+        "n_bad": len(bad_formats),
+        "unsupported_formats": [r["format"] for r in unsupported_formats],
+        "bad_formats": [r["format"] for r in bad_formats],
+        "all_representable_ok": not bad_formats,
         "n_third_party_readback": len(third_party),
         "n_third_party_ok": sum(1 for r in third_party if r["ok"]),
         "formats": rows,
         "bundles": bundles,
         "n_bundles": len(bundles),
-        "bundles_ok": all(b["all_present"] and b["readme"] for b in bundles) if bundles else None,
+        "bundles_ok": all(_bundle_ok(b) for b in bundles if "unsupported" not in b)
+                      if bundles else None,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "n_geometry_checked": len(geometry_checked),
         "geometry_failures": geometry_failures,
         "worst_deviation_A": worst,
+        "accounting": (
+            "ok = written and verified; unsupported = the writer correctly refused a "
+            "structure/cell the format cannot represent (typed ExportRefusalError), "
+            "never counted as a failure; bad = a real failure. all_representable_ok "
+            "is therefore the honest 'everything representable passed' claim."),
         "note": (
             "第三方回读 = 用与写出器不同的库（pymatgen/ASE）读回并比对原子数。"
             "**回读一致 ≠ 目标软件接受**：这只说明另一个库能解析出同样多的原子，"
             "不代表 VASP/QE/CP2K/... 会接受该输入。模板类格式（cp2k/siesta/abacus/orca/dftb）"
             "与 png 只用关键字/魔数检查，不算第三方回读；模板不包含 POTCAR/UPF/basis/skf/力场，"
             "也从未在真实软件中运行过。"
+            "dftb 单文件产物（structure.dftb）与其同级 geo.gen 配对校验；bundles/dftb 另行校验，"
+            "不再用 bundle 目录顶替裸 --to 产物。"
         ),
     }
     json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -284,15 +344,19 @@ def main() -> int:
     atomic_write_json(json_path, report)
 
     print(f"formats: {report['n_ok']}/{report['n_formats']} ok; "
-          f"third-party readback {report['n_third_party_ok']}/{report['n_third_party_readback']} ok")
+          f"third-party readback {report['n_third_party_ok']}/{report['n_third_party_readback']} ok; "
+          f"unsupported={report['unsupported_formats']}; bad={report['bad_formats']}")
     for row in rows:
-        flag = "ok  " if row["ok"] else "FAIL"
+        flag = ("ok  " if row["ok"]
+                else ("n/a " if row.get("unsupported") else "FAIL"))
+        detail = row.get("error") or row.get("unsupported") or ""
         print(f"  [{flag}] {row['format']:10s} {row.get('reader','?'):16s} "
-              f"{row.get('natoms_readback')}/{natoms}  {row.get('error','')}")
-    print(f"bundles: {report['n_bundles']} written, all files+README: {report['bundles_ok']}")
+              f"{row.get('natoms_readback')}/{natoms}  {detail}")
+    print(f"bundles: {report['n_bundles']} written, all files+README(+dftb parse): "
+          f"{report['bundles_ok']}")
     print(f"report: {json_path}")
     bundles_ok = report["bundles_ok"] if report["bundles_ok"] is not None else True
-    return 0 if report["n_ok"] == report["n_formats"] and bundles_ok else 1
+    return 0 if report["all_representable_ok"] and bundles_ok else 1
 
 
 if __name__ == "__main__":
