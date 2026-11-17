@@ -163,7 +163,7 @@ README 技能表 5→**8**；`README`/`DESIGN` 的标准化措辞按实测改写
 | CI 定义 | `check_ci.py` | **10/10**，`unclassified` 为空（WIP 脚本已诚实归类） |
 | 技能与路由 | `eval_router.py --all`、`check_skill cif-*` | **96/96**、负例 0/25、槽位 11/11；8 个技能 errors=0 warnings=0 |
 | P0 判据 | `python -m cifkit features <nan cif> --json` | exit **1** + 严格 JSON + 可读 `DegenerateCellError`（修复前 `0xC0000005`、stdout 0 字节） |
-| 发布门禁 | `python scripts\release_check.py --quick --allow-dirty --package` | <!-- RELEASE_GATE --> |
+| 发布门禁 | `python scripts\release_check.py --quick --allow-dirty --package` | **PASS 15/15 gates**（162.9 s）：`project repo clean` = ok（HEAD `9cd5c2d`，**0 dirty**）、`check_all` **14/14**、`formats` 31/31 + 25/25、`check_ci` 10/10、`check_bundles` 12/12、6 个拓扑参考全部 verify、`package: wheel builds, installs and imports`（85 文件、4 schema、12 net）；唯一 WARN = `agent-library repo clean`（27 条，**范围外**）。报告 `.review/lead/release_check_final.json` |
 
 > `--allow-dirty` 的唯一作用是让门禁 1 对 **`D:\agent-library` 的 23 条 dirty（其它项目，不在本次交付范围）**
 > 记为 WARN 而不是 FAIL；**本仓自身**在提交后由 `git status --porcelain` 独立验证为空。门禁 2–14 不做任何降级。
