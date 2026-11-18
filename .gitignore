@@ -9,6 +9,7 @@ runs/*
 !runs/demo_sod_zif8/
 !runs/demo_sod_zif8/**
 .review/
+.wenyon/
 library/
 *.egg-info/
 build/
