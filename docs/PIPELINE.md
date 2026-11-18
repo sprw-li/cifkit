@@ -1,14 +1,14 @@
 # 管线逐步验收（PIPELINE）
 
 > 目标：把 `docs/DESIGN.md` §1 的验收标准逐条落到“能看到什么、用什么命令验、失败长什么样”。
-> 入口：`D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe -m cifkit`（命令面冻结于 DESIGN §6c）。
+> 入口：`<repo>\.venv\Scripts\python.exe -m cifkit`（命令面冻结于 DESIGN §6c）。
 > 对应技能：`catalog/cif-workbench`（总入口），单步能力见 `catalog/cif-{fetch,repair,geometry,export}`。
 
 ## 0. 环境与自检
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
-Set-Location 'D:\Dev\Project5-skill-cif'
+$PY = '<repo>\.venv\Scripts\python.exe'
+Set-Location '<repo>'
 $env:PYTHONIOENCODING='utf-8'
 
 & $PY -m cifkit --version         # cifkit 0.1.0
@@ -120,9 +120,9 @@ manifest.json          # 全链路溯源
 
 ```powershell
 # 只补氢
-& $PY -m cifkit repair "D:\Dev\Project5-skill-cif\tests\data\zif8_raw_hfree.cif" -o runs\mini\repaired.cif --add-h --json
+& $PY -m cifkit repair "<repo>\tests\data\zif8_raw_hfree.cif" -o runs\mini\repaired.cif --add-h --json
 # 只超胞
-& $PY -m cifkit geom "D:\Dev\Project5-skill-cif\tests\data\zif8_cr_sod.cif" -o runs\mini\supercell.cif --supercell 2 2 1 --json
+& $PY -m cifkit geom "<repo>\tests\data\zif8_cr_sod.cif" -o runs\mini\supercell.cif --supercell 2 2 1 --json
 # 只导出 + 读回
 & $PY -m cifkit export runs\demo_sod_zif8\final.cif --format vasp,cif,xyz -o runs\mini\export --json
 & $PY -m cifkit validate runs\mini\export\structure.vasp --json
@@ -131,7 +131,7 @@ manifest.json          # 全链路溯源
 ## 7. 实测记录
 
 环境：`cifkit 0.1.0`，`.venv` Python 3.14.8，demo `manifest.json` `created_at = 2026-11-05T15:11:11+08:00`；
-所有命令在 `D:\Dev\Project5-skill-cif` 下、`$env:PYTHONIOENCODING='utf-8'` 执行。
+所有命令在 `<repo>` 下、`$env:PYTHONIOENCODING='utf-8'` 执行。
 
 ### 7.1 命令与 exit code
 
@@ -412,7 +412,7 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 ### 8.14 check_all 的外部依赖与失败诊断（round 21）
 
 `check_all` 的 10 组里有 4 组（`agentlib: router route` / `eval_router --all` / `ci --fast` /
-`check_skill cif-*`）跑的是 **`D:\agent-library`**，即技能目录本身。这意味着：
+`check_skill cif-*`）跑的是 **`<agent-library>`**，即技能目录本身。这意味着：
 
 * 那个仓库被并发修改时（例如别人正在注册新的 `office-*` 技能、但评测期望值还没同步），
   这 4 组会失败，而**与本工作台无关**；
@@ -430,7 +430,7 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 
 | 门 | 判据 |
 |---|---|
-| 两个仓库干净 | 本仓与 `D:\agent-library` 的 `git status --porcelain` 为空（`--allow-dirty` 降级为 WARN） |
+| 两个仓库干净 | 本仓与 `<agent-library>` 的 `git status --porcelain` 为空（`--allow-dirty` 降级为 WARN） |
 | 格式全绿 | **现场重跑** `verify_formats.py`：31/31 写出、25/25 第三方回读、12 bundle |
 | 健康检查全绿 | `check_all --adversarial`（或 `--quick` 用 `--fast`）**每一组**通过，含 agentlib 组 |
 | 字节完整性 | `runs/check_eol.json` 无 failures（LF + 钉住 sha256） |
@@ -529,7 +529,7 @@ payload sha256 可核对；`--go` 在缺凭据时 **exit 1 且不产生 probe/su
 ### 8.20 产物可移植性门禁（round 28）
 
 云端跑出来的一个副作用：**我们自己导出的 NWChem 输入里写着本机的绝对路径**
-（`permanent_dir D:\Dev\Project5-skill-cif\nwchem`）——因为 ASE 的 `nwchem-in` writer 对默认
+（`permanent_dir <repo>\nwchem`）——因为 ASE 的 `nwchem-in` writer 对默认
 label 调了 `os.path.abspath`。这种文件在容器/集群上直接不可用。
 
 - 修复：写完后把 `permanent_dir`/`scratch_dir` 改写成 `.`（自包含）；

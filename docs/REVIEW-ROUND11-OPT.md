@@ -128,7 +128,7 @@ manifest 两条 `outdir` 不同（修复提交 `bbc5adf`，含回归测试 `test
   bundle 参考 CIF 的 sha256 全部不匹配；`verify_demo` 第 1 项 `sha256 matches=False`（7/8，exit 1），
   因此 **clone 里 `check_all --fast` = 6/7，exit 1**（失败组就是 verify_demo）。
 - 根因（已实证，不是推测）：仓库里被 sha256 钉住的是 **LF 字节**（`git cat-file -s f5f36d5:cifkit/data/nets/bcu-reference.cif` = 5308，
-  与 JSON 里的哈希一致）；而全局 `core.autocrlf=true`（`file:C:/Users/Morrow/.gitconfig`）且**仓库无 `.gitattributes`**，
+  与 JSON 里的哈希一致）；而全局 `core.autocrlf=true`（`file:~/.gitconfig`）且**仓库无 `.gitattributes`**，
   所以 fresh clone 落成 CRLF（5404 字节）→ 哈希不匹配。演示数据同样：
   `runs/demo_sod_zif8/raw.cif` 在 clone 里 CRLF，其字节哈希不在 manifest 中，而**把 CRLF 归一成 LF 后哈希就在 manifest 中**。
   本机现有工作区是 LF（非 checkout 产生），所以一直没暴露。

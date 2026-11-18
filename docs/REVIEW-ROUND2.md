@@ -1,7 +1,7 @@
 # Round 2 独立复核（修复验证 + 回归）— CIF 处理工作台
 
 > 评审员：`reviewer-r1`（同一评审员，独立复核）｜日期：2026-11-05
-> 评审对象：`D:\Dev\Project5-skill-cif`，基线 **commit `a3e4bde`** + 评审期间 Lead 的新增强（**工作树未提交**：`M README.md / M cifkit/cli.py / M docs/PIPELINE.md / M tests/test_cli.py`，`?? scripts/check_all.py`）；`D:\agent-library` 工作树干净（`catalog/cif-workbench/SKILL.md` 已更新并已提交）。
+> 评审对象：`<repo>`，基线 **commit `a3e4bde`** + 评审期间 Lead 的新增强（**工作树未提交**：`M README.md / M cifkit/cli.py / M docs/PIPELINE.md / M tests/test_cli.py`，`?? scripts/check_all.py`）；`<agent-library>` 工作树干净（`catalog/cif-workbench/SKILL.md` 已更新并已提交）。
 > 方法：只验证"修复是否真实、是否回归"，全部命令由评审员重跑；不转述 Lead 的自报。**未改代码/文档/未 commit**（只写本文件与 `runs/review_round2/`）。
 > 环境同 Round 1：Python 3.14.8、pymatgen 2026.10.24、Windows PowerShell 5.1、缓存 `_cache/core-mof-2024`（未重新下载）。
 

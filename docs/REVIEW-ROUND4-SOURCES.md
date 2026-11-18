@@ -1,7 +1,7 @@
 # Round 4 轻量评审：数据源扩展（CoRE / COD / MP / AFLOW / local）
 
 > 评审员：`reviewer-r1`｜日期：2026-11-05｜时间盒：轻量验证，只针对数据源扩展 + 回归，不重跑全量审计。
-> 对象：`D:\Dev\Project5-skill-cif`、`D:\agent-library`；**验证时工作树**：项目 `HEAD=819fa5a`（评审期间由 `5dce12c` 前进到 `819fa5a`），且评审结束时仍有 Lead 正在进行的未提交改动（见 §6）；agent-library `HEAD=b162d66`。
+> 对象：`<repo>`、`<agent-library>`；**验证时工作树**：项目 `HEAD=819fa5a`（评审期间由 `5dce12c` 前进到 `819fa5a`），且评审结束时仍有 Lead 正在进行的未提交改动（见 §6）；agent-library `HEAD=b162d66`。
 > 方法：所有命令由评审员本机重跑（COD/AFLOW 走真实网络，MP 不伪造 key）；**未改代码/文档**（只写本文件与 `runs/review_round4/`）。
 
 ## 0. 结论

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -25,7 +26,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-AGENTLIB = Path(r"D:\agent-library")
+AGENTLIB = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library"))
 PY = sys.executable
 
 GATES: list[dict] = []

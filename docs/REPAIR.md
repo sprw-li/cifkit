@@ -2,7 +2,7 @@
 
 > Owner：repair 队友（task-2）。接口冻结见 `docs/DESIGN.md` §6：
 > `repair_all(structure, *, add_hydrogen=False, resolve_disorder=True, remove_close_contacts=True) -> (Structure, RepairReport)`。
-> 入口：`D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe -m cifkit repair FILE ...`。
+> 入口：`<repo>\.venv\Scripts\python.exe -m cifkit repair FILE ...`。
 > 对应的纯 Python API：`from cifkit.repair import repair_all, add_hydrogens, resolve_disorder_sites, find_close_contacts, remove_close_contacts_atoms, check_structure`。
 
 ## 0. 文件与职责
@@ -296,7 +296,7 @@ O–H 0.96 Å、最小 H···H > 1.4 Å、最小 H···金属 > 2.0 Å；`chec
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 
 & $PY -m pytest tests/test_repair.py -q
 # 12 passed
@@ -404,8 +404,8 @@ $PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
-Set-Location 'D:\Dev\Project5-skill-cif'
+$PY = '<repo>\.venv\Scripts\python.exe'
+Set-Location '<repo>'
 
 & $PY -m pytest tests/test_repair.py -q
 & $PY -m pytest tests/test_repair.py tests/test_repair_carboxylate.py -q

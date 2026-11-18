@@ -43,7 +43,7 @@
   },
   "environment": {
     "python": "3.14.8",
-    "executable": "D:\\Dev\\Project5-skill-cif\\.venv\\Scripts\\python.exe",
+    "executable": ".venv\\Scripts\\python.exe",
     "platform": "Windows-11-10.0.26200-SP0",
     "packages": {
       "pymatgen": "2026.10.24",
@@ -55,7 +55,7 @@
       "rdkit": "2026.9.1",
       "openbabel-wheel": "3.1.1.23"
     },
-    "project_root": "D:\\Dev\\Project5-skill-cif"
+    "project_root": "."
   },
   "source": {
     "record": {
@@ -71,7 +71,7 @@
       "natoms": 156,
       "h_count": 0,
       "h_expected": 120.0,
-      "path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+      "path": "_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
       "url": "https://zenodo.org/records/15055758",
       "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
       "notes": [
@@ -264,7 +264,7 @@
       "doi_note": "DOI 来自 curated 文献关联（NCR 无元数据列）",
       "cif_sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
       "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
-      "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+      "cif_path": "_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
       "cache_reused": true,
       "fetched_at": "2026-11-05T18:01:35+08:00",
       "topology": "sod",
@@ -313,7 +313,7 @@
           "natoms": 156,
           "h_count": 0,
           "h_expected": 120.0,
-          "path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+          "path": "_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
           "url": "https://zenodo.org/records/15055758",
           "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
           "notes": [
@@ -506,7 +506,7 @@
           "doi_note": "DOI 来自 curated 文献关联（NCR 无元数据列）",
           "cif_sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
           "sha256": "c6939cf73df71087d558e3030f9227c535487243fdf019790924e94abef26cd3",
-          "cif_path": "D:\\Dev\\Project5-skill-cif\\_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
+          "cif_path": "_cache\\core-mof-2024\\extracted\\ja204757x_si_002_ASR_pacman-c6939cf73df7.cif",
           "cache_reused": true,
           "fetched_at": "2026-11-05T18:01:35+08:00",
           "topology": "sod",
@@ -2152,7 +2152,7 @@
     "preview.png": "runs\\demo_sod_zif8\\preview.png",
     "report": "runs\\demo_sod_zif8\\report.md",
     "manifest": "runs\\demo_sod_zif8\\manifest.json",
-    "library": "D:\\Dev\\Project5-skill-cif\\library\\demo_sod_zif8"
+    "library": "library\\demo_sod_zif8"
   },
   "validation": {
     "ok": true,
@@ -2319,8 +2319,8 @@
     }
   },
   "library": {
-    "library_entry": "D:\\Dev\\Project5-skill-cif\\library\\demo_sod_zif8",
-    "index": "D:\\Dev\\Project5-skill-cif\\library\\index.jsonl"
+    "library_entry": "library\\demo_sod_zif8",
+    "index": "library\\index.jsonl"
   },
   "ok": true,
   "failed_step": null

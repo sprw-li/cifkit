@@ -3,7 +3,12 @@
 把「从数据库下载下来的裸 CIF」变成「能直接喂给 VASP / QE / CP2K / LAMMPS 的结构」：
 **选型下载 → 拓扑核实 → 修复（补氢 / 无序占位 / 近邻）→ 标准胞 → 超胞 → (hkl) 切面 → 真空层 → 导出 → 校验 → 入库**。
 
-技能组在 `D:\agent-library\catalog\cif-*`（router 可命中）；本仓库是引擎、脚本与验收现场。
+技能组在 `<agent-library>\catalog\cif-*`（router 可命中）；本仓库是引擎、脚本与验收现场。
+
+> **读法约定（公开版）**：下文 `<repo>` 指本仓的克隆目录，`<agent-library>` 指技能组所在的另一个仓库目录
+> （`catalog/cif-*` 是独立交付的 agent-library 技能，**不在本仓内**；门禁脚本用它时可用环境变量
+> `CIFKIT_AGENTLIB` 覆盖默认路径，未设置时默认指向作者本机布局）。数据集不随仓分发：首次使用先跑
+> `scripts\bootstrap_data.py` 从 Zenodo 取 CoRE MOF 2024 缓存（见 [LICENSING.md](LICENSING.md)）。
 
 ---
 
@@ -14,9 +19,9 @@
 > 帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING='utf-8'
-Set-Location 'D:\Dev\Project5-skill-cif'
+Set-Location '<repo>'
 
 # 首次在新机器上：准备 CoRE MOF 2024 缓存（Zenodo，~45 MB，幂等）
 & $PY scripts\bootstrap_data.py
@@ -245,4 +250,4 @@ Set-Location 'D:\Dev\Project5-skill-cif'
 - [docs/GEOM.md](docs/GEOM.md) — 标准化/超胞/切面/真空/簇的实测与坑
 - [docs/EXPORT.md](docs/EXPORT.md) — 导出格式、QE 赝势、读回校验
 - [docs/SKILLS.md](docs/SKILLS.md) — 技能组索引、命令对应表、路由证据
-- `D:\agent-library\catalog\cif-*/SKILL.md` — 技能正文（唯一真源）
+- `<agent-library>\catalog\cif-*/SKILL.md` — 技能正文（唯一真源）

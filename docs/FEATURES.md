@@ -6,7 +6,7 @@
 ## 1. `cifkit features`
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 & $PY -m cifkit features runs\demo_sod_zif8\standardized.cif --out runs\features.csv --json
 & $PY -m cifkit features runs\export_demo --out runs\features_all.csv --no-rdf --jobs 4 --json
 & $PY -m cifkit features runs\export_demo --out runs\features_topo.csv --topology --no-rdf

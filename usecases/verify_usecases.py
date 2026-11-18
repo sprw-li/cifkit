@@ -11,7 +11,7 @@ import spglib
 from pymatgen.core import Composition, Lattice, Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
-ROOT = Path(r"D:\Dev\Project5-skill-cif\usecases")
+ROOT = Path(__file__).resolve().parent
 issues = []
 
 

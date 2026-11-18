@@ -346,7 +346,7 @@ identify(structure, nets=None) -> {
 `unknown`，请求拓扑时由 `topology.verify` 做结构比对（`verified/mismatch/unknown`）。
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 & $PY -m cifkit sources --probe                 # 各源状态 + 可达性
 & $PY -m cifkit fetch --source core-mof --topology sod --raw --limit 3
 & $PY -m cifkit fetch --source cod --id 7111973 --outdir runs\cod

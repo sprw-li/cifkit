@@ -56,7 +56,7 @@
 
 - 复现（用户原句，来自 `usecases/README.md` 表格）：
   ```powershell
-  py -3 D:\agent-library\router.py route --agent dsh "我需要向学生们讲解 Fd3m 点群的性质，帮我找一些典例，排成 png"
+  py -3 <agent-library>\router.py route --agent dsh "我需要向学生们讲解 Fd3m 点群的性质，帮我找一些典例，排成 png"
   ```
 - 期望：`intent=cif-advanced-usecases`，第 1 候选 `cif-usecases`。
 - 实际：**`intent=molecular-property`，第 1 候选 `rdkit-screen`（score=5）**。

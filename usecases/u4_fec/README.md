@@ -93,7 +93,7 @@ usecases/u4_fec/
 ## 3. 快速开始（离线，无需网络）
 
 ```powershell
-# 仓库根目录 D:\Dev\Project5-skill-cif
+# 仓库根目录 <repo>
 .venv\Scripts\python.exe usecases\u4_fec\scripts\build_hull.py     # -> data/hull_points.csv + figures/fe_c_hull.png
 .venv\Scripts\python.exe usecases\u4_fec\scripts\plot_hull.py      # 只重画图
 ```

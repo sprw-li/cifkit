@@ -200,7 +200,7 @@ densest_plane, slab_atoms, vacuum_measured, source_aurl, elapsed_s` — **87 行
 复验命令：
 
 ```powershell
-cd D:\Dev\Project5-skill-cif
+cd <repo>
 $env:PYTHONIOENCODING='utf-8'
 .venv\Scripts\python.exe usecases\u3_metals\scripts\verify_deliverables.py
 ```
@@ -266,7 +266,7 @@ E_surf = (E_slab − N_slab · μ) / (2A),      μ = E_bulk_cell / Z
 ## 9. 复现 / 断点续跑
 
 ```powershell
-cd D:\Dev\Project5-skill-cif
+cd <repo>
 $env:PYTHONIOENCODING='utf-8'
 
 # 全部 87 个元素（已有结果自动跳过；失败元素会重试）

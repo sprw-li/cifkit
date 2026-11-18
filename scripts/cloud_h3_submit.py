@@ -30,7 +30,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL = Path(r"D:\agent-library\catalog\cloud-gpu-bohrium")
+SKILL = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library")) / "catalog" / "cloud-gpu-bohrium"
 CLI = SKILL / "scripts" / "cloud_gpu.py"
 BUNDLE = ROOT / "cloud_h3"
 OUT = ROOT / "runs" / "cloud_h3"

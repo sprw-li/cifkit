@@ -1,7 +1,7 @@
 # 技能组：CIF 处理工作台（catalog/cif-*）
 
-> 技能正文唯一真源：`D:\agent-library\catalog\`（本文件只是索引与证据，不复制正文）。
-> 引擎入口：`D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe -m cifkit`，命令面冻结于 `docs/DESIGN.md` §6c。
+> 技能正文唯一真源：`<agent-library>\catalog\`（本文件只是索引与证据，不复制正文）。
+> 引擎入口：`<repo>\.venv\Scripts\python.exe -m cifkit`，命令面冻结于 `docs/DESIGN.md` §6c。
 
 ## 1. 技能组一览
 
@@ -47,7 +47,7 @@
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'   # GBK 控制台下不加会 UnicodeEncodeError traceback
-py -3 D:\agent-library\router.py route --agent dsh "<用户原句>"
+py -3 <agent-library>\router.py route --agent dsh "<用户原句>"
 ```
 
 2026-11-05 实测（原句）:
@@ -111,7 +111,7 @@ slot cases=11  pass=11/11
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-cd D:\agent-library
+cd <agent-library>
 py -3 scripts\store.py                   # 改了 catalog/intents.json 后重建索引
 py -3 router.py route --agent dsh "<原句>"
 py -3 scripts\eval_router.py --all       # 正例 + 负例 + 槽位
@@ -120,5 +120,5 @@ py -3 scripts\ci.py --fast               # 与 pre-commit 一致
 
 - 新增/改技能：只改 `catalog/<id>/SKILL.md` + `manifest.json`，**不要**复制到各 Agent 目录；
 - 改 intent/domains：改 `catalog/intents.json` / `catalog/domains.json` → `store.py` → 三套评测必须全绿；
-- 本轮改动前的备份在 `D:\agent-library\_trash\*.bak-20261105-142530`；
+- 本轮改动前的备份在 `<agent-library>\_trash\*.bak-20261105-142530`；
 - `router.py` **未修改**（无备份/无回归风险）。

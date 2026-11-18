@@ -173,4 +173,4 @@ runs/demo_sod_zif8
 - preview.png: `runs\demo_sod_zif8\preview.png`
 - report: `runs\demo_sod_zif8\report.md`
 - manifest: `runs\demo_sod_zif8\manifest.json`
-- library: `D:\Dev\Project5-skill-cif\library\demo_sod_zif8`
+- library: `<repo>\library\demo_sod_zif8`

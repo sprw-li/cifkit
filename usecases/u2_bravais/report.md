@@ -193,7 +193,7 @@ Bain 路径上的两个端点属于立方晶系，中间是四方晶系；这正
 ## 6. 复现命令（仓库根目录）
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING = 'utf-8'
 
 & $PY usecases\u2_bravais\scripts\bain_path.py   # data/bain_path.csv, data/bain_tolerance.csv, 2 张 PNG

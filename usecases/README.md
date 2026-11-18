@@ -16,9 +16,9 @@
 不会改动本目录交付物；`--json` 时 stdout 是单个 JSON（日志走 stderr）。
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING='utf-8'
-Set-Location 'D:\Dev\Project5-skill-cif'
+Set-Location '<repo>'
 
 & $PY -m cifkit teach   --spacegroup Fd-3m --outdir runs\uc\fd3m --json     # 6 个 Fd-3m 典例 → PNG+CSV
 & $PY -m cifkit bravais --outdir runs\uc\bravais --bain-range 0.9:1.7:0.05 --json

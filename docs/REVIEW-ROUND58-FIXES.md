@@ -10,7 +10,7 @@
 
 **三条交付阻塞全部清除，可交付。** 评审发现的 1 条 P0、2 条 P1、6 条 P2（均未入账）全部修复并带回归测试；
 `docs/LIMITATIONS.md` 由 81 条扩到 **89 条（30 ✅ / 59 🟡 / 0 🔴）**；
-官方门禁 `scripts/release_check.py --quick --package` 的结果见 §四（本仓仓态干净；`D:\agent-library`
+官方门禁 `scripts/release_check.py --quick --package` 的结果见 §四（本仓仓态干净；`<agent-library>`
 的 23 条 dirty 属其它项目、不在本次交付范围，门禁以 `--allow-dirty` 记为**范围外告警**）。
 
 ## 一、评审发现的缺陷（本轮修复对象）
@@ -19,7 +19,7 @@
 
 | # | 阻塞 | 证据 |
 |---|---|---|
-| B1 | 官方门禁 FAIL：本仓 9 条未跟踪 WIP + `D:\agent-library` 23 条 dirty + `check_all` 两组红 | `release_check.py --quick` → FAIL 10/14 |
+| B1 | 官方门禁 FAIL：本仓 9 条未跟踪 WIP + `<agent-library>` 23 条 dirty + `check_all` 两组红 | `release_check.py --quick` → FAIL 10/14 |
 | B2 | **HEAD 自带回归**：round 57 的 LAMMPS tilt 守卫对**已跟踪**夹具 `tests/data/sod_zn_mof.cif` 抛 `ValueError`，`verify_corpus` 把"正确拒绝"记成坏格式 → `check_all`/`release_check`/`test_check_all_report` 连锁红；**干净 HEAD 副本（无任何 WIP）实测仍红** | `git archive HEAD` 到独立副本后 `pytest tests/test_check_all_report.py` 仍 failed；`verify_corpus` 13/14 |
 | B3 | 全量测试 732 = 720 passed + **6 failed** + 6 skipped，且 round 57 的「4 failed 全部归因于未跟踪 WIP」**不成立** | `.review/verifier/REPORT.md`（junit 逐条统计） |
 
@@ -165,13 +165,13 @@ README 技能表 5→**8**；`README`/`DESIGN` 的标准化措辞按实测改写
 | P0 判据 | `python -m cifkit features <nan cif> --json` | exit **1** + 严格 JSON + 可读 `DegenerateCellError`（修复前 `0xC0000005`、stdout 0 字节） |
 | 发布门禁 | `python scripts\release_check.py --quick --allow-dirty --package` | **PASS 15/15 gates**（162.9 s）：`project repo clean` = ok（HEAD `9cd5c2d`，**0 dirty**）、`check_all` **14/14**、`formats` 31/31 + 25/25、`check_ci` 10/10、`check_bundles` 12/12、6 个拓扑参考全部 verify、`package: wheel builds, installs and imports`（85 文件、4 schema、12 net）；唯一 WARN = `agent-library repo clean`（27 条，**范围外**）。报告 `.review/lead/release_check_final.json` |
 
-> `--allow-dirty` 的唯一作用是让门禁 1 对 **`D:\agent-library` 的 23 条 dirty（其它项目，不在本次交付范围）**
+> `--allow-dirty` 的唯一作用是让门禁 1 对 **`<agent-library>` 的 23 条 dirty（其它项目，不在本次交付范围）**
 > 记为 WARN 而不是 FAIL；**本仓自身**在提交后由 `git status --porcelain` 独立验证为空。门禁 2–14 不做任何降级。
 
 
 ## 五、本轮**未**修的项（如实记录）
 
-1. `D:\agent-library` 的 23 条 dirty 属**其它项目**的技能，用户明确不在本次交付范围；门禁 1 对它的判定以
+1. `<agent-library>` 的 23 条 dirty 属**其它项目**的技能，用户明确不在本次交付范围；门禁 1 对它的判定以
    `--allow-dirty` 记为**范围外告警**（本仓自身干净，可由 `git status --porcelain` 独立验证）。
 2. `cloud_h3/cases/acceptance/{cp2k,qe,siesta}` 的**第三方解析证据仍缺**（归档作业 PEP 668 导致解析器未安装）；
    目录 README 已如实写明"只是准备好的输入"。补证需要再花一次云端光子，本轮**不花**。

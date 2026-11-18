@@ -1,7 +1,7 @@
 # Round 1 独立评审（对抗式复核）— CIF 处理工作台
 
 > 评审员：`reviewer-r1`（独立评审，未参与实现）｜日期：2026-11-05
-> 评审对象：`D:\Dev\Project5-skill-cif` @ `a3056f5`（main，工作区干净）+ `D:\agent-library\catalog\cif-*`
+> 评审对象：`<repo>` @ `a3056f5`（main，工作区干净）+ `<agent-library>\catalog\cif-*`
 > 方法：**不信任何自报**。所有 PASS 均由评审员本机重跑、重算或读回产物得到；不转述 manifest/测试报告。
 > 约束：只写本文件与 `runs/review_round1/`，**未改任何代码/文档，未 git commit**（`git status --porcelain` 为空）。
 > 环境：Python 3.14.8（venv）、pymatgen 2026.10.24、ase 3.29.0、rdkit 2026.9.1、numpy 2.5.4、scipy 1.18.1；
@@ -44,7 +44,7 @@
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-$PY='D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY='<repo>\.venv\Scripts\python.exe'
 $DEMO='帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。'
 & $PY -m cifkit pipeline $DEMO --outdir runs\review_round1\demo --format vasp,cif,xyz --json
 ```
@@ -168,7 +168,7 @@ $DEMO='帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一
 
 | 命令 | 结果 | exit |
 |---|---|---|
-| `py -3 D:\agent-library\router.py route --agent dsh "<原句>"` | intent=`cif-structure-pipeline`；**第 1 候选 `cif-workbench` score=82**（第 2–5 为 fetch/export/geometry/repair） | 0 |
+| `py -3 <agent-library>\router.py route --agent dsh "<原句>"` | intent=`cif-structure-pipeline`；**第 1 候选 `cif-workbench` score=82**（第 2–5 为 fetch/export/geometry/repair） | 0 |
 | `py -3 scripts\eval_router.py --all` | cases=73；intent top1 73/73；skill top1 73/73；skill top5 73/73；negatives=25 fp=0 (0.0%)；slot 11/11 | 0 |
 | `py -3 scripts\ci.py --fast` | 同上三套评测全绿 | 0 |
 
@@ -225,7 +225,7 @@ DESIGN §1 实际有 **9 条**编号要求；PIPELINE/README/verify_demo 把它�
 
 #### P1-2 文档/技能正文把 `min_image_distance` 当作 `vacuum_measured`（违反自身定义）
 
-- 位置：`docs/PIPELINE.md` §7.2 第 154–155 行；`D:\agent-library\catalog\cif-workbench\SKILL.md` 第 177–178 行。
+- 位置：`docs/PIPELINE.md` §7.2 第 154–155 行；`<agent-library>\catalog\cif-workbench\SKILL.md` 第 177–178 行。
   - 写：`surface … vacuum_measured=15.2396`；`vacuum target 15.0 → measured 15.240 Å`。
 - 实测（同一份 `runs/review_round1/demo/manifest.json`）：`surface.data.vacuum_measured = 15.0`、`surface.data.min_image_distance = 15.2396`；`vacuum.data.measured = 14.999999999999993`。`docs/GEOM.md` §5.1 也明确要求"真空层厚度必须用 `vacuum_perp`（15.000），不能引用 `min_image_distance`"。
 - 期望 vs 实际：文档说 measured=15.240；实际垂直真空 measured=15.000，15.2396 是最小周期像距离。README/DESIGN/GEOM 这三处是对的，PIPELINE 与技能正文错——自相矛盾。
@@ -267,7 +267,7 @@ DESIGN §1 实际有 **9 条**编号要求；PIPELINE/README/verify_demo 把它�
 
 ## 4. 我实际跑过的东西（命令 + 关键输出摘要）
 
-> 全部在 `D:\Dev\Project5-skill-cif`、`$env:PYTHONIOENCODING='utf-8'` 下执行；`$PY=.venv\Scripts\python.exe`。
+> 全部在 `<repo>`、`$env:PYTHONIOENCODING='utf-8'` 下执行；`$PY=.venv\Scripts\python.exe`。
 
 **主链路**
 1. `& $PY -m cifkit --version` → `cifkit 0.1.0`；`& $PY --version` → 3.14.8。
@@ -310,7 +310,7 @@ DESIGN §1 实际有 **9 条**编号要求；PIPELINE/README/verify_demo 把它�
 28. `pipeline --json` 可解析性探针（两次）→ 无效 JSON；`route --json` → 有效 JSON。
 
 **技能/测试/仓库**
-29. `py -3 D:\agent-library\router.py route --agent dsh "<原句>"` → `cif-workbench` 第 1（score 82）。
+29. `py -3 <agent-library>\router.py route --agent dsh "<原句>"` → `cif-workbench` 第 1（score 82）。
 30. `py -3 scripts\eval_router.py --all` → 73/73、neg 0/25、slot 11/11，exit 0。
 31. `py -3 scripts\ci.py --fast` → exit 0。
 32. `& $PY -m pytest tests -q` → exit 0；`--collect-only` 各模块 20/34/3/12/17/6/15/12 = 119。

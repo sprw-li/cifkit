@@ -73,4 +73,4 @@
   `cifkit/schemas/` 四个机器可读 JSON Schema（契约校验在派发前执行）。
 - 诚实溯源：每次运行写 `manifest.json`（查询、来源 URL/DOI/sha256、每步耗时、校验数字、工具版本）；
   `--ingest` 额外入库 `library/`。
-- 技能组交付到 `D:\agent-library\catalog\cif-*`，与引擎命令面（`docs/DESIGN.md` §6c 冻结）逐条对应。
+- 技能组交付到 `<agent-library>\catalog\cif-*`，与引擎命令面（`docs/DESIGN.md` §6c 冻结）逐条对应。

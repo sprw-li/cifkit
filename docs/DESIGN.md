@@ -1,7 +1,7 @@
 # CIF 处理工作台（cifkit）设计
 
 > 状态：v1 冻结接口，供并行开发。任何接口改动先改本文件并通知 Lead。
-> 工作目录：`D:\Dev\Project5-skill-cif`；唯一真源技能库：`D:\agent-library\catalog\`。
+> 工作目录：`<repo>`；唯一真源技能库：`<agent-library>\catalog\`。
 
 ## 1. 目标（验收标准）
 
@@ -70,10 +70,10 @@ runs/              # 运行输出（gitignore，保留 demo 关键文件）
 
 ## 3. 环境（已就绪，勿重复安装）
 
-- Python：`D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe`（venv，`--system-site-packages`）
+- Python：`<repo>\.venv\Scripts\python.exe`（venv，`--system-site-packages`）
   - 已装：`ase 3.29`、`pymatgen 2026.10`、`openbabel-wheel 3.1.1.23`（`from openbabel import openbabel`）、`pytest`；全局继承 `rdkit 2026.09`、`numpy`、`scipy`、`pandas`、`matplotlib`、`networkx`。
 - 网络：COD、Zenodo、PyPI 可达；`rcsr.anu.edu.au` 不可达；figshare API 403。
-- 数据缓存：`D:\Dev\Project5-skill-cif\_cache\core-mof-2024\`（已下载）
+- 数据缓存：`<repo>\_cache\core-mof-2024\`（已下载）
   - `CoREMOF2024DB.zip`（44 MB，8300 个 CIF，目录 `SI/CR/{ASR,FSR,Ion}/` 与 `SI/NCR/{both,Chen_Manz,mofchecker}/`）
   - `ASR_data_SI_20250204.csv`（1372 行；含 `topology(SingleNodes)`、`topology(AllNodes)`、`refcode`、`natoms`、`DOI` 等列）
   - `NCR_ASR_SI.xlsx`（NCR 质检标记）
@@ -189,7 +189,7 @@ python -m cifkit formats
 python -m cifkit selftest
 ```
 
-统一入口：`D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe -m cifkit`（包已 editable 安装）。
+统一入口：`<repo>\.venv\Scripts\python.exe -m cifkit`（包已 editable 安装）。
 
 ## 6d. 测试 fixture（已放好，勿改）
 
@@ -220,7 +220,7 @@ tests/data/sod_zn_mof.cif          # 2017[Zn][sod]（含溶剂 O），750 原子
 - `tests/` 全绿（含 demo 端到端测试）；`_cache` 存在时可全离线跑通。
 - `runs/demo_sod_zif8/` 保留：`raw.cif`、`repaired.cif`、`standardized.cif`、`slab.cif`、`final.cif`、`structure.vasp`、`structure.cif`、`structure.xyz`、`preview.png`、`report.md`、`manifest.json`。
 - 报告必须包含：来源 URL/DOI/sha256、sod 拓扑证据、补氢统计、超胞倍数核对、slab 参数、真空实测值、导出格式清单。
-- 技能：`D:\agent-library\catalog\cif-workbench/`、`cif-fetch/`、`cif-repair/`、`cif-geometry/`、`cif-export/` + intents + evals，`py -3 scripts\ci.py` 相关项通过。
+- 技能：`<agent-library>\catalog\cif-workbench/`、`cif-fetch/`、`cif-repair/`、`cif-geometry/`、`cif-export/` + intents + evals，`py -3 scripts\ci.py` 相关项通过。
 
 ## 8. 协作约定
 

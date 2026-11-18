@@ -87,7 +87,7 @@
 ## 5. 复现命令（仓库根目录）
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING = 'utf-8'
 
 # 1) 联网抓取/留档 6 个 CIF（已有本地文件时自动跳过；--force 强制重下）

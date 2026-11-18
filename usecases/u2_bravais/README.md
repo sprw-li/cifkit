@@ -11,7 +11,7 @@
 ## 1. 快速跑
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $env:PYTHONIOENCODING = 'utf-8'
 
 # Bain 路径扫描：data/bain_path.csv + data/bain_tolerance.csv + 2 张 PNG

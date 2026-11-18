@@ -1,7 +1,7 @@
 # Round 3 轻量确认（收尾项 + 提交状态）— CIF 处理工作台
 
 > 评审员：`reviewer-r1`｜日期：2026-11-05｜时间盒内只做收尾确认，不重跑全量审计。
-> 对象：`D:\Dev\Project5-skill-cif`（工作树，`HEAD=a3e4bde` + Round-4 未提交改动）+ `D:\agent-library`。
+> 对象：`<repo>`（工作树，`HEAD=a3e4bde` + Round-4 未提交改动）+ `<agent-library>`。
 > 方法：逐条构造最小命令验证 Round 2 报告的 PARTIAL P2-5 / P2-6 与 6 条新 P2 的收尾；**未改代码/文档**（只写本文件与 `runs/review_round3/`）。
 
 ## 0. 结论
@@ -16,7 +16,7 @@
 **验证时的 git 状态（记录在案，供最终提交后比对）**：
 
 ```text
-$ git -C D:\Dev\Project5-skill-cif status --short
+$ git -C <repo> status --short
  M README.md
  M cifkit/cli.py
  M cifkit/provenance.py

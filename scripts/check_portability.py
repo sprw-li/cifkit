@@ -1,6 +1,6 @@
 """Do any exported files leak host-specific absolute paths?
 
-A generated input that contains ``D:\\Dev\\Project5-skill-cif\\...`` (or ``/home/someone``)
+A generated input that contains ``D:\\path\\to\\repo\\...`` (or ``/home/someone``)
 is not portable: it fails on a cluster or in a container.  Round 28 found exactly
 that in the NWChem export (ASE's default ``permanent_dir``), by running the file
 in a cloud container.

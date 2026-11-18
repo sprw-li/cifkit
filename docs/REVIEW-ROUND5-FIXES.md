@@ -1,7 +1,7 @@
 # Round 5 收尾确认：Round-4 P1/P2 修复 + 最终回归
 
 > 评审员：`reviewer-r1`｜日期：2026-11-05｜时间盒：10–15 分钟轻量确认（不重跑数据源全量审计）。
-> 对象：`D:\Dev\Project5-skill-cif` **HEAD=`bd9451d`**、`D:\agent-library` **HEAD=`b0aee05`**；两仓工作树干净（agent-library 仅无关历史 untracked `catalog/condopt-router/`）。
+> 对象：`<repo>` **HEAD=`bd9451d`**、`<agent-library>` **HEAD=`b0aee05`**；两仓工作树干净（agent-library 仅无关历史 untracked `catalog/condopt-router/`）。
 > 方法：所有结论由评审员本机重跑；**未改代码/文档**（只写本文件与 `runs/review_round5/`）。
 
 ## 0. 结论

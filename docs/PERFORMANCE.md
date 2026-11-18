@@ -28,7 +28,7 @@
 复现：
 
 ```powershell
-$PY = 'D:\Dev\Project5-skill-cif\.venv\Scripts\python.exe'
+$PY = '<repo>\.venv\Scripts\python.exe'
 $spec = '帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞，沿(111)面切出表面，并加上15A的真空层，导出为计算化学软件使用的格式'
 Measure-Command { & $PY -m cifkit batch --spec $spec --spec $spec --spec $spec --jobs 1 --outdir runs\_bench_b1 --json }
 Measure-Command { & $PY -m cifkit batch --spec $spec --spec $spec --spec $spec --jobs 3 --outdir runs\_bench_b3 --json }
