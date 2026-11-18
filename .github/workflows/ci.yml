@@ -95,6 +95,7 @@ jobs:
             runs/check_eol.json
             runs/sca_scan.json
             runs/lead_verify_r11/adversarial_check.json
+            runs/check_all_pytest.xml
           if-no-files-found: ignore
 
   build:

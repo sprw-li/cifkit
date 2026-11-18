@@ -139,7 +139,7 @@ def check_skills() -> tuple[bool, str]:
     ok_all = True
     for skill in skills:
         proc = subprocess.run(
-            ["py", "-3", str(SKILL_CHECK), str(skill)],
+            [str(PY), str(SKILL_CHECK), str(skill)],
             cwd=str(AGENTLIB), capture_output=True, text=True, encoding="utf-8",
             errors="replace", env=env, timeout=300,
         )
@@ -173,7 +173,12 @@ def main() -> int:
         checks.append(("pytest (fast: cli+spec)", *run(
             "pytest-fast", [str(PY), "-m", "pytest", "tests/test_spec.py", "tests/test_cli.py", "-q"])))
     else:
-        checks.append(("pytest (full)", *run("pytest", [str(PY), "-m", "pytest", "tests", "-q"])))
+        # `--junitxml` so a failure of this *second* pytest pass (the one CI caught
+        # flaking on windows/py3.13, after the standalone step had passed) leaves a
+        # named evidence file instead of a bare exit code; the workflow uploads it.
+        checks.append(("pytest (full)", *run(
+            "pytest", [str(PY), "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider",
+                       "--junitxml", str(ROOT / "runs" / "check_all_pytest.xml")])))
 
     checks.append(("verify_demo", *run(
         "verify-demo", [str(PY), str(ROOT / "scripts" / "verify_demo.py"), str(ROOT / "runs" / "demo_sod_zif8")])))
@@ -181,14 +186,14 @@ def main() -> int:
     if not args.skip_agentlib and AGENTLIB.is_dir():
         route_ok, route_detail = run(
             "route",
-            ["py", "-3", str(AGENTLIB / "router.py"), "route", "--agent", "dsh", DEMO],
+            [str(PY), str(AGENTLIB / "router.py"), "route", "--agent", "dsh", DEMO],
             cwd=AGENTLIB,
         )
         # full-output check: the first candidate must be the workbench skill
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
         proc = subprocess.run(
-            ["py", "-3", str(AGENTLIB / "router.py"), "route", "--agent", "dsh", DEMO],
+            [str(PY), str(AGENTLIB / "router.py"), "route", "--agent", "dsh", DEMO],
             cwd=str(AGENTLIB), capture_output=True, text=True, encoding="utf-8",
             errors="replace", env=env, timeout=300,
         )
@@ -197,7 +202,7 @@ def main() -> int:
         checks.append(("agentlib: router route", proc.returncode == 0 and first_is_workbench,
                        f"first-candidate-cif-workbench={first_is_workbench}; {route_detail}"))
         eval_ok, eval_detail = run(
-            "eval", ["py", "-3", str(AGENTLIB / "scripts" / "eval_router.py"), "--all"],
+            "eval", [str(PY), str(AGENTLIB / "scripts" / "eval_router.py"), "--all"],
             cwd=AGENTLIB)
         if not eval_ok:
             # the catalog lives in another repo: say *why* it failed, not just "exit 1"
@@ -207,7 +212,7 @@ def main() -> int:
                 eval_detail = f"{eval_detail} :: {diagnosis}"
         checks.append(("agentlib: eval_router --all", eval_ok, eval_detail))
         checks.append(("agentlib: ci --fast", *run(
-            "ci", ["py", "-3", str(AGENTLIB / "scripts" / "ci.py"), "--fast"], cwd=AGENTLIB)))
+            "ci", [str(PY), str(AGENTLIB / "scripts" / "ci.py"), "--fast"], cwd=AGENTLIB)))
 
         skills_ok, skills_detail = check_skills()
         checks.append(("agentlib: check_skill cif-*", skills_ok, skills_detail))
