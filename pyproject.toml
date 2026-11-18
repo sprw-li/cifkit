@@ -18,7 +18,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+# `pytest` runs the suite; `PyYAML` is needed by scripts/check_ci.py (a gate that
+# also runs inside check_all/release_check and in CI), which is why a clean
+# `pip install -e ".[test]"` must pull it in — CI found this the hard way.
+test = ["pytest", "PyYAML"]
 
 [project.scripts]
 cifkit = "cifkit.cli:main"

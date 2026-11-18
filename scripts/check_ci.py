@@ -66,7 +66,14 @@ ON_DEMAND: dict[str, str] = {
 
 
 def load_workflow(path: Path) -> dict:
-    import yaml
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:  # pragma: no cover - CI/packaging guard
+        raise SystemExit(
+            "error: this gate parses .github/workflows/ci.yml and needs PyYAML.\n"
+            "       Install it with `pip install PyYAML` (it is part of the "
+            "`.[test]` extra: `pip install -e \".[test]\"`)."
+        ) from exc
 
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 

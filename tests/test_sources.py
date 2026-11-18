@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from cifkit.cache import cache_dir
 from cifkit.sources import available_sources, get_source, resolve
 from cifkit.sources import core_mof
 from cifkit.sources.cod import cod_available
@@ -17,7 +18,10 @@ from cifkit.spec import parse_request
 from cifkit.types import SourceQuery, TaskSpec
 
 ROOT = Path(__file__).resolve().parents[1]
-CACHE = ROOT / "_cache" / "core-mof-2024"
+# The gate must ask the *effective* cache (i.e. ``$CIFKIT_CACHE`` first), otherwise a
+# machine with a populated ``<repo>/_cache`` but an empty ``CIFKIT_CACHE`` runs tests
+# that are guaranteed to fail — CI found this the hard way (round 58).
+CACHE = cache_dir("core-mof-2024")
 ZIP = CACHE / "CoREMOF2024DB.zip"
 DATA = ROOT / "tests" / "data"
 

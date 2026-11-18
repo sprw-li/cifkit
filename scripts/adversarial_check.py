@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -106,8 +107,18 @@ def main() -> int:
     out = work / "batch"
     proc = run(["convert", str(batch_src), "--to", "vasp", "--outdir", str(out), "--json"])
     data = loads(proc.stdout)
-    check("convert batch: case-insensitive dedupe (3 inputs, not 6)",
-          proc.returncode == 0 and data["n_inputs"] == 3 and data["n_ok"] == 3,
+    # The property is "each input is converted exactly once".  What counts as one
+    # input depends on the filesystem: on Windows/macOS `*.cif` also matches
+    # `b.CIF` (3 hits, and the walker must not double-count it), while on a
+    # case-sensitive filesystem `b.CIF` is simply not a `*.cif` match (2 hits).
+    # CI (round 58) caught the original Windows-only expectation as a failure on
+    # Linux; both branches below encode the same invariant.
+    case_insensitive = os.path.normcase("A") == os.path.normcase("a")
+    expected_inputs = 3 if case_insensitive else 2
+    check(f"convert batch: each input converted once ({expected_inputs} inputs, "
+          f"case-sensitive fs={not case_insensitive})",
+          proc.returncode == 0 and data["n_inputs"] == expected_inputs
+          and data["n_ok"] == expected_inputs,
           f"n_inputs={data['n_inputs']} n_ok={data['n_ok']}")
     manifest = json.loads((out / "convert_manifest.json").read_text(encoding="utf-8"))
     check("convert batch: manifest has per-run outdir",

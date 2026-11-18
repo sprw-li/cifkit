@@ -6,11 +6,19 @@ from pathlib import Path
 import pytest
 from pymatgen.core import Structure
 
+from cifkit.cache import cache_dir
 from cifkit.pipeline import run
 from cifkit.spec import parse_request
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "data"
+#: tolerant on purpose: `runs/demo_sod_zif8/` in this repository already contains the
+#: full recorded artifact set, so a clone without the CoRE archive can still run
+#: `scripts/verify_demo.py`; only the *live* pipeline below needs the archive.
+CORE_ZIP = cache_dir("core-mof-2024") / "CoREMOF2024DB.zip"
+needs_core = pytest.mark.skipif(
+    not CORE_ZIP.is_file(),
+    reason="CoRE MOF 2024 cache 缺失（跑 scripts/bootstrap_data.py，或设置 CIFKIT_CACHE）")
 DEMO = (
     "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），"
     "沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。"
@@ -47,9 +55,10 @@ def test_no_h_added_on_complete_structure(tmp_path):
     assert repair.data.get("added_h") == 0
 
 
+@needs_core
 @pytest.mark.slow
 def test_demo_pipeline(tmp_path):
-    """完整 demo：需要 _cache 里已有 CoRE MOF 2024 数据。"""
+    """完整 demo：需要 CoRE MOF 2024 归档在**生效的**缓存里（CI 上会 skip）。"""
     spec = parse_request(DEMO, outdir=tmp_path / "demo")
     result = run(spec)
     assert result.ok, [s for s in result.steps if s.status == "failed"]

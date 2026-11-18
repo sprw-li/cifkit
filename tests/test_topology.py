@@ -11,13 +11,17 @@ import pytest
 from pymatgen.core import Lattice, Structure
 
 from cifkit import topology
+from cifkit.cache import cache_dir
 from cifkit.types import StructureRecord
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tests" / "data"
-CACHE_ZIP = ROOT / "_cache" / "core-mof-2024" / "CoREMOF2024DB.zip"
+# gate on the *effective* cache ($CIFKIT_CACHE first) — see tests/test_sources.py
+CACHE_ZIP = cache_dir("core-mof-2024") / "CoREMOF2024DB.zip"
 
-needs_core = pytest.mark.skipif(not CACHE_ZIP.is_file(), reason="CoRE MOF 2024 缓存缺失")
+needs_core = pytest.mark.skipif(
+    not CACHE_ZIP.is_file(),
+    reason="CoRE MOF 2024 cache 缺失（跑 scripts/bootstrap_data.py，或设置 CIFKIT_CACHE）")
 
 # sod 参考签名（由 underlying net 结构比对得到，不是数据库标签）
 SOD_COORDINATION_SEQUENCE = [4.0, 10.0, 20.0, 34.0, 52.0, 74.0, 100.0, 130.0]
