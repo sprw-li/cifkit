@@ -1,5 +1,12 @@
 # CIF 处理工作台（cifkit）— Project5
 
+[![ci](https://github.com/sprw-li/cifkit/actions/workflows/ci.yml/badge.svg)](https://github.com/sprw-li/cifkit/actions/workflows/ci.yml)
+![python](https://img.shields.io/badge/python-3.11%20%7C%203.13-blue.svg)
+![licence](https://img.shields.io/badge/licence-MIT-green.svg)
+
+> CI：ubuntu / macOS / Windows × Python 3.11 / 3.13 六个矩阵任务 + 打包任务全绿（`scripts/check_all.py`、
+> 31 格式 + 12 bundle、`verify_corpus`、`check_ci`、`adversarial_check` 都在每个 runner 上真跑过）。
+
 把「从数据库下载下来的裸 CIF」变成「能直接喂给 VASP / QE / CP2K / LAMMPS 的结构」：
 **选型下载 → 拓扑核实 → 修复（补氢 / 无序占位 / 近邻）→ 标准胞 → 超胞 → (hkl) 切面 → 真空层 → 导出 → 校验 → 入库**。
 
