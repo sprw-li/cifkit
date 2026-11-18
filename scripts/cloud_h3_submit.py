@@ -83,7 +83,9 @@ def build_zip() -> Path:
 
 def run_cli(args: list[str], *, network: bool) -> subprocess.CompletedProcess:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    proc = subprocess.run(["py", "-3", str(CLI), *args], cwd=str(ROOT), env=env,
+    # `sys.executable`, not the Windows-only `py -3` launcher: this wrapper must
+    # also run on Linux/macOS (round 58: CI caught `FileNotFoundError: 'py'`).
+    proc = subprocess.run([sys.executable, str(CLI), *args], cwd=str(ROOT), env=env,
                           capture_output=True, text=True, encoding="utf-8", errors="replace",
                           timeout=1800)
     print(proc.stdout.strip()[-2500:])
@@ -171,6 +173,16 @@ def main() -> int:
         run_cli(["fetch", "--job-id", args.job_id, "--dest", args.fetch_dest], network=True)
         return 0
 
+    # Credential gate *first* (round 58): asking to spend photons without the
+    # credentials must fail before any work happens — the old order ran the dry-run
+    # first, which needs the external cloud-gpu-bohrium skill and therefore refused
+    # late (and with a confusing message) on a machine that does not have it.
+    if args.go and missing:
+        print(f"missing credentials: {', '.join(missing)}")
+        print("refusing to submit — set the variables in this shell, then rerun with --go.")
+        print("(The pipeline never invents a base URL; see the skill's hard rules.)")
+        return 1
+
     bundle = build_zip()
     if args.check and not (args.dry_run or args.go):
         print("next: set the three variables in this shell (values never go into chat or files),")
@@ -202,12 +214,6 @@ def main() -> int:
     if not args.go:
         print("\ndry-run only. Add --go to probe + submit (spends photons).")
         return 0
-
-    if missing:
-        print(f"\nmissing credentials: {', '.join(missing)}")
-        print("refusing to submit — set the variables in this shell, then rerun with --go.")
-        print("(The pipeline never invents a base URL; see the skill's hard rules.)")
-        return 1
 
     if args.bohr:
         image = args.image or "registry.dp.tech/infra/pytorch:2.13.0-cuda12.6-cudnn9-runtime"

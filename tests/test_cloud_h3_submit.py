@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+#: where the wrapper looks for the external skill (same default/env override as the script)
+_AGENTLIB = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library"))
+_CLOUD_CLI = _AGENTLIB / "catalog" / "cloud-gpu-bohrium" / "scripts" / "cloud_gpu.py"
 
 
 def _load():
@@ -58,18 +62,17 @@ def test_input_bundle_is_reproducible(wrapper):
 def test_go_without_credentials_refuses_and_stays_offline(wrapper):
     """The whole point: never spend photons by accident.
 
-    The subprocess uses the *real* ``runs/cloud_h3`` directory (monkeypatching the
-    parent cannot reach it), so this test watches that directory instead.
+    Round 58: the refusal now happens *before* the dry-run, so this test works on a
+    machine that does not have the external cloud-gpu-bohrium skill (CI) and the
+    guarantee is stronger — no work at all happens without credentials.
     """
     import os
-    import time
 
     out_dir = wrapper.OUT
     out_dir.mkdir(parents=True, exist_ok=True)
-    for stale in ("cli_probe.log", "cli_submit.log", "submit_probe.json"):
+    for stale in ("cli_probe.log", "cli_submit.log", "submit_probe.json",
+                  "dryrun_probe.json"):
         (out_dir / stale).unlink(missing_ok=True)
-    marker = out_dir / "dryrun_probe.json"
-    before = marker.stat().st_mtime if marker.exists() else 0.0
 
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "cloud_h3_submit.py"),
                            "--go", "--stage", "probe"],
@@ -78,14 +81,27 @@ def test_go_without_credentials_refuses_and_stays_offline(wrapper):
                           env={k: v for k, v in os.environ.items()
                                if k not in wrapper.CREDENTIAL_VARS})
     assert proc.returncode == 1, proc.stdout + proc.stderr
-    assert "refusing to submit" in proc.stdout
-    assert "missing credentials" in proc.stdout
-    # only the zero-network dry-run ran: no probe/submit evidence was produced
+    assert "refusing to submit" in proc.stdout, proc.stdout
+    assert "missing credentials" in proc.stdout, proc.stdout
+    # no probe/submit evidence, and not even the zero-network dry-run ran
     assert not (out_dir / "cli_probe.log").exists(), "probe must not run without credentials"
     assert not (out_dir / "cli_submit.log").exists(), "submit must not run without credentials"
     assert not (out_dir / "submit_probe.json").exists()
-    # the payload is still verifiable
-    assert marker.is_file() and marker.stat().st_mtime >= before
+    assert not (out_dir / "dryrun_probe.json").exists(), (
+        "the credential gate must fire before any dry-run work")
+
+
+@pytest.mark.skipif(not _CLOUD_CLI.is_file(),
+                    reason="外部 cloud-gpu-bohrium 技能不在本机（CI 故意跳过；设 CIFKIT_AGENTLIB 可启用）")
+def test_dry_run_is_offline_and_writes_a_report(wrapper):
+    """The zero-network path: payload + cost exposure, no probe, no submit."""
+    proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "cloud_h3_submit.py"),
+                           "--dry-run", "--stage", "probe"],
+                          cwd=str(ROOT), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=900)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "dry-run only" in proc.stdout, proc.stdout
+    assert not (wrapper.OUT / "submit_probe.json").exists()
 
 
 def test_stage_defaults_are_cheap(wrapper):

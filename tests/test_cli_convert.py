@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,14 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 ZIF8 = ROOT / "tests" / "data" / "zif8_cr_sod.cif"
+#: True on Windows/macOS (and any case-insensitive volume): `*.cif` also matches
+#: `*.CIF`, so a directory with a.cif + b.CIF + c.cif yields *three* matches that
+#: must be deduped, not six.  On a case-sensitive filesystem `b.CIF` is simply not
+#: matched and the honest expectation is two.  Round 58 CI caught both tests below
+#: hard-coding the Windows answer.
+CASE_INSENSITIVE_FS = os.path.normcase("A") == os.path.normcase("a")
+CIF_MATCHES = 3 if CASE_INSENSITIVE_FS else 2
+CIF_STEMS = ("a", "b", "c") if CASE_INSENSITIVE_FS else ("a", "c")
 
 
 def _run(args, timeout: int = 300):
@@ -113,7 +122,11 @@ def test_dataset_cli(tmp_path):
 
 
 def test_features_dir_dedupes_case_insensitive_glob(tmp_path):
-    """P1 (Round 8): *.cif and *.CIF both match on Windows; directory inputs must be deduped."""
+    """P1 (Round 8): *.cif and *.CIF both match on Windows; directory inputs must be deduped.
+
+    Platform-aware since round 58: on a case-sensitive filesystem `b.CIF` is not a
+    `*.cif` match at all, so the invariant there is "one row per matched file".
+    """
     pytest.importorskip("cifkit.features")
     src = tmp_path / "cifs"
     src.mkdir()
@@ -123,9 +136,9 @@ def test_features_dir_dedupes_case_insensitive_glob(tmp_path):
     proc = _run(["features", str(src), "--out", str(out), "--no-rdf", "--json", "--jobs", "1"])
     assert proc.returncode == 0, proc.stderr
     data = json.loads(proc.stdout)
-    assert data["n_inputs"] == 3 and data["n_ok"] == 3, data
+    assert data["n_inputs"] == CIF_MATCHES and data["n_ok"] == CIF_MATCHES, data
     rows = list(csv.DictReader(out.open(encoding="utf-8-sig")))
-    assert len(rows) == 3
+    assert len(rows) == CIF_MATCHES
 
 
 def test_pipeline_bundle_writes_deck(tmp_path):
@@ -163,13 +176,14 @@ def test_convert_directory_batch_manifest(tmp_path):
     proc = _run(["convert", str(src), "--to", "vasp,xyz", "--outdir", str(out), "--json"])
     assert proc.returncode == 0, proc.stderr
     data = json.loads(proc.stdout)
-    assert data["n_inputs"] == 3 and data["n_ok"] == 3 and data["n_failed"] == 0
+    assert (data["n_inputs"] == data["n_ok"] == CIF_MATCHES
+            and data["n_failed"] == 0), data
     assert (out / "convert_manifest.json").is_file()
-    for stem in ("a", "b", "c"):
+    for stem in CIF_STEMS:
         assert (out / stem / f"{stem}.vasp").is_file()
         assert (out / stem / f"{stem}.xyz").is_file()
-    assert all(run["outdir"].endswith(run["input"].split("\\")[-1].rsplit(".", 1)[0])
-               for run in data["runs"])
+    assert all(run["outdir"].replace("\\", "/").split("/")[-1]
+               == Path(run["input"]).stem for run in data["runs"])
 
 
 def test_convert_batch_records_bad_input(tmp_path):

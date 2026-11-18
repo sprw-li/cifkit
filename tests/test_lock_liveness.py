@@ -58,7 +58,11 @@ def test_process_token_is_stable_for_this_process():
     first = _process_token()
     assert first
     assert first == _process_token(), "the token must not change while we run"
-    assert first.startswith(f"{os.getpid()}:")
+    # The token is pid-prefixed on every platform; only the start-time suffix needs
+    # OS support (`/proc` on Linux, `GetProcessTimes` on Windows), so macOS/BSD fall
+    # back to the bare pid - see cifkit/locks.py.  Round 58 CI caught the old
+    # assertion (which demanded the 'pid:start' form) failing on macOS.
+    assert first.startswith(str(os.getpid())), first
 
 
 def test_recycled_pid_is_detected_as_a_different_process(tmp_path):

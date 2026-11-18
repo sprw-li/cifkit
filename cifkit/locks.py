@@ -47,7 +47,13 @@ def _release(lock: Path, *, attempts: int = 5) -> bool:
     return False
 
 def _process_token(pid: int | None = None) -> str | None:
-    """Identify a *process instance*: pid + start time (survives PID reuse)."""
+    """Identify a *process instance*: pid + start time (survives PID reuse).
+
+    The start-time suffix needs OS support: ``GetProcessTimes`` on Windows, and
+    ``/proc/<pid>/stat`` on Linux.  Elsewhere (macOS/BSD) it degrades to the bare
+    pid, so PID reuse cannot be told apart there and stale-lock recovery leans on
+    the stale window instead — an honest capability gap rather than a failure.
+    """
     pid = os.getpid() if pid is None else pid
     if os.name == "nt":
         import ctypes

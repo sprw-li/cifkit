@@ -102,11 +102,19 @@ def test_percentile_edges(load):
 def test_closed_loop_measures_throughput(load):
     service = StubService(delay=0.005)
     row = load.run_level(service, "not used", level=1, seconds=0.5)
-    assert row["ok"] > 10, row
-    # 5 ms per call -> ~200 rps ceiling; assert we are in the right order of magnitude
-    assert 50 < row["throughput_rps"] < 250, row
+    assert row["ok"] > 5, row
     assert row["errors"] == {}
     assert row["p50_ms"] > 0
+    # Machine-independent assertion (round 58: a shared macOS CI runner measured
+    # ~35 rps where a dev box measures ~200, so the old absolute window
+    # `50 < rps < 250` was really an assertion about the machine, not the code).
+    # What must hold is that the closed loop *measures* throughput: the sample size
+    # is non-trivial, and the observed rate is consistent with the measured latency
+    # (never above the 1/p50 ceiling by much, and not orders of magnitude below it,
+    # which would mean the loop is idling or serialising).
+    ceiling_rps = 1000.0 / row["p50_ms"]
+    assert row["throughput_rps"] <= ceiling_rps * 1.5, row
+    assert row["throughput_rps"] > ceiling_rps / 20, row
 
 
 def test_a_sleeping_stub_does_scale(load):
