@@ -45,7 +45,17 @@ import pytest
 from pymatgen.core import Structure
 
 from cifkit.repair import check_structure, perceive_bonds, repair_all
+from cifkit.repair import hydrogen as _hydrogen
 from cifkit.repair.bonds import is_metal
+
+#: The three MOF cases below assert the *RDKit* hydrogen placement (ring-plane C-H,
+#: 109.5 deg methyl, mu3-OH).  RDKit is an optional dependency of the library -
+#: without it `repair_all` degrades to a geometric VSEPR fallback whose counts can
+#: differ - so those tests skip with a reason instead of failing, and CI installs
+#: rdkit through the `test` extra so the real path is what actually gets exercised.
+needs_rdkit = pytest.mark.skipif(
+    not getattr(_hydrogen, "_RDKIT_AVAILABLE", False),
+    reason="rdkit 缺失：本用例断言 RDKit 补氢几何（装 rdkit 或 pip install -e \".[test]\"）")
 
 DATA = Path(__file__).parent / "data"
 MOF5_HFREE = DATA / "mof5_hfree.cif"
@@ -242,6 +252,7 @@ def repaired_hkust1():
 # ---------------------------------------------------------------------------
 # MOF-5: Zn4O(BDC)3, pcu  (CoRE 2007[Zn][pcu]3[ASR]3, DOI 10.1021/ja074366o)
 # ---------------------------------------------------------------------------
+@needs_rdkit
 def test_mof5_hfree_repairs_to_full_bdc_hydrogen(repaired_mof5):
     source, repaired, report = repaired_mof5
     assert len(source) == 82
@@ -332,6 +343,7 @@ def test_mof5_hcomplete_is_noop():
 # ---------------------------------------------------------------------------
 # UiO-66: Zr6O4(OH)4(BDC)6, fcu
 # ---------------------------------------------------------------------------
+@needs_rdkit
 def test_uio66_hfree_repairs_ring_and_mu3_oh_hydrogen(repaired_uio66):
     source, repaired, report = repaired_uio66
     assert len(source) == 86
@@ -418,6 +430,7 @@ def test_uio66_real_ncr_fixture_is_kept_for_provenance_only():
 # ---------------------------------------------------------------------------
 # HKUST-1: Cu3(BTC)2, tbo
 # ---------------------------------------------------------------------------
+@needs_rdkit
 def test_hkust1_hfree_repairs_btc_ring_hydrogen(repaired_hkust1):
     source, repaired, report = repaired_hkust1
     assert len(source) == 132

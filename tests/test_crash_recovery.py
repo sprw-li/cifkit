@@ -58,6 +58,25 @@ def _kill(proc: subprocess.Popen) -> None:
     proc.wait(timeout=30)
 
 
+def _read_text_when_released(path: Path, *, attempts: int = 40, delay: float = 0.05) -> str:
+    """Read ``path``, tolerating the transient Windows lock a just-killed child holds.
+
+    On Windows the kernel can keep the file handle of a SIGKILL-equivalent child
+    alive for a few milliseconds after ``Popen.wait()`` returns, so an immediate
+    read raises ``PermissionError``.  That is a platform artefact, not a torn
+    write, so the test retries (bounded) instead of flaking — round 58 CI caught
+    this on the *real* runners as well.
+    """
+    last: Exception | None = None
+    for _ in range(attempts):
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError as exc:      # windows-only transient
+            last = exc
+            time.sleep(delay)
+    raise AssertionError(f"could not read {path.name} after {attempts} attempts: {last!r}")
+
+
 def test_killed_appender_leaves_only_complete_lines(tmp_path):
     target = tmp_path / "index.jsonl"
     proc = _start(APPENDER, [str(target), "400", "0.005"], tmp_path)
@@ -70,7 +89,7 @@ def test_killed_appender_leaves_only_complete_lines(tmp_path):
     time.sleep(0.15)
     _kill(proc)
 
-    text = target.read_text(encoding="utf-8")
+    text = _read_text_when_released(target)
     lines = text.splitlines()
     assert lines, "the child should have written at least one line"
     for line in lines:
@@ -81,17 +100,31 @@ def test_killed_appender_leaves_only_complete_lines(tmp_path):
 def test_killed_atomic_writer_never_truncates(tmp_path):
     target = tmp_path / "blob.txt"
     proc = _start(ATOMIC_WRITER, [str(target), "A"], tmp_path)
-    time.sleep(0.4)
+    # wait for the first completed generation so the assertion below cannot pass
+    # vacuously (a kill before the first `os.replace` would leave no target at all)
+    deadline = time.time() + 30
+    while time.time() < deadline and not target.exists():
+        time.sleep(0.02)
+    assert target.exists(), "the child never produced a first generation"
+    time.sleep(0.05)                     # land the kill inside a later write cycle
     _kill(proc)
 
-    if target.exists():
-        content = target.read_text(encoding="utf-8")
-        assert content, "target must not be empty"
-        assert set(content) == {"A"}, "content must be one complete generation"
-        assert len(content) == 20000, f"truncated write: {len(content)} chars"
-    # temp files must not be left behind
-    leftovers = [p.name for p in tmp_path.glob("blob.txt.tmp*")]
-    assert not leftovers, f"temp files left: {leftovers}"
+    # The target is only ever swapped in by `os.replace`, so at every instant it is
+    # one *whole* generation: this is the contract the readers rely on.
+    content = _read_text_when_released(target)
+    assert content, "target must not be empty"
+    assert set(content) == {"A"}, "content must be one complete generation"
+    assert len(content) == 20000, f"truncated target: {len(content)} chars"
+
+    # A SIGKILL cannot run cleanup, and it can land while the temp file is still
+    # being written, so a leftover `blob.txt.tmp*` may exist and may even be empty.
+    # That is precisely why readers must open only `target` (cifkit's do).  So the
+    # invariant asserted here is "no stray reader-facing file", not "no temp file":
+    # round 58 CI caught the earlier form of this check as a flake on all platforms.
+    known = {"blob.txt", "child.py"}
+    unexpected = sorted(p.name for p in tmp_path.iterdir()
+                        if p.name not in known and not p.name.startswith("blob.txt.tmp"))
+    assert not unexpected, f"unexpected files beside the target: {unexpected}"
 
 
 def test_rerun_after_crash_is_idempotent(tmp_path):
@@ -107,7 +140,7 @@ def test_rerun_after_crash_is_idempotent(tmp_path):
         time.sleep(0.02)
     time.sleep(0.1)
     _kill(proc)
-    before = len(target.read_text(encoding="utf-8").splitlines())
+    before = len(_read_text_when_released(target).splitlines())
 
     # "re-running" writes the same logical entry under a stable key.  The killed
     # child may have left its lock behind, so a short stale window is used here: the
