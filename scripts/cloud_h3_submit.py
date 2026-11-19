@@ -30,8 +30,14 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library")) / "catalog" / "cloud-gpu-bohrium"
-CLI = SKILL / "scripts" / "cloud_gpu.py"
+#: The cloud-GPU escalation skill is *not* a CIF skill and does not ship here: point
+#: CIFKIT_AGENTLIB at the catalog checkout that contains
+#: ``catalog/cloud-gpu-bohrium`` when you actually want to submit a job.  Round 58:
+#: no machine-specific default path any more — this repository must not silently
+#: depend on somebody's local layout.
+CATALOG_ROOT = os.environ.get("CIFKIT_AGENTLIB")
+SKILL = Path(CATALOG_ROOT) / "catalog" / "cloud-gpu-bohrium" if CATALOG_ROOT else None
+CLI = SKILL / "scripts" / "cloud_gpu.py" if SKILL else None
 BUNDLE = ROOT / "cloud_h3"
 OUT = ROOT / "runs" / "cloud_h3"
 
@@ -144,6 +150,20 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
 
+    def require_skill() -> int | None:
+        """The escalation skill is external; say so before doing anything costly."""
+        if CLI is None:
+            print("error: 这个包装器需要外部的 cloud-gpu-bohrium 技能（不属于本项目）。\n"
+                  "       把 CIFKIT_AGENTLIB 指向包含 catalog/cloud-gpu-bohrium 的 catalog checkout，例如：\n"
+                  "       $env:CIFKIT_AGENTLIB='<catalog-repo>'; python scripts\\cloud_h3_submit.py --dry-run",
+                  file=sys.stderr)
+            return 2
+        if not CLI.is_file():
+            print(f"error: 找不到 {CLI} —— CIFKIT_AGENTLIB={CATALOG_ROOT} 应指向含 catalog/cloud-gpu-bohrium 的仓",
+                  file=sys.stderr)
+            return 2
+        return None
+
     if args.bohr_status or args.bohr:
         cli = bohr_cli()
         print(f"bohr CLI: {cli}")
@@ -164,6 +184,9 @@ def main() -> int:
     print("credentials:", {k: ("set" if v else "unset") for k, v in state.items()})
 
     if args.job_id:
+        blocked = require_skill()
+        if blocked is not None:
+            return blocked
         if missing:
             print(f"missing credentials: {', '.join(missing)} — refusing (no request sent)")
             return 1
@@ -182,6 +205,11 @@ def main() -> int:
         print("refusing to submit — set the variables in this shell, then rerun with --go.")
         print("(The pipeline never invents a base URL; see the skill's hard rules.)")
         return 1
+
+    # Everything below drives the external escalation skill.
+    blocked = require_skill()
+    if blocked is not None:
+        return blocked
 
     bundle = build_zip()
     if args.check and not (args.dry_run or args.go):

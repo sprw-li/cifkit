@@ -17,9 +17,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-#: where the wrapper looks for the external skill (same default/env override as the script)
-_AGENTLIB = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library"))
-_CLOUD_CLI = _AGENTLIB / "catalog" / "cloud-gpu-bohrium" / "scripts" / "cloud_gpu.py"
+#: The escalation skill is external and non-CIF; the wrapper only looks for it when
+#: CIFKIT_AGENTLIB points at a catalog checkout (round 58: no machine-path default).
+_AGENTLIB = os.environ.get("CIFKIT_AGENTLIB")
+_CLOUD_CLI = (Path(_AGENTLIB) / "catalog" / "cloud-gpu-bohrium" / "scripts" / "cloud_gpu.py"
+              if _AGENTLIB else None)
 
 
 def _load():
@@ -91,8 +93,8 @@ def test_go_without_credentials_refuses_and_stays_offline(wrapper):
         "the credential gate must fire before any dry-run work")
 
 
-@pytest.mark.skipif(not _CLOUD_CLI.is_file(),
-                    reason="外部 cloud-gpu-bohrium 技能不在本机（CI 故意跳过；设 CIFKIT_AGENTLIB 可启用）")
+@pytest.mark.skipif(not (_CLOUD_CLI and _CLOUD_CLI.is_file()),
+                    reason="外部 cloud-gpu-bohrium 技能未配置（设 CIFKIT_AGENTLIB 指向含它的 catalog checkout）")
 def test_dry_run_is_offline_and_writes_a_report(wrapper):
     """The zero-network path: payload + cost exposure, no probe, no submit."""
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "cloud_h3_submit.py"),
@@ -102,6 +104,21 @@ def test_dry_run_is_offline_and_writes_a_report(wrapper):
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "dry-run only" in proc.stdout, proc.stdout
     assert not (wrapper.OUT / "submit_probe.json").exists()
+
+
+def test_without_agentlib_it_refuses_before_any_work():
+    """No CIFKIT_AGENTLIB → actionable error, exit 2, and nothing is written."""
+    env = {k: v for k, v in os.environ.items() if k != "CIFKIT_AGENTLIB"}
+    marker = ROOT / "runs" / "cloud_h3" / "dryrun_probe.json"
+    before = marker.stat().st_mtime if marker.exists() else None
+    proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "cloud_h3_submit.py"),
+                           "--dry-run", "--stage", "probe"],
+                          cwd=str(ROOT), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=300, env=env)
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "cloud-gpu-bohrium" in proc.stderr and "CIFKIT_AGENTLIB" in proc.stderr
+    now = marker.stat().st_mtime if marker.exists() else None
+    assert now == before, "the wrapper must not touch runs/cloud_h3 before resolving the skill"
 
 
 def test_stage_defaults_are_cheap(wrapper):

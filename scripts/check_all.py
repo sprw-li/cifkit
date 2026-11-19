@@ -33,7 +33,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = Path(sys.executable)
-AGENTLIB = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library"))
 DEMO = (
     "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），"
     "沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。"
