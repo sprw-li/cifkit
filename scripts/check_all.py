@@ -4,15 +4,18 @@ Runs, in order:
   1. cifkit selftest (offline imports + parser)
   2. pytest tests (full suite, includes the demo pipeline)
   3. scripts/verify_demo.py runs/demo_sod_zif8 (independent acceptance)
-  4. agent-library router route on the demo sentence (must pick cif-workbench)
-  5. agent-library eval_router --all (must keep 0 false positives)
-  6. agent-library ci.py --fast
-  7. agent-library check_skill on the cif-* skills (each must be errors=0)
-  8. scripts/check_eol.py (hash-pinned files are LF; .gitattributes contract)
-  9. scripts/sca_scan.py --strict (no copyleft *code* in our sources; MIT claim)
+  4. scripts/check_skill.py on every ``skills/cif-*`` (each must be errors=0) — the
+     eight skill bodies ship in this repository, so this needs no other checkout
+  5. scripts/check_eol.py (hash-pinned files are LF; .gitattributes contract)
+  6. scripts/sca_scan.py --strict (no copyleft *code* in our sources; MIT claim)
+  7. scripts/check_bundles.py, scripts/verify_corpus.py, scripts/check_ci.py,
+     scripts/check_portability.py
 
-Optional (``--adversarial``): scripts/adversarial_check.py, which tries to break the
-convert/verify/rings behaviour instead of confirming it.
+Optional extras:
+  * ``--adversarial``: scripts/adversarial_check.py, which tries to break the
+    convert/verify/rings behaviour instead of confirming it;
+  * ``CIFKIT_AGENTLIB=<path>``: also exercise an *external* agent catalog's router /
+    eval / ci.  Nothing in this project's acceptance depends on that checkout.
 
 Usage::
 
@@ -68,23 +71,37 @@ def run(name: str, cmd: list[str], *, cwd: Path = ROOT, timeout: int = 1800, env
 #: full output of every group, for the optional --json report
 DETAIL: list[dict] = []
 
-SKILL_CHECK = AGENTLIB / "catalog" / "skill-retro" / "scripts" / "check_skill.py"
+#: The ``cif-*`` skill bodies ship in this repository under ``skills/`` and are their
+#: own source of truth: they are linted here, by `scripts/check_skill.py`, with no
+#: other checkout involved.  ``CIFKIT_AGENTLIB`` optionally points at an *external*
+#: agent catalog; only when it is set do the router/eval/ci checks for that catalog
+#: run, and they are extras — this project's acceptance never depends on another repo.
+AGENTLIB = Path(os.environ["CIFKIT_AGENTLIB"]) if os.environ.get("CIFKIT_AGENTLIB") else None
+SKILLS_DIR = ROOT / "skills"
+SKILL_CHECK = ROOT / "scripts" / "check_skill.py"
 
 
-def diagnose_agentlib_eval(stdout: str) -> str | None:
+def diagnose_agentlib_eval(stdout: str, catalog: Path | None = None) -> str | None:
     """Explain an ``eval_router`` failure from its own output.
 
-    The skill catalog lives in a *different* repository that other agents edit
-    concurrently, so an eval failure is often "stale expectation", not a router
-    regression.  This turns the raw JSON failure lines into a precise statement:
+    Only used for the *optional* external-catalog extras: when ``CIFKIT_AGENTLIB``
+    points at an agent catalog, its router eval can fail because that catalog was
+    edited concurrently — "stale expectation", not a router regression.  This turns
+    the raw JSON failure lines into a precise statement:
 
     * the wanted skill still exists in the catalog, but a *different* existing
       skill now ranks first  → ``stale-eval`` candidate (update the expectation);
     * the wanted skill is gone from the catalog → ``missing-skill`` (the eval
       references a deleted skill);
-    * anything else → ``router-regression`` (investigate in the other repo).
+    * anything else → ``router-regression`` (investigate in that catalog).
+
+    ``catalog`` defaults to ``$CIFKIT_AGENTLIB/catalog``; pass it explicitly from
+    tests to stay hermetic.
     """
-    catalog = AGENTLIB / "catalog"
+    if catalog is None:
+        if AGENTLIB is None:
+            return None
+        catalog = AGENTLIB / "catalog"
     diagnoses: list[str] = []
     for line in (stdout or "").splitlines():
         line = line.strip()
@@ -113,26 +130,27 @@ def diagnose_agentlib_eval(stdout: str) -> str | None:
             diagnoses.append(f"router-regression? {want!r} 未被命中，top={top}")
     if not diagnoses:
         return None
-    head = ("外部仓库 D:\\agent-library 的目录/评测可能不一致；"
+    head = ("外部 catalog（CIFKIT_AGENTLIB 指向的那个仓）的目录/评测可能不一致；"
             "先确认哪一侧是新意图，再决定改目录还是改评测")
     return head + " :: " + " | ".join(diagnoses[:4])
 
 
 def check_skills() -> tuple[bool, str]:
-    """Run agent-library ``check_skill.py`` on every ``cif-*`` skill.
+    """Lint every ``skills/cif-*`` folder with the in-repo ``scripts/check_skill.py``.
 
-    Keeps the workbench docs and the skill catalog from drifting apart: a skill
-    whose manifest/body stops validating fails ``check_all`` and CI.
+    Keeps the skill bodies and their manifests from drifting apart: a skill whose
+    manifest/body stops validating fails ``check_all`` and CI.  No external
+    checkout is involved — this used to run a linter that lived in another
+    repository, which made our gate depend on that repository's state.
     """
-    catalog = AGENTLIB / "catalog"
     skills = sorted(
-        d for d in catalog.glob("cif-*")
+        d for d in SKILLS_DIR.glob("cif-*")
         if d.is_dir() and (d / "SKILL.md").is_file()
     )
     if not SKILL_CHECK.is_file():
         return False, f"check_skill.py not found at {SKILL_CHECK}"
     if not skills:
-        return False, "no cif-* skills found in the catalog"
+        return False, f"no cif-* skills found in {SKILLS_DIR}"
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     results: list[str] = []
@@ -140,7 +158,7 @@ def check_skills() -> tuple[bool, str]:
     for skill in skills:
         proc = subprocess.run(
             [str(PY), str(SKILL_CHECK), str(skill)],
-            cwd=str(AGENTLIB), capture_output=True, text=True, encoding="utf-8",
+            cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
             errors="replace", env=env, timeout=300,
         )
         out = (proc.stdout or "").strip()
@@ -158,7 +176,8 @@ def check_skills() -> tuple[bool, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fast", action="store_true", help="skip the full pytest suite")
-    ap.add_argument("--skip-agentlib", action="store_true")
+    ap.add_argument("--skip-agentlib", action="store_true",
+                    help="跳过 CIFKIT_AGENTLIB 指向的外部 catalog 附加检查（默认本就不跑）")
     ap.add_argument("--json", default=None,
                     help="把每组状态与完整输出写成 JSON（失败排查用）")
     ap.add_argument("--adversarial", action="store_true",
@@ -183,13 +202,18 @@ def main() -> int:
     checks.append(("verify_demo", *run(
         "verify-demo", [str(PY), str(ROOT / "scripts" / "verify_demo.py"), str(ROOT / "runs" / "demo_sod_zif8")])))
 
-    if not args.skip_agentlib and AGENTLIB.is_dir():
+    skills_ok, skills_detail = check_skills()
+    checks.append(("skills: check_skill cif-*", skills_ok, skills_detail))
+
+    # Optional extras: only when the caller points CIFKIT_AGENTLIB at an external
+    # agent catalog.  These are not part of this project's acceptance criteria — the
+    # cif-* skills above are the ones this repository owns.
+    if AGENTLIB is not None and AGENTLIB.is_dir():
         route_ok, route_detail = run(
             "route",
             [str(PY), str(AGENTLIB / "router.py"), "route", "--agent", "dsh", DEMO],
             cwd=AGENTLIB,
         )
-        # full-output check: the first candidate must be the workbench skill
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
         proc = subprocess.run(
@@ -199,23 +223,19 @@ def main() -> int:
         )
         stdout = proc.stdout or ""
         first_is_workbench = "1. cif-workbench" in stdout
-        checks.append(("agentlib: router route", proc.returncode == 0 and first_is_workbench,
+        checks.append(("agentlib(extra): router route", proc.returncode == 0 and first_is_workbench,
                        f"first-candidate-cif-workbench={first_is_workbench}; {route_detail}"))
         eval_ok, eval_detail = run(
             "eval", [str(PY), str(AGENTLIB / "scripts" / "eval_router.py"), "--all"],
             cwd=AGENTLIB)
         if not eval_ok:
-            # the catalog lives in another repo: say *why* it failed, not just "exit 1"
             diagnosis = diagnose_agentlib_eval(next(
                 (entry["stdout_tail"] for entry in reversed(DETAIL) if entry["name"] == "eval"), ""))
             if diagnosis:
                 eval_detail = f"{eval_detail} :: {diagnosis}"
-        checks.append(("agentlib: eval_router --all", eval_ok, eval_detail))
-        checks.append(("agentlib: ci --fast", *run(
+        checks.append(("agentlib(extra): eval_router --all", eval_ok, eval_detail))
+        checks.append(("agentlib(extra): ci --fast", *run(
             "ci", [str(PY), str(AGENTLIB / "scripts" / "ci.py"), "--fast"], cwd=AGENTLIB)))
-
-        skills_ok, skills_detail = check_skills()
-        checks.append(("agentlib: check_skill cif-*", skills_ok, skills_detail))
 
     checks.append(("check_eol", *run(
         "eol", [str(PY), str(ROOT / "scripts" / "check_eol.py")], timeout=600)))
@@ -250,11 +270,12 @@ def main() -> int:
     for name, ok, detail in checks:
         print(f"[{'PASS' if ok else 'FAIL'}] {name:22s} {detail}")
         failed += 0 if ok else 1
-    agentlib_failures = [name for name, ok, _ in checks if not ok and name.startswith("agentlib:")]
+    agentlib_failures = [name for name, ok, _ in checks
+                         if not ok and name.startswith("agentlib(extra):")]
     if agentlib_failures:
-        print("\nNOTE: 以下组依赖另一个仓库 D:\\agent-library 的当前状态："
-              + ", ".join(agentlib_failures))
-        print("      该项目若正被并发修改（未提交的 intents/catalog 变动），路由评测可能与本工作台无关地失败；")
+        print("\nNOTE: 以下组是**可选**的外部 catalog 检查（CIFKIT_AGENTLIB 指向的另一个仓），"
+              "不属于本项目的验收范围：" + ", ".join(agentlib_failures))
+        print("      该外部仓若正被并发修改（未提交的 intents/catalog 变动），路由评测可能与本工作台无关地失败；")
         print("      排查用 `--json` 报告里的 outputs[].stdout_tail（见 docs/PIPELINE.md §8.14）。")
     print(f"\n{len(checks) - failed}/{len(checks)} groups passed")
     if args.json:

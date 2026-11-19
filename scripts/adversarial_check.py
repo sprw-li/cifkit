@@ -398,10 +398,12 @@ def main() -> int:
 
     # ---------------------------------------------------- 4) check_all group
     text = (ROOT / "scripts" / "check_all.py").read_text(encoding="utf-8")
-    check("check_all: check_skill group wired to the real script",
+    check("check_all: skill lint group wired to the in-repo linter",
           "check_skill.py" in text and "check_skills()" in text
-          and 'agentlib: check_skill' in text and "--skip-agentlib" in text,
-          "helper runs catalog/skill-retro/scripts/check_skill.py over cif-* skills")
+          and "skills: check_skill cif-*" in text
+          and 'SKILL_CHECK = ROOT / "scripts" / "check_skill.py"' in text
+          and "CIFKIT_AGENTLIB" in text,
+          "helper lints skills/cif-* with scripts/check_skill.py; an external catalog is opt-in via CIFKIT_AGENTLIB")
 
     print("\n== summary ==")
     failed = [n for n, ok, _ in results if not ok]

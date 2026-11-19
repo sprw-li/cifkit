@@ -2,10 +2,12 @@
 
 Composes the existing tools into one honest checklist instead of a vibe:
 
-1. **both repositories clean** (this one and the skill catalog) — a release from a
-   dirty tree is not reproducible; ``--allow-dirty`` downgrades that to a warning;
+1. **this repository clean** — a release from a dirty tree is not reproducible;
+   ``--allow-dirty`` downgrades that to a warning.  (``CIFKIT_AGENTLIB`` may point
+   at an external agent catalog; it is then reported as an *informational* row and
+   never blocks the release, because the cif-* skills ship in ``skills/`` here);
 2. **full health check** (``check_all --adversarial``, or ``--fast``) must pass
-   *every* group, including the agent-library ones;
+   *every* group;
 3. **fresh artifacts**: re-runs ``verify_formats.py`` and checks the format report,
    the LF/hash report, the licence scan and the adversarial report;
 4. **documentation contract**: ``docs/LIMITATIONS.md`` parses and its counts add up.
@@ -26,7 +28,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-AGENTLIB = Path(os.environ.get("CIFKIT_AGENTLIB", r"D:\agent-library"))
+#: Optional external agent catalog (router/eval live there).  Unset by default:
+#: the cif-* skills ship in ``skills/`` inside this repository and need no other
+#: checkout, so this can never block a release.
+AGENTLIB = Path(os.environ["CIFKIT_AGENTLIB"]) if os.environ.get("CIFKIT_AGENTLIB") else None
 PY = sys.executable
 
 GATES: list[dict] = []
@@ -134,14 +139,18 @@ def main() -> int:
     record("project repo clean", project_dirty == 0,
            f"HEAD {project_head}, {project_dirty} dirty path(s)",
            warning=args.allow_dirty)
-    if AGENTLIB.is_dir():
+    if AGENTLIB is not None and AGENTLIB.is_dir():
+        # Optional: only when CIFKIT_AGENTLIB points at an external agent catalog.
+        # Nothing in this project's acceptance depends on that checkout, so this is
+        # reported as an out-of-scope warning rather than a release blocker.
         agent_head, agent_dirty = git_state(AGENTLIB)
         report["agentlib_head"] = agent_head
-        record("agent-library repo clean", agent_dirty == 0,
-               f"HEAD {agent_head}, {agent_dirty} dirty path(s)", warning=args.allow_dirty)
+        record("external catalog clean (out of scope, CIFKIT_AGENTLIB)", agent_dirty == 0,
+               f"HEAD {agent_head}, {agent_dirty} dirty path(s)", warning=True)
         report["agentlib_dirty"] = agent_dirty
     else:
-        record("agent-library present", False, f"{AGENTLIB} not found")
+        record("external catalog (CIFKIT_AGENTLIB)", True,
+               "not configured — cif-* skills ship in skills/ and need no other checkout")
 
     # 2) fresh format verification
     verify = run([PY, str(ROOT / "scripts" / "verify_formats.py")], ROOT)

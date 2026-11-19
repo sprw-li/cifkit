@@ -10,12 +10,14 @@
 把「从数据库下载下来的裸 CIF」变成「能直接喂给 VASP / QE / CP2K / LAMMPS 的结构」：
 **选型下载 → 拓扑核实 → 修复（补氢 / 无序占位 / 近邻）→ 标准胞 → 超胞 → (hkl) 切面 → 真空层 → 导出 → 校验 → 入库**。
 
-技能组在 `<agent-library>\catalog\cif-*`（router 可命中）；本仓库是引擎、脚本与验收现场。
-`skills/` 下另存了一份 **8 个 `cif-*` 技能的字节级镜像**（`SKILL.md` + `manifest.json`），目的是让引擎仓自己就带着"怎么驱动引擎"的正文、可一起评审与版本化；live catalog 仍是 agent-library，改技能请先改那边再同步（见 [skills/README.md](skills/README.md)）。
+技能组在 `skills/cif-*`（8 个：`SKILL.md` + `manifest.json`），**随本仓版本化、由本仓的 `scripts/check_skill.py` 校验**
+（接入 `check_all` 的 `skills: check_skill cif-*` 组，所以技能正文的漂移会让体检/CI/发布门禁变红）。本仓克隆下来即自洽，
+不需要任何其它 checkout；若你把技能另喂给某个外部 agent catalog，方向是"从这里复制出去"（`CIFKIT_AGENTLIB` 只加信息性检查，
+不参与验收）。详见 [skills/README.md](skills/README.md)。
 
-> **读法约定（公开版）**：下文 `<repo>` 指本仓的克隆目录，`<agent-library>` 指技能组所在的另一个仓库目录
-> （`catalog/cif-*` 是独立交付的 agent-library 技能，**不在本仓内**；门禁脚本用它时可用环境变量
-> `CIFKIT_AGENTLIB` 覆盖默认路径，未设置时默认指向作者本机布局）。数据集不随仓分发：首次使用先跑
+> **读法约定（公开版）**：下文 `<repo>` 指本仓的克隆目录。技能正文就在本仓 `skills/cif-*`（唯一真源，随仓交付）；
+> `<agent-library>` 只在"某个外部 agent catalog 也消费这些技能"的语境里出现，是**可选**的消费者，不是本项目的依赖
+> （`CIFKIT_AGENTLIB` 可以指向这样一个 checkout，只增加信息性检查）。数据集不随仓分发：首次使用先跑
 > `scripts\bootstrap_data.py` 从 Zenodo 取 CoRE MOF 2024 缓存（见 [LICENSING.md](LICENSING.md)）。
 
 ---
@@ -199,20 +201,23 @@ Set-Location '<repo>'
 
 ---
 
-## 技能组（agent-library）
+## 技能组（`skills/`，随本仓交付）
 
 | skill | 作用 |
 |---|---|
-| `catalog/cif-workbench` | 总入口：一条管线 |
-| `catalog/cif-fetch` | 数据库选型 + 下载 + 拓扑证据 |
-| `catalog/cif-repair` | 补氢 / 无序 / 近邻 / 价态 |
-| `catalog/cif-geometry` | 超胞 / 切面 / 真空 / 金属簇 |
-| `catalog/cif-export` | 格式导出与读回验证（31 种格式 + 12 种计算软件输入包） |
-| `catalog/cif-data` | ML-ready 数据管线：`cifkit features` 结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）、`cifkit dataset` 从 runs/library 汇总（CSV/JSONL + 结构副本 + manifest） |
-| `catalog/cif-usecases` | 进阶应用：`teach` 点群典例教学图 / `bravais` 布拉维点阵对称性 / `metals` 纯金属批量+表面能输入 / `fec` Fe-C 相图套件 |
-| `catalog/cif-to-3dprint` | 把晶体 CIF 转成可 3D 打印的 STL/OBJ：球棍模型、SBU 提取、芳环薄板、元素材质 |
+| `skills/cif-workbench` | 总入口：一条管线 |
+| `skills/cif-fetch` | 数据库选型 + 下载 + 拓扑证据 |
+| `skills/cif-repair` | 补氢 / 无序 / 近邻 / 价态 |
+| `skills/cif-geometry` | 超胞 / 切面 / 真空 / 金属簇 |
+| `skills/cif-export` | 格式导出与读回验证（31 种格式 + 12 种计算软件输入包） |
+| `skills/cif-data` | ML-ready 数据管线：`cifkit features` 结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）、`cifkit dataset` 从 runs/library 汇总（CSV/JSONL + 结构副本 + manifest） |
+| `skills/cif-usecases` | 进阶应用：`teach` 点群典例教学图 / `bravais` 布拉维点阵对称性 / `metals` 纯金属批量+表面能输入 / `fec` Fe-C 相图套件 / `surface-energy` 表面能算术 |
+| `skills/cif-to-3dprint` | 把晶体 CIF 转成可 3D 打印的 STL/OBJ：球棍模型、SBU 提取、芳环薄板、元素材质 |
 
-- 原句路由：`intent=cif-structure-pipeline`，第一候选 `cif-workbench`（修复前曾被误判为 `install-app`）。
+技能正文的校验就在本仓：`python scripts\check_skill.py`（接入 `check_all` 的 `skills: check_skill cif-*` 组）。
+若这些技能被某个外部 agent catalog（如 `agent-library`）复用，方向是"从 `skills/` 复制出去"——本项目的验收不依赖那个仓。
+
+- 原句路由（外部 catalog 的能力，可选）：`intent=cif-structure-pipeline`，第一候选 `cif-workbench`（修复前曾被误判为 `install-app`）。
 - `eval_router --all`（2026-11-16 实测，catalog 96 条）：intent/skill top1/top5 **96/96 = 100%**，负例 0/25 误报，槽位 11/11；`ci.py --fast` 通过。（历史：round 6 时为 89/89、更早 73/73。）
 
 ---
@@ -257,5 +262,5 @@ Set-Location '<repo>'
 - [docs/REPAIR.md](docs/REPAIR.md) — 补氢/无序/近邻算法与局限
 - [docs/GEOM.md](docs/GEOM.md) — 标准化/超胞/切面/真空/簇的实测与坑
 - [docs/EXPORT.md](docs/EXPORT.md) — 导出格式、QE 赝势、读回校验
-- [docs/SKILLS.md](docs/SKILLS.md) — 技能组索引、命令对应表、路由证据
-- `<agent-library>\catalog\cif-*/SKILL.md` — 技能正文（唯一真源）
+- [skills/README.md](skills/README.md) — 8 个 `cif-*` 技能正文（**唯一真源**，随本仓版本化、由 `scripts/check_skill.py` 校验）
+- [docs/SKILLS.md](docs/SKILLS.md) — 技能索引、命令对应表、路由证据（外部 catalog 的路由评测数字，可选）

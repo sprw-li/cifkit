@@ -1,22 +1,25 @@
-# 技能组：CIF 处理工作台（catalog/cif-*）
+# 技能组：CIF 处理工作台（skills/cif-*）
 
-> 技能正文唯一真源：`<agent-library>\catalog\`（本文件只是索引与证据，不复制正文）。
+> 技能正文**唯一真源**：本仓 `skills/cif-*`（`SKILL.md` + `manifest.json`，随仓版本化；
+> 本文件是索引与证据，不复制正文）。校验：`python scripts\check_skill.py`（8 个技能 errors=0）。
 > 引擎入口：`<repo>\.venv\Scripts\python.exe -m cifkit`，命令面冻结于 `docs/DESIGN.md` §6c。
+> 若某个**外部** agent catalog（如 `agent-library`）也消费这组技能，那是可选的消费者：技能从 `skills/` 复制出去，
+> 路由评测（`router.py` / `eval_router.py` / `ci.py`）在那边跑，本项目验收不依赖它。
 
 ## 1. 技能组一览
 
 | skill | catalog 路径 | 管什么 | 典型触发语 |
 |---|---|---|---|
-| `cif-workbench` | `catalog/cif-workbench/SKILL.md` | **总入口**：一条 `pipeline` 跑完 下载→拓扑核实→修复→超胞→切面→真空→导出→校验→manifest | “下载典型 sod 的 MOF，补氢，2x2x1 超胞，切 (111)，加 15 Å 真空，导出计算化学格式” |
-| `cif-fetch` | `catalog/cif-fetch/SKILL.md` | 数据库选型 + 下载：**六个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、QMOF 本地镜像、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
-| `cif-repair` | `catalog/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
-| `cif-geometry` | `catalog/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
-| `cif-usecases` | `catalog/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件；另含配套命令 `cifkit surface-energy`（slab/bulk 能量 → E_surf 算术与单位换算） | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件"、"我有 slab 和 bulk 的能量，算一下表面能" |
-| `cif-data` | `catalog/cif-data/SKILL.md` | ML-ready 数据管线：结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）CSV/JSONL；runs/library → dataset | "批量提取结构特征导出 CSV"、"构建 ML 数据集" |
-| `cif-export` | `catalog/cif-export/SKILL.md` | **cif → anything**：31 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
+| `cif-workbench` | `skills/cif-workbench/SKILL.md` | **总入口**：一条 `pipeline` 跑完 下载→拓扑核实→修复→超胞→切面→真空→导出→校验→manifest | “下载典型 sod 的 MOF，补氢，2x2x1 超胞，切 (111)，加 15 Å 真空，导出计算化学格式” |
+| `cif-fetch` | `skills/cif-fetch/SKILL.md` | 数据库选型 + 下载：**六个数据源**（CoRE MOF 2024 离线缓存/拓扑过滤、COD、Materials Project 需 key、AFLOW 免 key、QMOF 本地镜像、本地文件）；`topology_evidence` 四档 | “从 CoRE MOF 下载一个 sod 拓扑的典型结构，要 raw 的 CIF” |
+| `cif-repair` | `skills/cif-repair/SKILL.md` | 补碳上氢 / 无序占位 / 过近原子；读 `RepairReport` | “这个 CIF 缺氢，把缺失的氢补上” |
+| `cif-geometry` | `skills/cif-geometry/SKILL.md` | 标准胞、超胞、`(hkl)` slab、真空层（实测）、金属簇/SBU | “2x2x1 超胞，沿 (111) 切 slab，加 20 Å 真空” |
+| `cif-usecases` | `skills/cif-usecases/SKILL.md` | 进阶应用（`cifkit teach/bravais/metals/fec`）：点群典例教学图 / 布拉维点阵对称性分析 / 纯金属批量+表面能输入 / Fe-C 相图计算套件；另含配套命令 `cifkit surface-energy`（slab/bulk 能量 → E_surf 算术与单位换算） | "Fd3m 点群典例排成 png"、"对比 cF 与 tI"、"100 种纯金属表面能文件"、"铁碳相图套件"、"我有 slab 和 bulk 的能量，算一下表面能" |
+| `cif-data` | `skills/cif-data/SKILL.md` | ML-ready 数据管线：结构特征表（组成/晶格/对称性/配位数/RDF/拓扑）CSV/JSONL；runs/library → dataset | "批量提取结构特征导出 CSV"、"构建 ML 数据集" |
+| `cif-export` | `skills/cif-export/SKILL.md` | **cif → anything**：31 种格式（VASP/CIF/XYZ/EXTXYZ/JSON/PDB/SDF/MOL/LAMMPS/QE/CP2K/GROMACS/Gaussian/ORCA/ABACUS/DFTB/SIESTA/NWChem/AIMS/CASTEP/ABINIT/CRYSTAL/XSF/CFG…）+ 12 种计算软件输入包 | "转成 LAMMPS data"、"生成 CP2K/QE 输入"、"导出 Gaussian gjf" |
 
 五个技能共用同一个 intent：`cif-structure-pipeline`（`category = science`），
-在 `catalog/intents.json` 里用 patterns/keywords/examples 覆盖原句与中英文变体；
+**在外部 catalog（若使用）** 的 `catalog/intents.json` 里用 patterns/keywords/examples 覆盖原句与中英文变体；
 五个 manifest 都声明 `intents: ["cif-structure-pipeline"]`，由 router 的 `entry_affinity` 按原话证据排序：
 
 - 综合任务（原句）→ 第一候选 **cif-workbench**；
@@ -76,7 +79,7 @@ intent candidates: cif-structure-pipeline
 3. `domains.json` 的 `science` 域补 `cif/mof/rcsr/晶胞/超胞/supercell/slab/vacuum/补氢/切面/poscar/vasp` 关键词；
 4. `catalog/evals/routing.jsonl` 新增 10 条 CIF 正例（原句、中文变体、英文变体、只补氢、只切面、只导出、只下载）。
 
-## 4. 评测证据（`py -3 scripts\eval_router.py --all`，先 `$env:PYTHONIOENCODING='utf-8'`）
+## 4. 评测证据（外部 catalog 的 `py -3 scripts\eval_router.py --all`，先 `$env:PYTHONIOENCODING='utf-8'`）
 
 ```text
 cases=96
@@ -111,6 +114,10 @@ slot cases=11  pass=11/11
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
+# 本仓（技能正文 + 校验）：
+.venv\Scripts\python.exe scripts\check_skill.py --strict      # 8 个技能 manifest/正文/字段
+
+# 可选：若这些技能被某个外部 agent catalog 消费，在那个 checkout 里跑它自己的索引与评测：
 cd <agent-library>
 py -3 scripts\store.py                   # 改了 catalog/intents.json 后重建索引
 py -3 router.py route --agent dsh "<原句>"
@@ -118,7 +125,8 @@ py -3 scripts\eval_router.py --all       # 正例 + 负例 + 槽位
 py -3 scripts\ci.py --fast               # 与 pre-commit 一致
 ```
 
-- 新增/改技能：只改 `catalog/<id>/SKILL.md` + `manifest.json`，**不要**复制到各 Agent 目录；
-- 改 intent/domains：改 `catalog/intents.json` / `catalog/domains.json` → `store.py` → 三套评测必须全绿；
+- 新增/改技能：在本仓 `skills/<id>/SKILL.md` + `manifest.json` 上改（这是上游）；需要时再复制到外部 catalog，
+  **不要**复制到各 Agent 目录；
+- 外部 catalog 的 intent/domains：改那边的 `catalog/intents.json` / `catalog/domains.json` → `store.py` → 三套评测必须全绿；
 - 本轮改动前的备份在 `<agent-library>\_trash\*.bak-20261105-142530`；
 - `router.py` **未修改**（无备份/无回归风险）。

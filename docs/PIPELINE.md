@@ -409,20 +409,24 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 - COD 侧：`search(structure_id="7111973")` 与 `"cod:7111973"` 现在都接受
   （此前 search 返回的 `record_id` 回查会被拒，属真实可用性缺陷，已修 + 回归测试）。
 
-### 8.14 check_all 的外部依赖与失败诊断（round 21）
+### 8.14 技能正文的归属与可选的外部 catalog（round 58 改写）
 
-`check_all` 的 10 组里有 4 组（`agentlib: router route` / `eval_router --all` / `ci --fast` /
-`check_skill cif-*`）跑的是 **`<agent-library>`**，即技能目录本身。这意味着：
+**round 58 起，8 个 `cif-*` 技能的正文随本仓交付在 `skills/`，linter 也内联为本仓的
+`scripts/check_skill.py`** —— `check_all` 的 `skills: check_skill cif-*` 组不再需要任何外部 checkout，
+克隆本仓即可自测技能（`python scripts\check_skill.py --strict`）。
 
-* 那个仓库被并发修改时（例如别人正在注册新的 `office-*` 技能、但评测期望值还没同步），
-  这 4 组会失败，而**与本工作台无关**；
-* 因此组名加了 `agentlib:` 前缀，失败时还会打印提示，明确指向外部仓库；
-* 诊断入口：`python scripts\check_all.py --json runs\check_all_full.json`，
-  报告里 `groups[].ok` 指出哪组失败，`outputs[]` 保留该组的完整 stdout/stderr 尾巴
-  （此前只打印最后 4 行，"9/10" 无法定位，现已修复）。
+如果某个外部 agent catalog（例如 `agent-library`）**也**消费这组技能，那是可选的消费者：
 
-**约定**：本工作台的自测完整性以"非 agentlib 组全绿 + agentlib 组的状态另行核对"为准；
-若要发布，请在**两边仓库都干净**时再跑一次完整 `check_all`。
+* 技能方向是"从本仓 `skills/` 复制出去"，本仓是上游；
+* 该 catalog 的 `router.py` / `eval_router.py` / `ci.py` 属于那个仓自己的测试；把
+  `CIFKIT_AGENTLIB=<那个 checkout>` 设上，`check_all` 会额外多跑 3 组
+  （组名带 `agentlib(extra):` 前缀，失败时打印提示指向外部仓）；
+* **不设该环境变量时，这些组根本不会跑**，项目的验收只看本仓的 8 个技能。
+
+诊断入口不变：`python scripts\check_all.py --json runs\check_all_full.json`，
+`groups[].ok` 指出哪组失败，`outputs[]` 保留完整 stdout/stderr 尾巴。
+
+**约定**：本工作台的发布判据是"本仓干净 + 全部组绿"；外部 catalog 的状态不影响发布。
 
 ### 8.15 发布门禁 `scripts/release_check.py`（round 22）
 
@@ -430,9 +434,9 @@ Fe3C E_above_hull=+0.0456、`fe_c_kit.zip`（约 6 s）。`pytest tests/test_use
 
 | 门 | 判据 |
 |---|---|
-| 两个仓库干净 | 本仓与 `<agent-library>` 的 `git status --porcelain` 为空（`--allow-dirty` 降级为 WARN） |
+| 本仓干净 | 本仓 `git status --porcelain` 为空（`--allow-dirty` 降级为 WARN）；外部 catalog（仅当 `CIFKIT_AGENTLIB` 设置时）只作信息项，永不阻塞 |
 | 格式全绿 | **现场重跑** `verify_formats.py`：31/31 写出、25/25 第三方回读、12 bundle |
-| 健康检查全绿 | `check_all --adversarial`（或 `--quick` 用 `--fast`）**每一组**通过，含 agentlib 组 |
+| 健康检查全绿 | `check_all --adversarial`（或 `--quick` 用 `--fast`）**每一组**通过（含本仓的 `skills: check_skill cif-*`；外部 catalog 的附加组另计） |
 | 字节完整性 | `runs/check_eol.json` 无 failures（LF + 钉住 sha256） |
 | 许可 | `runs/sca_scan.json` 源码级 copyleft = 0 |
 | 对抗性 | `runs/lead_verify_r11/adversarial_check.json` 全 ok |

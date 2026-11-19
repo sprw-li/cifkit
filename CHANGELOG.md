@@ -8,10 +8,14 @@
 
 ### Added
 
-- **`skills/`：8 个 `cif-*` 技能的镜像**（每个技能一份 `SKILL.md` + `manifest.json`，与
-  agent-library 的 catalog **字节一致**）。此前技能正文只存在于另一个仓的工作树里，本仓克隆下来看不到
-  "怎么驱动这些命令"；现在引擎与其技能文档可以一起评审与版本化。live catalog（router 实际读取的那份）
-  仍是 agent-library，`skills/README.md` 写明了刷新与校验命令、以及"先改 catalog 再同步"的规则。
+- **`skills/`：8 个 `cif-*` 技能正文，随本仓交付并成为唯一真源**。每个技能一份 `SKILL.md` + `manifest.json`；
+  此前技能正文只存在于另一个仓（`agent-library`）的工作树里，本仓克隆下来看不到"怎么驱动这些命令"，而且
+  校验它们要跑那个仓的 linter —— 等于把验收挂在别人仓的状态上。现在：
+  - 正文与引擎一起评审、版本化；`skills/` 是**上游**，需要时复制到外部 catalog；
+  - 新增本仓的 `scripts/check_skill.py`（零依赖）替代外部 linter，接入 `check_all` 的
+    `skills: check_skill cif-*` 组（所以漂移会让体检/CI/发布门禁变红）；
+  - `check_all` / `release_check` 的外部 catalog 检查改为**可选**（`CIFKIT_AGENTLIB` 不设就完全不跑），
+    发布门禁只要求**本仓**干净。
   该快照包含本轮修掉的 4 处技能正文缺陷（`cif-data` 不存在的 `--jsonl`、`cif-workbench` 的 3 个 `0x08`、
   `cif-export` 的 30/31 与 `png` 状态、`cif-usecases` 新增 `surface-energy` 一节）。
 - **非有限/退化晶胞守卫**：NaN/Inf、零体积或非正晶格参数的晶胞在进入对称性分析（spglib）**之前**被

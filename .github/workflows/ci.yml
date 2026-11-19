@@ -15,9 +15,10 @@ name: ci
 # * Python 3.11 (the declared minimum) and 3.13 are both exercised; pymatgen's
 #   wheels are the practical constraint, so `pip install -e .` is allowed to
 #   resolve them.
-# * The agent-library checks (router/eval/ci/check_skill) need a *different*
-#   repository that is not part of this checkout, so they are skipped here with
-#   `--skip-agentlib`; everything else must pass.
+# * The health check runs `scripts/check_all.py`; the `cif-*` skill bodies ship in
+#   this repository under `skills/` and are linted there by `scripts/check_skill.py`,
+#   so CI needs no other checkout.  `--skip-agentlib` only skips the *optional*
+#   external-catalog extras (which additionally require CIFKIT_AGENTLIB).
 
 on:
   push:
@@ -81,7 +82,7 @@ jobs:
         shell: bash
         run: python -m pytest tests -q -p no:cacheprovider
 
-      - name: Health check (skips agent-library, which lives in another repo)
+      - name: Health check (skills/ are linted in-repo; no external catalog needed)
         shell: bash
         run: python scripts/check_all.py --skip-agentlib
 

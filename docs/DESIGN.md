@@ -1,7 +1,8 @@
 # CIF 处理工作台（cifkit）设计
 
 > 状态：v1 冻结接口，供并行开发。任何接口改动先改本文件并通知 Lead。
-> 工作目录：`<repo>`；唯一真源技能库：`<agent-library>\catalog\`。
+> 工作目录：`<repo>`；技能正文（唯一真源）：`<repo>\skills\cif-*`（随本仓版本化，由 `scripts/check_skill.py` 校验；
+> 某个外部 agent catalog 只是可选消费者，见 skills/README.md）。
 
 ## 1. 目标（验收标准）
 
@@ -220,7 +221,8 @@ tests/data/sod_zn_mof.cif          # 2017[Zn][sod]（含溶剂 O），750 原子
 - `tests/` 全绿（含 demo 端到端测试）；`_cache` 存在时可全离线跑通。
 - `runs/demo_sod_zif8/` 保留：`raw.cif`、`repaired.cif`、`standardized.cif`、`slab.cif`、`final.cif`、`structure.vasp`、`structure.cif`、`structure.xyz`、`preview.png`、`report.md`、`manifest.json`。
 - 报告必须包含：来源 URL/DOI/sha256、sod 拓扑证据、补氢统计、超胞倍数核对、slab 参数、真空实测值、导出格式清单。
-- 技能：`<agent-library>\catalog\cif-workbench/`、`cif-fetch/`、`cif-repair/`、`cif-geometry/`、`cif-export/` + intents + evals，`py -3 scripts\ci.py` 相关项通过。
+- 技能：`skills/cif-workbench/`、`cif-fetch/`、`cif-repair/`、`cif-geometry/`、`cif-export/`…（8 个，均含 `SKILL.md` + `manifest.json`），
+  `python scripts\check_skill.py` 全部 errors=0；若外部 catalog 也消费它们，其 `intents`/`evals` 相关项由该仓自测。
 
 ## 8. 协作约定
 

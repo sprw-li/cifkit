@@ -33,38 +33,50 @@ def test_diagnosis_is_none_when_the_eval_passed(check_all):
     assert check_all.diagnose_agentlib_eval("") is None
 
 
-def test_diagnosis_detects_a_missing_skill(check_all):
+def test_diagnosis_detects_a_missing_skill(check_all, tmp_path):
     """The 2026-11 catalog rename: eval still expected document-pptx after deletion."""
     sample = json.dumps({"query": "把这份材料做成 PPT",
                          "want": "make-presentation / definitely-not-a-skill",
                          "got_ids": ["office-pptx"]}, ensure_ascii=False)
-    diagnosis = check_all.diagnose_agentlib_eval(sample)
+    diagnosis = check_all.diagnose_agentlib_eval(sample, catalog=tmp_path)
     assert diagnosis and "missing-skill" in diagnosis
-    assert "agent-library" in diagnosis
+    assert "catalog" in diagnosis
 
 
-def test_diagnosis_flags_a_stale_expectation_when_both_skills_exist(check_all):
+def test_diagnosis_flags_a_stale_expectation_when_both_skills_exist(check_all, tmp_path):
     """Both ids exist but the new one ranks first → the expectation looks stale."""
-    catalog = check_all.AGENTLIB / "catalog"
     wanted, top = "office-pptx", "office-xlsx"
-    if not (catalog / wanted).is_dir() or not (catalog / top).is_dir():
-        pytest.skip("catalog no longer has both skills")
+    (tmp_path / wanted).mkdir()
+    (tmp_path / top).mkdir()
     sample = json.dumps({"query": "整理这个 Excel", "want": f"document-excel / {wanted}",
                          "got_ids": [top]}, ensure_ascii=False)
-    diagnosis = check_all.diagnose_agentlib_eval(sample)
+    diagnosis = check_all.diagnose_agentlib_eval(sample, catalog=tmp_path)
     assert diagnosis and "stale-eval" in diagnosis
 
 
-def test_diagnosis_reports_router_regression_as_last_resort(check_all):
-    catalog = check_all.AGENTLIB / "catalog"
-    wanted = top = next((d.name for d in catalog.glob("cif-*") if d.is_dir()), None)
-    if not wanted:
-        pytest.skip("no cif-* skills in the catalog")
-    sample = json.dumps({"query": "x", "want": f"some-intent / {wanted}", "got_ids": [top]},
+def test_diagnosis_reports_router_regression_as_last_resort(check_all, tmp_path):
+    wanted = "cif-workbench"
+    (tmp_path / wanted).mkdir()
+    sample = json.dumps({"query": "x", "want": f"some-intent / {wanted}", "got_ids": [wanted]},
                         ensure_ascii=False)
     # same id on both sides is not a stale/missing case; it must not be mislabelled
-    diagnosis = check_all.diagnose_agentlib_eval(sample)
+    diagnosis = check_all.diagnose_agentlib_eval(sample, catalog=tmp_path)
     assert diagnosis is None or "stale-eval" not in diagnosis
+
+
+def test_external_catalog_is_opt_in_and_never_required(check_all):
+    """No CIF functionality may depend on another checkout (round 58)."""
+    import importlib.util
+    import os
+
+    if os.environ.get("CIFKIT_AGENTLIB"):
+        pytest.skip("CIFKIT_AGENTLIB is set in this environment")
+    assert check_all.AGENTLIB is None, "AGENTLIB must default to None, not a machine path"
+    release = _load("release_check_module2", ROOT / "scripts" / "release_check.py")
+    assert release.AGENTLIB is None
+    # the skills this project owns are linted from the repository itself
+    assert check_all.SKILLS_DIR == ROOT / "skills"
+    assert check_all.SKILL_CHECK == ROOT / "scripts" / "check_skill.py"
 
 
 def test_limitations_summary_must_match_the_rows(release_check):
