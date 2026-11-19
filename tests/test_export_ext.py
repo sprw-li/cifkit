@@ -1,6 +1,9 @@
 """Extended export: all cif→anything formats + computation-software bundles."""
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,6 +12,7 @@ from cifkit import export
 
 DATA = Path(__file__).resolve().parent / "data"
 ZIF8 = DATA / "zif8_cr_sod.cif"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")
@@ -16,6 +20,34 @@ def structure():
     from pymatgen.core import Structure
 
     return Structure.from_file(str(ZIF8))
+
+
+def test_png_export_survives_a_gui_backend_request(tmp_path):
+    """`--to png` must not depend on the caller's matplotlib backend being usable.
+
+    Round 58: CI's windows/py3.13 runner has no usable Tcl/Tk, matplotlib's automatic
+    selection picked TkAgg, and writing a PNG died with
+    ``_tkinter.TclError: Can't find a usable init.tcl`` — a headless container would
+    have failed the same way.  cifkit.render now forces Agg, so the render succeeds
+    and the effective backend is Agg even when MPLBACKEND asks for TkAgg.
+    """
+    out = tmp_path / "preview.png"
+    code = (
+        "import pathlib, sys\n"
+        "import matplotlib\n"
+        "from pymatgen.core import Structure\n"
+        "from cifkit import export\n"
+        "s = Structure.from_file(sys.argv[1])\n"
+        "export.write_structure(s, pathlib.Path(sys.argv[2]), 'png', title='test')\n"
+        "print('backend=' + matplotlib.get_backend().lower())\n"
+    )
+    env = {**os.environ, "MPLBACKEND": "TkAgg", "PYTHONIOENCODING": "utf-8"}
+    proc = subprocess.run([sys.executable, "-c", code, str(ZIF8), str(out)],
+                          cwd=str(ROOT), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=600, env=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "backend=agg" in proc.stdout.lower(), proc.stdout
+    assert out.is_file() and out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_all_formats_write_and_readback(tmp_path, structure):

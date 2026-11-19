@@ -9,9 +9,9 @@
 ## 结论
 
 **三条交付阻塞全部清除，可交付。** 评审发现的 1 条 P0、2 条 P1、6 条 P2（均未入账）全部修复并带回归测试；
-`docs/LIMITATIONS.md` 由 81 条扩到 **89 条（30 ✅ / 59 🟡 / 0 🔴）**；
+`docs/LIMITATIONS.md` 由 81 条扩到 **90 条（31 ✅ / 59 🟡 / 0 🔴）**；
 官方门禁 `scripts/release_check.py --quick --package` 的结果见 §四（本仓仓态干净；`<agent-library>`
-的 23 条 dirty 属其它项目、不在本次交付范围，门禁以 `--allow-dirty` 记为**范围外告警**）。
+的 23 条 dirty 属其它项目、不在本次交付范围；发布阶段已进一步把该外部依赖改成**可选**，见 §七）。
 
 ## 一、评审发现的缺陷（本轮修复对象）
 
@@ -196,3 +196,27 @@ README 技能表 5→**8**；`README`/`DESIGN` 的标准化措辞按实测改写
 | LAMMPS WIP 收编证据（含可证伪性证明） | [.review/wip-lammps/REPORT.md](.review/wip-lammps/REPORT.md) |
 | 文档/技能正文清扫 | [.review/docs-skills/REPORT.md](.review/docs-skills/REPORT.md) |
 | Lead 的最终门禁与回归 | `.review/lead/`（`release_check*.json`、`junit_final.xml`、`pytest_final.log`、`source_snapshot_*.txt`） |
+
+## 七、发布阶段（公开仓 + 三轮真实 CI）追加的修复
+
+交付判定为"可交付"之后，仓库公开发布到 `github.com/sprw-li/cifkit`，并在**真实 runner** 上第一次跑
+`.github/workflows/ci.yml`（此前 H4 记录的"workflow 从未真跑过"）。三轮 CI 暴露出评审阶段
+（全部在 Windows 本机）看不到的问题，逐条修复：
+
+| # | 问题 | 处置 | 入账 |
+|---|---|---|---|
+| 1 | `PyYAML` 未声明 → `check_ci` 在 6 个 runner 上全部崩溃 | 加进 `test` extra | — |
+| 2 | `rdkit` 未声明 → 3 个羧酸/环补氢的 RDKit 几何测试在无 rdkit 的兜底路径上失败 | 加进 `test` extra + `needs_rdkit` 标记 | — |
+| 3 | 缓存门禁查 `<repo>/_cache`，而代码按 `$CIFKIT_CACHE` 解析 → 12 个测试在 CI 的缓存布局下必红；`test_demo_pipeline` 完全没有门禁 | 统一走 `cifkit.cache.cache_dir()` | — |
+| 4 | `adversarial_check` 与 2 个 CLI 测试把"大小写不敏感文件系统"当普适事实（Linux/macOS runner 是大小写敏感的） | 按 `os.path.normcase` 判定，期望值随平台 | — |
+| 5 | `cloud_h3_submit` 用 Windows 专有 `py -3` 启动器；且凭据拒绝发生在需要外部技能的 dry-run **之后** | 改用运行中的解释器；拒绝先行（更安全、不依赖外部仓）；外部技能改由 `CIFKIT_AGENTLIB` 显式提供 | — |
+| 6 | 崩溃恢复测试断言"硬杀不留 tmp"（被杀进程无法清理，实测留下**空的** tmp）与 Windows 句柄 `PermissionError` | 改为"目标完整 + 无意外读者可见文件" + 有界重试 | — |
+| 7 | `test_service_load` 断言绝对吞吐（共享 runner 35 rps vs 开发机 200 rps）→ 断言的是机器不是代码 | 改为断言"测量自洽"（样本量、与 p50 上限一致） | — |
+| 8 | **`png` 导出依赖可用的 GUI 后端**：`render.py` 的 docstring 声称固定 Agg 但从未调用 `matplotlib.use`；CI 的 windows/py3.13 在写 PNG 时抛 `_tkinter.TclError: Can't find a usable init.tcl`（headless 容器同理） | `_pyplot()` 强制 `Agg`（`force=True`）+ 子进程回归测试 | **E9** |
+
+第 8 条是**产品缺陷**（不是测试抖动）：无 Tk/Tcl 的机器上 `cifkit convert --to png` 会失败。它由
+"第二次 pytest 组的失败必须留下具名证据"这一改动定位——`check_all` 的内部 pytest 现在写
+`runs/check_all_pytest.xml`，CI 把它随 artifact 上传，因此可以逐条读出失败测试与异常。
+
+同时把技能正文与它的 linter 收回本仓（`skills/` + `scripts/check_skill.py`，见 §五 第 1 条的后续），
+外部 agent catalog 变成 `CIFKIT_AGENTLIB` 可选附加检查。

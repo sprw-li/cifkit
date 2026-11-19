@@ -29,6 +29,12 @@
 
 ### Fixed
 
+- **`png` 导出不再依赖可用的 GUI 后端**。`cifkit/render.py` 的 docstring 写着"后端固定为 Agg"，但代码里
+  从没调用 `matplotlib.use("Agg")`：一旦环境或调用方设的 `MPLBACKEND` 选中 TkAgg、而机器上没有可用的
+  Tcl/Tk（CI 的 windows/py3.13 runner 实测，headless 容器同理），`cifkit convert --to png` 会直接抛
+  `_tkinter.TclError: Can't find a usable init.tcl`。现在渲染统一经 `_pyplot()` 强制 `Agg`（`force=True`，
+  连继承的 `MPLBACKEND` 一起覆盖），并新增子进程级回归测试：强制 `MPLBACKEND=TkAgg` 时仍必须写出合法 PNG
+  且生效后端为 agg。
 - **导出：正确拒绝不再被记成"坏格式"**。LAMMPS 等物理上不可表示的晶胞（如 tilt 超过盒半长）的拒绝
   从裸 `ValueError` 升级为类型化异常；`verify_corpus` / `verify_formats` 把它计入 `unsupported`（附原因），
   不再计为 `bad`——此前一次**正确**的拒绝会让验收组连锁变红。

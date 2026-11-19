@@ -243,8 +243,27 @@ def _legend(ax, colours: dict[str, Any], counts: dict[str, int]) -> None:
         )
 
 
-def _render_3d(structure: Structure, path: Path, title: str | None, colours, counts) -> None:
+def _pyplot():
+    """Import pyplot with the non-interactive ``Agg`` backend forced.
+
+    This module only ever writes PNG files, but matplotlib's *automatic* backend
+    selection can pick a GUI backend (TkAgg and friends) and then fail where Tcl/Tk
+    is unusable: CI's windows/py3.13 runner died with
+    ``_tkinter.TclError: Can't find a usable init.tcl`` while writing ``preview.png``
+    (round 58).  ``force=True`` also overrides an inherited ``MPLBACKEND``, which a
+    caller may well have set for their own plotting — that choice must not decide
+    whether `cifkit export --to png` works.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
+
+    return plt
+
+
+def _render_3d(structure: Structure, path: Path, title: str | None, colours, counts) -> None:
+    plt = _pyplot()
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
     cart = np.asarray(structure.cart_coords, dtype=float)
@@ -286,7 +305,7 @@ def _render_3d(structure: Structure, path: Path, title: str | None, colours, cou
 
 
 def _render_2d(structure: Structure, path: Path, title: str | None, colours, counts, *, mode: str) -> None:
-    import matplotlib.pyplot as plt
+    plt = _pyplot()
     from matplotlib.patches import Polygon
 
     cart = np.asarray(structure.cart_coords, dtype=float)

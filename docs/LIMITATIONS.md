@@ -6,7 +6,7 @@
 
 ## 摘要
 
-**共 89 条局限 = 30 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
+**共 90 条局限 = 31 ✅（已修/已覆盖） / 59 🟡（可绕过/已知边界） / 0 🔴（未解决/未验证）**
 
 | 组 | 主题 | 条目 | ✅ | 🟡 | 🔴 |
 |---|---|---|---|---|---|
@@ -14,7 +14,7 @@
 | B | 拓扑判定 | 4 | 0 | 4 | 0 |
 | C | 补氢 / 修复 | 6 | 0 | 6 | 0 |
 | D | 几何 / 切面 / 真空 | 4 | 0 | 4 | 0 |
-| E | 导出 / 计算软件输入包（cif → anything） | 8 | 2 | 6 | 0 |
+| E | 导出 / 计算软件输入包（cif → anything） | 9 | 3 | 6 | 0 |
 | F | 特征 / 数据集 | 7 | 4 | 3 | 0 |
 | G | 性能 / 并发 / 稳定性 | 12 | 10 | 2 | 0 |
 | H | 技能 / 路由 / 测试覆盖 | 9 | 5 | 4 | 0 |
@@ -26,7 +26,7 @@
 > 统计口径（round 57 起，门禁 `release_check.limitations_group_table_ok` 强制）：按**条目 ID 前缀**计数；
 > 部分编号历史上跨节存放（A7/A8 在 B 节、F7 曾在 G 节、J9-J11/H3b/H3c/K9 在 L 节），本表与逐条状态列保持一致，
 > 与物理章节的对应关系留待后续统一重编号。
-> round 58 新增 8 条（E7/E8/G11/G12/H7/J14/J15/J16），全部因当轮对抗评审发现并修复而计入 ✅。
+> round 58 新增 9 条（E7/E8/E9/G11/G12/H7/J14/J15/J16），全部因当轮对抗评审或 CI 实测发现并修复而计入 ✅。
 
 **未解决的 🔴 一览（需要外部条件或额外工程）**
 
@@ -98,6 +98,7 @@
 | E6 | `cube`/`png` 之外的体积数据格式未实现（cube 需要 3D 数据数组） | 🟡 | 不能导出 volumetric cube | png 预览已支持；cube 文档标未实现 | docs/EXPORT §6 |
 | E7 | **裸 `--to dftb` 曾经只写 515 B 的 `dftb_in.hsd`（引用不存在的 `geo.gen`）却报 `ok:true`/exit 0**；且 `scripts/verify_formats.py` 验 dftb 时切到 `dftb_bundle` 目录，官方「31/31」从未覆盖裸产物（round 58 对抗评审发现） | ✅ | 已修：裸 `--to dftb` 在 HSD 同级写出配套 `geo.gen`（与 bundle 同 title 下字节一致），`writers._verify` 校验 HSD+`geo.gen` 配对，缺失/截断即报错；`verify_formats` 改为验证裸产物自身、bundle 另行验证；`dftb` 入 `ORDERED_ONLY` | `cifkit/export/writers.py`、`scripts/verify_formats.py`、`tests/test_dftb_single_format.py`（8 条） |
 | E8 | 非 JSON 模式的单文件 `cifkit convert` 在**部分格式失败**时只打印成功项、exit 1 却零说明（round 58 对抗评审发现） | ✅ | 已修：非 JSON 模式同样打印失败项与原因；批量分支原本就会打印 | `cifkit/cli.py`、`tests/test_cli_json_strictness.py` |
+| E9 | **`png` 导出曾依赖可用的 GUI 后端**：`cifkit/render.py` 的 docstring 声称"后端固定为 Agg"，但代码里从没调 `matplotlib.use("Agg")`。当环境或调用方设的 `MPLBACKEND` 选中 TkAgg、而机器没有可用的 Tcl/Tk 时，写 PNG 直接抛 `_tkinter.TclError: Can't find a usable init.tcl`（round 58 在 CI 的 windows/py3.13 runner 上实测；headless/容器环境同理） | ✅ | 已修：渲染前统一走 `_pyplot()`（`matplotlib.use("Agg", force=True)`，覆盖继承的 `MPLBACKEND`）；新增子进程级回归测试（强制 `MPLBACKEND=TkAgg` 仍必须写出合法 PNG 且生效后端为 agg） | `cifkit/render.py`、`tests/test_export_ext.py::test_png_export_survives_a_gui_backend_request` |
 
 ## F. 特征 / 数据集
 
