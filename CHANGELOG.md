@@ -8,6 +8,12 @@
 
 ### Added
 
+- **`skills/`：8 个 `cif-*` 技能的镜像**（每个技能一份 `SKILL.md` + `manifest.json`，与
+  agent-library 的 catalog **字节一致**）。此前技能正文只存在于另一个仓的工作树里，本仓克隆下来看不到
+  "怎么驱动这些命令"；现在引擎与其技能文档可以一起评审与版本化。live catalog（router 实际读取的那份）
+  仍是 agent-library，`skills/README.md` 写明了刷新与校验命令、以及"先改 catalog 再同步"的规则。
+  该快照包含本轮修掉的 4 处技能正文缺陷（`cif-data` 不存在的 `--jsonl`、`cif-workbench` 的 3 个 `0x08`、
+  `cif-export` 的 30/31 与 `png` 状态、`cif-usecases` 新增 `surface-energy` 一节）。
 - **非有限/退化晶胞守卫**：NaN/Inf、零体积或非正晶格参数的晶胞在进入对称性分析（spglib）**之前**被
   显式拒绝并抛出类型化 `DegenerateCellError`（带可读消息与违反项），覆盖 `features`（含 `--no-rdf` /
   `--topology` / 配位路径）、`geom --standardize` 与 `geom --surface`。此前这类输入会让进程 native 崩溃

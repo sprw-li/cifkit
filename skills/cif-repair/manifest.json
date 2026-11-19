@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-repair",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "CIF 缺氢（碳上没有 H）、含无序/部分占位/统计原子、原子过近或重复，需要补氢/解析无序/清理近邻并给出 RepairReport 时"
+  ],
+  "whenNot": [
+    "结构已是 computation-ready、H 完整、只想转格式或做几何变换时（用 cif-geometry / cif-export）",
+    "本来就不含 H 的体系（氧化物、金属、卤化物），补氢没有意义",
+    "需要晶体学精修或实验约束时（本工具不做）"
+  ],
+  "requires": [
+    "filesystem-read",
+    "filesystem-write",
+    "shell"
+  ],
+  "merge": "shared",
+  "category": "science",
+  "intents": [
+    "cif-structure-pipeline"
+  ],
+  "keywords": [
+    "cif",
+    "补氢",
+    "补充氢",
+    "加氢",
+    "缺氢",
+    "无序",
+    "占位",
+    "近邻",
+    "repair",
+    "RepairReport"
+  ],
+  "examples": [
+    "这个 CIF 结构缺氢，帮我在碳上补氢",
+    "把 zif8_raw_hfree.cif 补上缺失的氢原子",
+    "这个结构有 0.5 占位的 H，先修复再处理",
+    "给这个cif补氢",
+    "把这个CIF的缺失氢补上"
+  ],
+  "notes": {}
+}

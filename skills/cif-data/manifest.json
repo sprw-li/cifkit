@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-data",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "从 CIF 或批量 run/library 提取结构特征表（组成、晶格、对称性、配位数、RDF、可选拓扑 net），导出 CSV/JSONL，或构建 ML-ready dataset 并带 manifest 溯源时"
+  ],
+  "whenNot": [
+    "要改结构（补氢/无序/超胞/切面/真空）或走下载→修复→导出流水线时用 cif-workbench",
+    "只要把结构转成 VASP/QE/CP2K/LAMMPS/Gaussian 等计算软件格式或输入包时用 cif-export",
+    "只要单条结构的校验/报告时用 cifkit validate 或 cif-workbench 的 validation",
+    "要做 DFT/ML 训练本身时不要用（本技能只提取特征/汇总数据，不计算能量、不做 train/test 划分）"
+  ],
+  "requires": [
+    "filesystem-read",
+    "filesystem-write",
+    "shell"
+  ],
+  "merge": "shared",
+  "category": "data",
+  "intents": [
+    "cif-data"
+  ],
+  "keywords": [
+    "特征",
+    "features",
+    "rdf",
+    "径向分布",
+    "配位数",
+    "coordination number",
+    "数据集",
+    "dataset",
+    "csv",
+    "jsonl",
+    "机器学习",
+    "ml",
+    "训练集",
+    "特征表"
+  ],
+  "examples": [
+    "把这个 CIF 的结构特征导出成 CSV",
+    "计算这批 CIF 的 RDF 和配位数，做一张特征表",
+    "把 runs 目录里的结构汇总成机器学习数据集",
+    "导出结构特征 CSV 做 ML 训练"
+  ],
+  "notes": {}
+}

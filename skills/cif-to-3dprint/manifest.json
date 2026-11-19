@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-to-3dprint",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "用户要把 CIF 转 STL/OBJ、做可打印的晶体或分子模型、提取 SBU、调球棍与环片尺寸时"
+  ],
+  "whenNot": [
+    "只要二维结构式图、不涉及三维模型或打印时（用 draw-chemistry）",
+    "只要晶体学分析（晶胞参数、配位、拓扑）而不产出可打印网格时",
+    "文件不是 CIF（如 XYZ、PDB）时需先转换，本 skill 不处理"
+  ],
+  "requires": [
+    "filesystem-read"
+  ],
+  "merge": "shared",
+  "category": "science",
+  "intents": [
+    "cif-to-3dprint"
+  ],
+  "keywords": [
+    "cif",
+    "3d打印",
+    "sbu"
+  ],
+  "examples": [
+    "把这个 cif 转成 stl",
+    "把 MOF-5 做成能打印的球棍模型"
+  ],
+  "notes": {}
+}

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-geometry",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "要做晶体几何变换：标准化原胞/常规胞、超胞（Supercell）、沿 (hkl) 切 slab 表面、设置/实测真空层、提取金属簇/SBU 时"
+  ],
+  "whenNot": [
+    "要补氢/解析无序/清理近邻时（用 cif-repair）",
+    "只换导出格式、不改变几何时（用 cif-export）",
+    "要整条下载+修复+几何+导出+校验链路时（用 cif-workbench）"
+  ],
+  "requires": [
+    "filesystem-read",
+    "filesystem-write",
+    "shell"
+  ],
+  "merge": "shared",
+  "category": "science",
+  "intents": [
+    "cif-structure-pipeline"
+  ],
+  "keywords": [
+    "cif",
+    "超胞",
+    "supercell",
+    "slab",
+    "切面",
+    "表面",
+    "真空层",
+    "vacuum",
+    "晶胞",
+    "金属簇",
+    "sbu"
+  ],
+  "examples": [
+    "把这个晶体做成 2x2x1 超胞，沿 (111) 面切表面",
+    "给这个 slab 加 15 Å 真空层",
+    "从这个结构里提取金属簇",
+    "把晶体沿(111)面切成slab，加20Å真空层"
+  ],
+  "notes": {}
+}

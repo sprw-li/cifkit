@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-fetch",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "用户要按 RCSR 拓扑/结构名/id 从数据库（CoRE MOF 2024、COD、Materials Project、AFLOW、本地文件）检索并下载 CIF，需要来源 DOI、sha256、topology_evidence 证据等级时"
+  ],
+  "whenNot": [
+    "用户已给出本地 .cif 文件、不需要下载时（直接 repair/geom/export 或 pipeline --spec source=local）",
+    "只需要文献检索、不需要结构文件时（用 literature-search）",
+    "要把 CIF 转 3D 打印模型时（用 cif-to-3dprint）"
+  ],
+  "requires": [
+    "filesystem-read",
+    "filesystem-write",
+    "shell",
+    "network"
+  ],
+  "merge": "shared",
+  "category": "science",
+  "intents": [
+    "cif-structure-pipeline"
+  ],
+  "keywords": [
+    "cif",
+    "mof",
+    "rcsr",
+    "拓扑",
+    "sod",
+    "core-mof",
+    "cod",
+    "下载",
+    "原始结构",
+    "topology_evidence",
+    "materials project",
+    "mp",
+    "mp-",
+    "aflow",
+    "aflowlib",
+    "crystallography open database",
+    "数据库",
+    "结构数据库",
+    "检索",
+    "data source"
+  ],
+  "examples": [
+    "从 CoRE MOF 2024 检索 sod 拓扑的结构候选",
+    "列出 CoRE MOF 里 RCSR 为 sod 的结构",
+    "从 Materials Project 下载 mp-149 的 CIF",
+    "从 AFLOW 下载 GaN 的晶体结构",
+    "从 COD 取 7111973 的 CIF",
+    "从本地读取一个 CIF 文件",
+    "查一下RCSR为sod的MOF有哪些",
+    "列出某个拓扑下的 MOF 结构"
+  ],
+  "notes": {}
+}

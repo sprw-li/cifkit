@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-workbench",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "用户要一条管线处理 CIF：下载典型拓扑（RCSR，如 sod/ZIF-8）的 MOF/晶体结构 → 补氢/修复 → 超胞 → 沿 (hkl) 切表面 slab → 加真空层 → 导出 VASP/POSCAR/CIF/XYZ 等计算化学格式，并要求溯源与校验时",
+    "用户需要从多个数据库（CoRE MOF 2024 / COD / Materials Project / AFLOW）智能选型并下载 CIF 时"
+  ],
+  "whenNot": [
+    "只画二维结构式/反应式时（用 draw-chemistry）",
+    "只要 CIF 转 3D 打印网格时（用 cif-to-3dprint）",
+    "只要无头渲染分子/晶体图片时（用 blender-mol-render）",
+    "只做单步（只下载/只补氢/只切面/只导出）时优先用对应的 cif-fetch / cif-repair / cif-geometry / cif-export"
+  ],
+  "requires": [
+    "filesystem-read",
+    "filesystem-write",
+    "shell",
+    "network"
+  ],
+  "merge": "shared",
+  "category": "science",
+  "intents": [
+    "cif-structure-pipeline"
+  ],
+  "keywords": [
+    "cif",
+    "mof",
+    "超胞",
+    "supercell",
+    "slab",
+    "真空层",
+    "补氢",
+    "切面",
+    "rcsr",
+    "poscar",
+    "vasp",
+    "pipeline",
+    "导出",
+    "转换",
+    "一条管线",
+    "超胞切面"
+  ],
+  "examples": [
+    "帮我下载典型的RCSR为sod的mof，需要碳上补充氢，创建一个2x2x1的超胞（Supercell），沿(111)面切出表面，并加上15Å的真空层，导出为计算化学软件使用的格式。",
+    "把这个CIF补氢、做2x2x1超胞、沿(111)切slab加15Å真空，导出VASP",
+    "download a sod MOF CIF, add hydrogens, 2x2x1 supercell, (111) surface, 15 A vacuum, export POSCAR",
+    "从 Materials Project 下载 mp-149 的 CIF 然后导出 POSCAR",
+    "从 AFLOW 下载一个 GaN 的晶体结构，补氢后导出 VASP",
+    "从 COD 取 7111973 的 CIF，加 15Å 真空"
+  ],
+  "notes": {}
+}

@@ -11,6 +11,7 @@
 **选型下载 → 拓扑核实 → 修复（补氢 / 无序占位 / 近邻）→ 标准胞 → 超胞 → (hkl) 切面 → 真空层 → 导出 → 校验 → 入库**。
 
 技能组在 `<agent-library>\catalog\cif-*`（router 可命中）；本仓库是引擎、脚本与验收现场。
+`skills/` 下另存了一份 **8 个 `cif-*` 技能的字节级镜像**（`SKILL.md` + `manifest.json`），目的是让引擎仓自己就带着"怎么驱动引擎"的正文、可一起评审与版本化；live catalog 仍是 agent-library，改技能请先改那边再同步（见 [skills/README.md](skills/README.md)）。
 
 > **读法约定（公开版）**：下文 `<repo>` 指本仓的克隆目录，`<agent-library>` 指技能组所在的另一个仓库目录
 > （`catalog/cif-*` 是独立交付的 agent-library 技能，**不在本仓内**；门禁脚本用它时可用环境变量

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "cif-export",
+  "kind": "skill",
+  "mode": "on-demand",
+  "when": [
+    "要把结构导出/转换成任意计算或数据格式（VASP POSCAR、CIF、XYZ、EXTXYZ、JSON、PDB、SDF、MOL、LAMMPS data、QE、CP2K、GROMACS、Gaussian、ORCA、ABACUS、DFTB+、SIESTA、NWChem、FHI-aims、CASTEP、ABINIT、CRYSTAL、XSF、CFG…）时",
+    "要生成某个计算软件的输入包（结构 + 输入模板 + 说明）并知道还需要补哪些文件（POTCAR/UPF/basis/skf/力场）时",
+    "要批量把 CIF 转成别的格式，或需要回读校验/格式注意点时"
+  ],
+  "whenNot": [
+    "还没完成补氢/超胞/切面/真空等处理时（先用 cif-workbench 或对应单步 skill）",
+    "需要 ML 特征表或 dataset 时（用 cif-data：cifkit features / dataset）",
+    "只需要 3D 渲染图时（用渲染/教学图类技能）"
+  ],
+  "requires": ["filesystem-read", "filesystem-write", "shell"],
+  "merge": "shared",
+  "category": "science",
+  "intents": ["cif-convert", "cif-structure-pipeline"],
+  "keywords": [
+    "导出", "转换", "convert", "格式", "POSCAR", "CIF", "XYZ", "EXTXYZ", "JSON", "PDB", "SDF",
+    "LAMMPS", "QE", "CP2K", "GROMACS", "Gaussian", "ORCA", "ABACUS", "DFTB", "SIESTA",
+    "NWChem", "FHI-aims", "CASTEP", "ABINIT", "输入文件", "输入包", "bundle", "POTCAR", "赝势"
+  ],
+  "examples": [
+    "把这个 CIF 转成 LAMMPS data 和 VASP POSCAR",
+    "帮我生成 CP2K 和 Quantum ESPRESSO 的输入文件",
+    "导出一个 Gaussian gjf 和一个 ORCA 输入",
+    "把整个目录的 CIF 批量转成 extxyz 和 SDF"
+  ],
+  "notes": {}
+}
